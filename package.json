@@ -1,0 +1,69 @@
+{
+  "name": "financehub",
+  "version": "0.1.0",
+  "description": "A personal budget tracker.",
+  "author": "FinanceHub",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "electron:build": "next build && node scripts/prepare-electron.js && node scripts/rebuild-native-for-electron.js",
+    "electron:start": "npm run electron:build && electron .",
+    "electron:dist": "npm run electron:build && electron-builder --mac && npm rebuild better-sqlite3"
+  },
+  "dependencies": {
+    "@prisma/adapter-better-sqlite3": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.27.0",
+    "next": "16.2.12",
+    "prisma": "^7.9.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@electron/rebuild": "^4.2.0",
+    "dotenv": "^17.4.2",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.12",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.9.1": true,
+    "prisma@7.9.1": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.12.2": true,
+    "better-sqlite3@12.11.1": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "build": {
+    "appId": "com.financehub.app",
+    "productName": "FinanceHub",
+    "npmRebuild": false,
+    "files": [
+      "electron/main.cjs",
+      "electron/package.json",
+      "!node_modules/**/*",
+      "!node_modules"
+    ],
+    "afterPack": "scripts/after-pack.js",
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.finance"
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}

@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Entry {
+  id               String   @id @default(cuid())
+  name             String   @default("")
+  amount           Float
+  date             DateTime
+  type             String
+  category         String
+  note             String?
+  method           String?
+  groupId          String?
+  seriesType       String?
+  installmentNum   Int?
+  installmentTotal Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Category {
+  id   String @id @default(cuid())
+  name String
+  type String
+
+  @@unique([name, type])
+}
+
+model Budget {
+  id       String @id @default(cuid())
+  category String @unique
+  limit    Float
+}
+
+model PaymentMethod {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
+model Investment {
+  id             String       @id @default(cuid())
+  name           String
+  type           String // renda-fixa | fundo | acao | cripto | outro
+  subtype        String?
+  indexador      String? // prefixada | cdi-pct | cdi-plus | ipca-plus | selic-pct
+  annualRate     Float?
+  spread         Float?
+  adminFee       Float?
+  perfFee        Float?
+  amountInvested Float
+  startDate      DateTime
+  maturityDate   DateTime?
+  symbol         String?
+  quantity       Float?
+  purchaseRef    Float?
+  expectedReturn Float?
+  corretagem     Float?
+  institution    String?
+  notes          String?
+  prices         PricePoint[]
+  coupons        CouponPayment[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model PricePoint {
+  id           String     @id @default(cuid())
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  investmentId String
+  date         DateTime
+  price        Float
+  createdAt    DateTime   @default(now())
+
+  @@unique([investmentId, date])
+}
+
+model CouponPayment {
+  id           String     @id @default(cuid())
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  investmentId String
+  date         DateTime
+  amount       Float
+  createdAt    DateTime   @default(now())
+}
+
+model ReferenceRates {
+  id        String   @id @default("singleton")
+  cdi       Float    @default(12.65)
+  selic     Float    @default(13.25)
+  ipca      Float    @default(5.5)
+  updatedAt DateTime @updatedAt
+}
