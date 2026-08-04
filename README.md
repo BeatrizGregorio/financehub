@@ -36,10 +36,16 @@ Requires Node.js and npm.
 
 ```bash
 npm install
+npx prisma generate
 echo 'DATABASE_URL="file:./financehub.db"' > .env
 npx prisma migrate deploy
 npm run dev
 ```
+
+If `npm install` reports skipped/blocked install scripts (some npm versions disable
+these by default), run `npx prisma generate` again afterward — it's what creates
+the `src/generated/prisma` client the app imports from, and without it you'll see
+`Module not found: Can't resolve '@/generated/prisma/client'`.
 
 Open [http://localhost:3000](http://localhost:3000). Data is stored locally
 in `financehub.db` — nothing leaves your machine.
