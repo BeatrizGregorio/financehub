@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
 import { createEntry, updateEntry, type ActionState } from "./actions";
 import { toDateInputValue } from "@/lib/format";
 
@@ -106,6 +107,16 @@ export function EntryForm({
         ))}
       </div>
 
+      {categories.length === 0 ? (
+        <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)] sm:col-span-2">
+          You don&apos;t have any {type} categories yet.{" "}
+          <Link href="/settings" className="font-semibold text-[var(--color-meadow)]">
+            Add one in Settings
+          </Link>{" "}
+          before logging {type === "income" ? "income" : "an expense"}.
+        </p>
+      ) : (
+        <>
       <div>
         <label htmlFor={`${formId}-name`} className={LABEL}>
           Name
@@ -258,6 +269,8 @@ export function EntryForm({
           Cancel
         </button>
       </div>
+        </>
+      )}
     </form>
   );
 }

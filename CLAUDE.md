@@ -258,6 +258,50 @@ non-destructive way to test a past-maturity scenario without any holding in
 the owner's real data actually being near maturity yet. `tsc --noEmit`/
 `npm run lint` both clean.
 
+V1.13 (first-run journey fix: empty categories/payment methods) added
+2026-07-31, from the owner's own observation that a brand-new install opens
+with zero categories and zero payment methods, and diving straight into
+"Add entry" from there is a dead end. Confirmed the real failure: a fresh
+database had no seed data at all (no `prisma/seed.ts`, no INSERT in any
+migration), so `EntryForm.tsx`'s Category `<select>` rendered with zero
+`<option>`s — and since `Entry.category` is required, submitting produced
+the unhelpful server-side "Choose a category." error with no way to
+recover from inside the modal. Fixed two ways, matching the owner's framing
+("ask the user to add those first" — a journey gate, not just a crash fix):
+(1) a new hand-written migration
+(`prisma/migrations/20260731180000_seed_default_categories_methods`) seeds
+the existing `DEFAULT_EXPENSE_CATEGORIES`/`DEFAULT_INCOME_CATEGORIES`/
+`DEFAULT_PAYMENT_METHODS` lists from `src/lib/categories.ts`, but only via
+`WHERE NOT EXISTS (SELECT 1 FROM "Category"/"PaymentMethod")` — this is a
+no-op against any database that already has rows (including the owner's own
+`financehub.db`, and any existing downloader's clone), since migrations run
+against every environment, not just fresh ones; it only actually inserts
+into a genuinely empty database. Written with `UNION ALL SELECT` rather
+than a `VALUES (...) AS t(col1, col2)` derived table, since SQLite doesn't
+support aliasing columns on a `VALUES` clause that way (Postgres/MySQL do;
+first attempt failed with a syntax error against SQLite). (2) Defense in
+depth for the case where an owner later deletes *all* categories of one
+type via Settings (the seed migration only helps at DB-creation time, not
+after): `EntryForm.tsx` now checks `categories.length === 0` for whichever
+type (income/expense) is currently selected and, if so, replaces the rest
+of the form with a plain message + link to Settings, mirroring the same
+"empty state with a Settings link" pattern `BudgetsCard.tsx` already used
+for "no budgets set yet." Audited the rest of the app for the same class of
+gap first — `BudgetEditor.tsx` already handled zero expense categories
+gracefully ("Add an expense category first."), `HoldingsTable.tsx` already
+handled zero holdings ("No holdings yet."), and the Payment Method select is
+optional with a working "None" fallback, so none of those needed changes;
+the Category select was the one real journey-breaking dead end. Verified
+both fixes: ran the new migration against a scratch empty SQLite database
+(via a temporary `.env` swap) and confirmed all 14 categories + 5 payment
+methods appear, then ran it again against the owner's real `financehub.db`
+and confirmed row counts were unchanged (true no-op); for the UI guard,
+temporarily deleted the owner's real income categories, confirmed the
+Income tab of Add Entry showed the new message with a working `/settings`
+link instead of a broken form, then restored the original rows (same IDs)
+and confirmed all 25 real entries were unaffected. `tsc --noEmit`/
+`npm run lint` both clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
