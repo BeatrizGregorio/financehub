@@ -22,13 +22,27 @@
 // end-user machine without this project folder, it would fail outright with
 // "Cannot find module" — confirmed by temporarily moving this project's own
 // `.next/standalone` aside and relaunching the packaged app.
+// electron-builder's packaged output layout differs by platform: macOS nests
+// everything inside a "<AppName>.app/Contents/Resources" bundle, while
+// Windows/Linux use a flat "resources" folder directly under appOutDir. Only
+// the mac path was ever hand-verified when this project was mac-only (V1.3);
+// added the win32/linux branch when the Windows build was set up (see
+// CLAUDE.md's Windows build notes) — same afterPack logic, just resolving
+// resourcesDir per platform's real layout instead of assuming a .app bundle.
 const fs = require("fs");
 const path = require("path");
 
 module.exports = async function afterPack(context) {
   const root = path.join(__dirname, "..");
-  const appBundle = fs.readdirSync(context.appOutDir).find((f) => f.endsWith(".app"));
-  const resourcesDir = path.join(context.appOutDir, appBundle, "Contents", "Resources");
+  const resourcesDir =
+    context.electronPlatformName === "darwin"
+      ? path.join(
+          context.appOutDir,
+          fs.readdirSync(context.appOutDir).find((f) => f.endsWith(".app")),
+          "Contents",
+          "Resources",
+        )
+      : path.join(context.appOutDir, "resources");
 
   fs.cpSync(path.join(root, ".next", "standalone"), path.join(resourcesDir, "standalone"), {
     recursive: true,

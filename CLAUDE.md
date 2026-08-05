@@ -983,10 +983,68 @@ sequence, not just a clean build:
    completely broken to an actual end user, since it depends on state that only
    exists on the machine that built it.
 
+### Windows build
+
+Added 2026-07-31, from the owner wanting to send a Windows-friend a real
+`.exe` instead of "clone the repo and run npm run dev." Deliberately built
+via **GitHub Actions on a real `windows-latest` runner**
+(`.github/workflows/build-windows.yml`, manual `workflow_dispatch` trigger —
+not run on every push, since it's a distributable build, not a CI check),
+not cross-compiled from this Mac — the native `better-sqlite3` module has to
+be compiled for the target OS, and there was no way to verify a
+cross-compiled Windows binary actually works without a Windows machine to
+test it on. The workflow: checkout → `npm ci` → `npx prisma generate` →
+`npm run electron:dist:win` (mirrors the existing `electron:dist` script,
+just `electron-builder --win` instead of `--mac`) → uploads the resulting
+`.exe` as a build artifact. Download it from the workflow run's Summary page
+under "Artifacts" once it finishes.
+
+Auditing the existing (mac-only-until-now) packaging scripts for
+Windows-safety found `electron/main.cjs` and
+`scripts/rebuild-native-for-electron.js`'s core rebuild logic already fully
+cross-platform (everything goes through `path.join`/`fs`/Electron's own
+`process.resourcesPath` and `app.getPath()`, which resolve correctly per
+OS) — but two real platform-specific bugs needed fixing before a Windows
+build could work at all:
+1. **`scripts/after-pack.js`** hardcoded the macOS `<AppName>.app/Contents/
+   Resources` bundle layout to find where to copy the standalone build and
+   migrations. Windows (and Linux) use a flat `resources/` folder directly
+   under `appOutDir` instead — there's no `.app` bundle. Fixed by branching
+   on `context.electronPlatformName` (`"darwin"` vs. everything else),
+   electron-builder's own way of telling `afterPack` which platform it's
+   packaging for.
+2. **`scripts/rebuild-native-for-electron.js`** located the Electron binary
+   via a hardcoded `node_modules/.bin/electron` path, to verify a rebuilt
+   `better-sqlite3` binary actually loads under Electron's runtime. That
+   works on Mac (the bin shim there is directly executable), but on Windows
+   `node_modules/.bin/electron` is a `.cmd` shim, not something
+   `execFileSync` can run directly at that exact path. Fixed by using
+   `require("electron")` instead — the `electron` npm package's whole
+   purpose is exporting the correct platform binary path as a string
+   (`electron.exe` on Windows, `.../Electron.app/Contents/MacOS/Electron` on
+   Mac) for exactly this kind of script; confirmed it still resolves
+   correctly on this Mac after the change.
+
+**Not yet done, and worth knowing if you touch this next**: this workflow
+has never actually been run — GitHub Actions minutes/execution aren't
+available from this environment, so the YAML was validated for syntax
+(parsed clean with `js-yaml`) and the two script fixes were reasoned through
+carefully, but the *first real run* is the actual test. If it fails, the
+`npm run electron:dist:win` step's log is the place to look first — most
+likely culprits, by analogy with the mac history above, would be something
+in the `better-sqlite3` rebuild step or an install-script-blocking issue in
+whatever npm version `windows-latest` ships. No code signing is configured
+for Windows either (same as mac) — the `.exe` will trigger a Windows
+SmartScreen "unrecognized app" warning on first run; "More info" → "Run
+anyway" gets past it, same one-time-nuisance tradeoff as the mac Gatekeeper
+warning.
+
 ### File structure additions
 
 ```
 FinanceHub/
+├── .github/workflows/
+│   └── build-windows.yml       # manual CI build of the Windows .exe — see "Windows build" above
 ├── electron/
 │   ├── main.cjs                # Electron main process: migrations, forks the server, opens the window
 │   └── package.json            # minimal, dependency-free — see "Packaging quirks" above

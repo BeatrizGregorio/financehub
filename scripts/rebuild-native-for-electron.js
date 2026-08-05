@@ -22,7 +22,11 @@ const relBinary = "build/Release/better_sqlite3.node";
 const rootPkgDir = path.join(root, "node_modules/better-sqlite3");
 const rootBinary = path.join(rootPkgDir, relBinary);
 const standaloneBinary = path.join(root, ".next/standalone/node_modules/better-sqlite3", relBinary);
-const electronBin = path.join(root, "node_modules/.bin/electron");
+// require("electron") resolves to the actual platform binary path (electron.exe
+// on Windows, .../Electron.app/Contents/MacOS/Electron on Mac) — not hardcoded
+// to "node_modules/.bin/electron", which on Windows is a .cmd shim, not a
+// directly execFileSync-able binary.
+const electronBin = require("electron");
 
 function run(cmd) {
   console.log(`$ ${cmd}`);
