@@ -954,8 +954,9 @@ hit the exact same `NODE_MODULE_VERSION` mismatch at the exact same path
 (`better-sqlite3-90e2652d1716b047`). So `rebuild-native-for-electron.js` was
 correctly writing the right ABI bytes to every location under
 `.next/standalone` *before* packaging — the bug was downstream of that, in
-`scripts/after-pack.js`'s copy into the packaged app (see the `dereference`
-bullet under "Packaging quirks" below for the actual fix). This is the
+`scripts/after-pack.js`'s copy into the packaged app (see the
+`resolveSymlinksInPlace()` bullet under "Packaging quirks" below for the
+actual fix — it took two more attempts after this one to get right). This is the
 lesson to remember here: verifying the *source* of a copy is correct proves
 nothing about the *destination* once another copy step sits between them —
 always verify what actually shipped, not what was true right before
@@ -1020,10 +1021,11 @@ for reasons that took real trial and error to find, in case they need touching:
   `Cannot find module '.../standalone/node_modules/better-sqlite3'`. The
   `afterPack` hook does a plain recursive `fs.cpSync` after `electron-builder`
   finishes its own packaging, which isn't subject to that filtering at all.
-- **`afterPack`'s `fs.cpSync` calls pass `dereference: true` — do not remove
-  this.** It's the fix for the single nastiest bug in this whole feature, worth
-  understanding in full, including two earlier fixes that each turned out to
-  be incomplete: Next's own build creates internal symlinks inside
+- **`afterPack` calls `resolveSymlinksInPlace()` on the copied `standalone`
+  output — do not remove this.** It's the fix for the single nastiest bug in
+  this whole feature, worth understanding in full, including three earlier
+  fixes that each turned out to be incomplete: Next's own build creates
+  internal symlinks inside
   `.next/standalone/.next/node_modules/` (e.g.
   `better-sqlite3-<hash> -> ../../node_modules/better-sqlite3`, how Turbopack's
   output loads native "external" packages at runtime).
@@ -1053,17 +1055,43 @@ for reasons that took real trial and error to find, in case they need touching:
      sense if the symlink itself didn't survive the Windows copy step
      intact. Windows symlink/junction creation is privilege-gated and known
      to behave inconsistently in ways a plain file copy never has to worry
-     about, so root-caused or not, it's not worth depending on. `dereference:
-     true` sidesteps the question entirely: it copies the actual bytes the
-     symlink points to, so there's no symlink left in the packaged output to
-     get wrong on any platform. Also added
+     about, so root-caused or not, it's not worth depending on. Also added
      `scripts/verify-packaged-native-module.js` as a new CI step
      (`build-windows.yml`, right after `electron-builder`) that dlopens every
      native binary in the *actual packaged output* under the *actual packaged
      Electron executable* — the check that would have caught this the first
      time, since the pre-packaging verification in
      `rebuild-native-for-electron.js` structurally cannot see bugs introduced
-     by a later copy step.
+     by a later copy step. This CI step is what proved fix #3 below was
+     *also* still broken, rather than needing another friend to test it.
+  3. `dereference: true` (the direct fix for #2 — copies the symlink's target
+     content instead of the link, so there's supposedly no link left to get
+     wrong) turned out to be *insufficient* on its own. The new CI
+     verification step from #2 still caught a broken binary, with the dlopen
+     error reporting the module's real identity as the CI checkout's root
+     `node_modules` path (`D:\a\financehub\financehub\node_modules\...`,
+     not anything under the packaged `resources\standalone\...` at all) —
+     meaning `fs.cpSync`'s `dereference` option didn't fully collapse this
+     specific nested symlinked-directory case on Windows (Node has known
+     rough edges around symlinks-within-symlinked-directories). This is the
+     clearest example yet of the lesson from fix #2: confirming the *source*
+     of a copy is correct proves nothing about the *destination*, and now
+     neither does trusting a specific `fs.cpSync` option to fully resolve an
+     unknown depth of symlink chaining either.
+  4. The actual fix: `resolveSymlinksInPlace()` (in `scripts/after-pack.js`)
+     walks the packaged `standalone` output *after* the copy and, for every
+     symlink it finds anywhere in that tree — not special-cased to
+     better-sqlite3, a general fix — deletes the link itself (`fs.rmSync`,
+     which removes the link, not its target) and replaces it with a real,
+     independent copy of whatever `fs.realpathSync` resolves it to at that
+     moment. `realpathSync` collapses a symlink chain of any depth in one
+     call, so this doesn't depend on knowing how many levels of indirection
+     Next's build created, unlike `dereference: true` which apparently does.
+     A second pass (`assertNoSymlinksRemain()`) then throws loudly if any
+     symlink somehow survived, rather than silently shipping a build that
+     looks fine locally. If `scripts/verify-packaged-native-module.js` ever
+     fails again, this is the exact spot to revisit — it's what caught both
+     #3 and, before that, #2.
 - No code-signing identity is configured (the owner doesn't have an Apple
   Developer ID). The built `.dmg` is unsigned — macOS Gatekeeper will show an
   "unidentified developer" warning on first open; right-click → Open (or System
@@ -1202,9 +1230,10 @@ FinanceHub/
 │   ├── main.cjs                # Electron main process: migrations, forks the server, opens the window
 │   └── package.json            # minimal, dependency-free — see "Packaging quirks" above
 ├── scripts/
+│   ├── lib/find-native-binaries.js # shared findBinaries() walk, used by rebuild-native-for-electron.js + after-pack.js
 │   ├── prepare-electron.js         # copies public/ + .next/static/ into .next/standalone/ after `next build`
 │   ├── rebuild-native-for-electron.js  # the dual-ABI better-sqlite3 dance — see above
-│   ├── after-pack.js               # electron-builder afterPack hook — copies standalone build + migrations
+│   ├── after-pack.js               # electron-builder afterPack hook — copies standalone build, resolves symlinks, migrations
 │   └── verify-packaged-native-module.js  # CI-only: dlopens the actual packaged binary — see "Packaging quirks" above
 └── release/                    # electron-builder output (.dmg, unpacked .app) — gitignored, rebuild anytime
 ```
