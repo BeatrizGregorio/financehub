@@ -839,6 +839,39 @@ application logic was forked or duplicated for this.
   handles this correctly already — see "Rebuilding the native module" below before
   changing anything here.
 
+### Startup error visibility
+
+Added 2026-08-05 after the Windows friend's install opened to a blank
+Electron "This page couldn't load" screen with zero actionable information —
+a packaged GUI app has no visible console, so any startup failure used to be
+completely silent to the end user. Two real bugs in `main.cjs` were making
+this worse than it needed to be, found by deliberately reproducing a failure
+locally (killed the wrong thing first and left a stray process holding port
+4173 from an earlier test — that accidentally became the first real test
+case and confirmed the fix works end-to-end):
+1. `waitForServer()` resolved on **any** HTTP response, including a 500
+   error page — so a genuinely broken server still looked "started," and the
+   broken page got loaded into the window instead of the failure being
+   caught. Fixed to require an actual 2xx/3xx status.
+2. There was no handling at all for the forked server process exiting
+   before ever responding — a hard crash (e.g. port already in use, a
+   native module failing to load) would just sit there being silently
+   retried by `waitForServer` for the full 15-second timeout, then fail with
+   a generic message nobody would ever see anyway.
+
+Now: every startup step (`main.cjs`'s `log()` helper) is appended to
+`financehub.log` in the same per-user data folder as the database — so
+there's always a persistent, inspectable record, not just whatever scrolled
+past in a terminal that doesn't exist for a packaged app. And if startup
+fails for any reason, the `BrowserWindow` loads a small self-contained error
+page (a `data:` URL, no extra file needed) showing the actual error message
+and the log file's path, instead of Electron/Chromium's generic unhelpful
+network-error screen — so a non-technical user can just screenshot what's
+actually wrong rather than reporting "nothing happens." Verified both paths
+locally: a forced `EADDRINUSE` crash was caught immediately (not after a
+15s hang) with a clear message in the log, and a clean run logged each step
+through to "Server responded successfully."
+
 ### Commands
 
 ```bash
