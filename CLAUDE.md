@@ -947,6 +947,26 @@ possible on Windows (see "Verifying a change" below) — this fix is reasoned
 through carefully and confirmed not to regress Mac, but the *next* Windows build
 is what actually proves it.
 
+**That "next Windows build" (same day) proved the fix above was not enough**:
+the friend re-tested against a genuinely fresh install (confirmed via a new
+`financehub.log` run with a new timestamp, not a resend of the old one) and
+hit the exact same `NODE_MODULE_VERSION` mismatch at the exact same path
+(`better-sqlite3-90e2652d1716b047`). So `rebuild-native-for-electron.js` was
+correctly writing the right ABI bytes to every location under
+`.next/standalone` *before* packaging — the bug was downstream of that, in
+`scripts/after-pack.js`'s copy into the packaged app (see the `dereference`
+bullet under "Packaging quirks" below for the actual fix). This is the
+lesson to remember here: verifying the *source* of a copy is correct proves
+nothing about the *destination* once another copy step sits between them —
+always verify what actually shipped, not what was true right before
+packaging. `scripts/verify-packaged-native-module.js` (added same day, run
+as a new CI step right after `electron-builder` in
+`build-windows.yml`) closes exactly that gap going forward: it dlopens every
+`better_sqlite3.node` found in the actual unpacked packaged output, under
+the actual packaged Electron executable — so a future regression in the
+copy step fails CI instead of only surfacing when a real user launches the
+installed app.
+
 **Never run `electron-builder install-app-deps` or a bare `electron-rebuild`
 (no `-m`) directly** — either will rebuild the *root* copy for Electron's ABI and
 leave it that way, silently breaking `npm run dev` with a
@@ -1000,26 +1020,50 @@ for reasons that took real trial and error to find, in case they need touching:
   `Cannot find module '.../standalone/node_modules/better-sqlite3'`. The
   `afterPack` hook does a plain recursive `fs.cpSync` after `electron-builder`
   finishes its own packaging, which isn't subject to that filtering at all.
-- **`afterPack`'s `fs.cpSync` calls pass `verbatimSymlinks: true` — do not remove
+- **`afterPack`'s `fs.cpSync` calls pass `dereference: true` — do not remove
   this.** It's the fix for the single nastiest bug in this whole feature, worth
-  understanding in full: Next's own build creates internal symlinks inside
+  understanding in full, including two earlier fixes that each turned out to
+  be incomplete: Next's own build creates internal symlinks inside
   `.next/standalone/.next/node_modules/` (e.g.
   `better-sqlite3-<hash> -> ../../node_modules/better-sqlite3`, how Turbopack's
-  output loads native "external" packages at runtime). Node's `fs.cpSync`, by
-  default (without `verbatimSymlinks`), resolves a *relative* symlink's target to
-  an *absolute* path before recreating it at the destination. So the packaged
-  app's copy of that symlink silently pointed back at **this exact build
-  machine's project folder**
-  (`/Users/.../FinanceHub/.next/standalone/node_modules/better-sqlite3`) instead
-  of its own bundled copy sitting right next to it. This is exactly the kind of
-  bug that "works on the machine that built it" forever and only breaks for an
-  actual end user: every test run on this dev machine appeared to succeed or fail
-  seemingly at random, because it depended on whatever ABI state the *original*
-  project's `.next/standalone` happened to be in at that moment (a side effect of
-  the dual-ABI juggling above), not on what was actually bundled in the `.dmg`.
-  Caught it by deliberately moving this project's own `.next/standalone` out of
-  the way and relaunching the packaged `.app` — see the isolation test below,
-  which is the only way this class of bug reliably shows itself.
+  output loads native "external" packages at runtime).
+  1. Node's `fs.cpSync`, by default (no symlink option), resolves a *relative*
+     symlink's target to an *absolute* path before recreating it at the
+     destination. So the packaged app's copy of that symlink silently pointed
+     back at **this exact build machine's project folder**
+     (`/Users/.../FinanceHub/.next/standalone/node_modules/better-sqlite3`)
+     instead of its own bundled copy sitting right next to it. This is
+     exactly the kind of bug that "works on the machine that built it"
+     forever and only breaks for an actual end user: every test run on this
+     dev machine appeared to succeed or fail seemingly at random, because it
+     depended on whatever ABI state the *original* project's
+     `.next/standalone` happened to be in at that moment (a side effect of
+     the dual-ABI juggling above), not on what was actually bundled in the
+     `.dmg`. Caught it by deliberately moving this project's own
+     `.next/standalone` out of the way and relaunching the packaged `.app` —
+     see the isolation test below, which is the only way this class of bug
+     reliably shows itself.
+  2. `verbatimSymlinks: true` (the direct fix for #1) preserves the symlink
+     as a relative link instead of resolving it to an absolute path — correct
+     and sufficient on Mac, where it's a real, working relative symlink. But
+     a friend's Windows build kept shipping a stale, wrong-ABI
+     `better_sqlite3.node` at exactly this path even after the "second binary
+     location" fix above confirmed every source binary was correct *before*
+     packaging (see that section for the full story) — which only makes
+     sense if the symlink itself didn't survive the Windows copy step
+     intact. Windows symlink/junction creation is privilege-gated and known
+     to behave inconsistently in ways a plain file copy never has to worry
+     about, so root-caused or not, it's not worth depending on. `dereference:
+     true` sidesteps the question entirely: it copies the actual bytes the
+     symlink points to, so there's no symlink left in the packaged output to
+     get wrong on any platform. Also added
+     `scripts/verify-packaged-native-module.js` as a new CI step
+     (`build-windows.yml`, right after `electron-builder`) that dlopens every
+     native binary in the *actual packaged output* under the *actual packaged
+     Electron executable* — the check that would have caught this the first
+     time, since the pre-packaging verification in
+     `rebuild-native-for-electron.js` structurally cannot see bugs introduced
+     by a later copy step.
 - No code-signing identity is configured (the owner doesn't have an Apple
   Developer ID). The built `.dmg` is unsigned — macOS Gatekeeper will show an
   "unidentified developer" warning on first open; right-click → Open (or System
@@ -1160,7 +1204,8 @@ FinanceHub/
 ├── scripts/
 │   ├── prepare-electron.js         # copies public/ + .next/static/ into .next/standalone/ after `next build`
 │   ├── rebuild-native-for-electron.js  # the dual-ABI better-sqlite3 dance — see above
-│   └── after-pack.js               # electron-builder afterPack hook — copies standalone build + migrations
+│   ├── after-pack.js               # electron-builder afterPack hook — copies standalone build + migrations
+│   └── verify-packaged-native-module.js  # CI-only: dlopens the actual packaged binary — see "Packaging quirks" above
 └── release/                    # electron-builder output (.dmg, unpacked .app) — gitignored, rebuild anytime
 ```
 

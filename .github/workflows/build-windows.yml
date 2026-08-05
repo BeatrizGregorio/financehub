@@ -42,6 +42,15 @@ jobs:
         env:
           DATABASE_URL: "file:./financehub.db"
 
+      # Catches the exact bug that shipped a broken build to a real user:
+      # the native SQLite module loading fine before packaging didn't mean it
+      # still loaded correctly after electron-builder's afterPack copy step.
+      # This dlopens every copy in the actual packaged output under the
+      # actual packaged Electron executable, so a packaging regression fails
+      # CI instead of only surfacing when someone launches the installed app.
+      - name: Verify packaged native module
+        run: node scripts/verify-packaged-native-module.js
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
