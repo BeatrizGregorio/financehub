@@ -21,7 +21,7 @@ const root = path.join(__dirname, "..");
 const relBinary = "build/Release/better_sqlite3.node";
 const rootPkgDir = path.join(root, "node_modules/better-sqlite3");
 const rootBinary = path.join(rootPkgDir, relBinary);
-const standaloneBinary = path.join(root, ".next/standalone/node_modules/better-sqlite3", relBinary);
+const standaloneRoot = path.join(root, ".next/standalone");
 // require("electron") resolves to the actual platform binary path (electron.exe
 // on Windows, .../Electron.app/Contents/MacOS/Electron on Mac) — not hardcoded
 // to "node_modules/.bin/electron", which on Windows is a .cmd shim, not a
@@ -31,6 +31,45 @@ const electronBin = require("electron");
 function run(cmd) {
   console.log(`$ ${cmd}`);
   execSync(cmd, { cwd: root, stdio: "inherit" });
+}
+
+// Next's build doesn't just leave one copy of better-sqlite3 under
+// .next/standalone/node_modules — for native "external" packages it also
+// creates a second, content-hashed copy under
+// .next/standalone/.next/node_modules/better-sqlite3-<hash>/ (how Turbopack
+// loads native externals at runtime). On Mac this has resolved correctly via
+// what looked like a relative symlink back to the first copy; on Windows a
+// packaged build was observed still running the *original* plain-Node-ABI
+// binary from that hashed copy — a real "server responds with 500,
+// NODE_MODULE_VERSION mismatch" failure a friend hit, invisible until the
+// startup-error-logging work made the actual Prisma error visible. Rather
+// than assume there's exactly one binary location (accurate on Mac,
+// evidently not guaranteed on Windows), find every
+// `better_sqlite3.node` anywhere under the standalone output and overwrite
+// all of them with the verified Electron-ABI binary — correct whether a
+// given copy is a symlink target or a fully independent file.
+function findBinaries(dir, matches = []) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return matches;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    let stat;
+    try {
+      stat = fs.statSync(full); // follows symlinks, unlike lstatSync
+    } catch {
+      continue; // broken symlink — nothing to copy into
+    }
+    if (stat.isDirectory()) {
+      findBinaries(full, matches);
+    } else if (stat.isFile() && entry.name === "better_sqlite3.node") {
+      matches.push(full);
+    }
+  }
+  return matches;
 }
 
 function loadsUnderElectron(binaryPath) {
@@ -58,10 +97,14 @@ function loadsUnderNode(binaryPath) {
   }
 }
 
-if (!fs.existsSync(standaloneBinary)) {
-  console.error(`Expected ${standaloneBinary} — run "next build" + prepare-electron.js first.`);
+const standaloneBinariesBefore = findBinaries(standaloneRoot);
+if (standaloneBinariesBefore.length === 0) {
+  console.error(
+    `Found no better_sqlite3.node anywhere under ${standaloneRoot} — run "next build" + prepare-electron.js first.`,
+  );
   process.exit(1);
 }
+console.log(`Found ${standaloneBinariesBefore.length} standalone better-sqlite3 binary location(s) to update.`);
 
 // Force a truly clean rebuild — no stale build/ dir left for node-gyp or
 // electron-rebuild's own caching to short-circuit against.
@@ -77,8 +120,26 @@ if (!loadsUnderElectron(rootBinary)) {
 }
 console.log("Verified: root better-sqlite3 now loads under Electron's runtime.");
 
-fs.copyFileSync(rootBinary, standaloneBinary);
-console.log(`Copied Electron-ABI binary into ${standaloneBinary}`);
+// Re-scan rather than reusing standaloneBinariesBefore: copying a verified
+// binary over one path that turns out to be a symlink could in principle
+// change what a later path in the list resolves to.
+const copiedPaths = findBinaries(standaloneRoot);
+for (const binaryPath of copiedPaths) {
+  fs.copyFileSync(rootBinary, binaryPath);
+  console.log(`Copied Electron-ABI binary into ${binaryPath}`);
+}
+
+// Verify every copy independently, not just the root source — this exact
+// gap (trusting one verified copy while a second, unnoticed location stayed
+// on the wrong ABI) is what shipped the Windows NODE_MODULE_VERSION bug this
+// whole find-and-copy-everywhere approach exists to catch.
+for (const binaryPath of copiedPaths) {
+  if (!loadsUnderElectron(binaryPath)) {
+    console.error(`${binaryPath} still doesn't load under Electron's runtime after copying — investigate before re-running.`);
+    process.exit(1);
+  }
+}
+console.log(`Verified: all ${copiedPaths.length} standalone binary location(s) load under Electron's runtime.`);
 
 fs.rmSync(path.join(rootPkgDir, "build"), { recursive: true, force: true });
 run("npm rebuild better-sqlite3");

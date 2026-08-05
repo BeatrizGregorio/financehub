@@ -888,9 +888,11 @@ in order, and **must keep doing all three steps** or one of the two runtimes bre
 1. `electron-rebuild -f -w better-sqlite3` — rebuilds the **root** copy for
    Electron's ABI. (Confirmed this always finds a working prebuilt/rebuild path;
    the module has never needed a from-source compile in testing here.)
-2. Copies that freshly-rebuilt root binary into
-   `.next/standalone/node_modules/better-sqlite3/build/Release/` — this is the copy
-   `electron/main.cjs` and the forked server actually load at runtime.
+2. Copies that freshly-rebuilt root binary into **every** `better_sqlite3.node`
+   found anywhere under `.next/standalone` (via a recursive `findBinaries()` walk
+   that follows symlinks) — not just the one at
+   `.next/standalone/node_modules/better-sqlite3/build/Release/`. See "A second
+   binary location" below for why a single hardcoded path isn't enough.
 3. `npm rebuild better-sqlite3` — rebuilds the **root** copy back to the regular
    Node ABI, so `npm run dev` keeps working.
 
@@ -902,6 +904,39 @@ the rebuild against the root copy (which the scanner handles fine) and copying t
 binary over sidesteps that limitation. If a future `better-sqlite3`/`@electron/rebuild`
 update fixes the scanner, this workaround could be simplified — but verify with the
 same fresh-install-and-relaunch test described below before trusting a simpler version.
+
+**A second binary location (found 2026-08-05, via a real user's broken Windows
+install)**: Next's build doesn't leave just one copy of `better-sqlite3` under
+`.next/standalone/node_modules` — for native "external" packages it also creates
+a second, content-hashed copy at
+`.next/standalone/.next/node_modules/better-sqlite3-<hash>/` (how Turbopack loads
+native externals at runtime; the hash is deterministic — content/version-based,
+not per-machine). On Mac this resolves correctly, because it's a real relative
+symlink back to the first copy (`better-sqlite3-90e2652d1716b047 ->
+../../node_modules/better-sqlite3`, confirmed by inspecting `.next/standalone/.next/node_modules/`
+directly) — `fs.statSync` follows it, so both "locations" are really one file, and
+the original single-path copy step happened to be enough. A friend's packaged
+Windows build hit a real `NODE_MODULE_VERSION mismatch` — the app *started*
+(server responded, so `waitForServer()` didn't catch it) but every Prisma query
+threw `ERR_DLOPEN_FAILED` — the server responded HTTP 500 on every page — because
+that second copy on
+Windows was still the original plain-Node-ABI binary, untouched by the rebuild
+script. Only surfaced because of the startup-error-logging work above (see
+"Startup error visibility") — before that, this would've just been another
+silent failure. Root cause wasn't fully pinned down (unclear whether Windows
+produced a non-functional symlink/junction, or an independent copy instead of a
+symlink at all) — rather than depend on symlink semantics matching across
+platforms, the fix sidesteps the question entirely: `findBinaries()` recursively
+finds every `better_sqlite3.node` under `.next/standalone` and overwrites all of
+them, then verifies **each one** loads under Electron independently (not just the
+root source binary) — the exact "verified one copy, trusted a second, unnoticed
+one silently" gap that caused this. Confirmed locally on Mac: the script finds
+both the real path and the symlinked path (2 locations), copies to both, and both
+verify — same behavior whether the second path is truly a separate file or a
+symlink resolving to the first. The genuinely decisive test is still only
+possible on Windows (see "Verifying a change" below) — this fix is reasoned
+through carefully and confirmed not to regress Mac, but the *next* Windows build
+is what actually proves it.
 
 **Never run `electron-builder install-app-deps` or a bare `electron-rebuild`
 (no `-m`) directly** — either will rebuild the *root* copy for Electron's ABI and
