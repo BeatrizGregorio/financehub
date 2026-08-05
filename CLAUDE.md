@@ -872,6 +872,15 @@ locally: a forced `EADDRINUSE` crash was caught immediately (not after a
 15s hang) with a clear message in the log, and a clean run logged each step
 through to "Server responded successfully."
 
+**Timeout bumped 15s → 45s (2026-08-05)**, from a real fresh-Windows-install
+log: the server logged "Ready" ~17s after being forked (antivirus scanning
+newly-installed files, cold disk cache — genuinely slow, not stuck), but
+`waitForServer`'s 15s timeout fired about 2 seconds before that, so a
+perfectly healthy launch got reported as a failure. Doesn't slow down real
+failures — a crashed process or port conflict still rejects immediately via
+`serverExitPromise` regardless of this number; it only affects the case
+where the server is actually still starting.
+
 ### Commands
 
 ```bash
