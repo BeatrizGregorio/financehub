@@ -16,6 +16,7 @@
 const { execFileSync, execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { findBinaries } = require("./lib/find-native-binaries");
 
 const root = path.join(__dirname, "..");
 const relBinary = "build/Release/better_sqlite3.node";
@@ -31,45 +32,6 @@ const electronBin = require("electron");
 function run(cmd) {
   console.log(`$ ${cmd}`);
   execSync(cmd, { cwd: root, stdio: "inherit" });
-}
-
-// Next's build doesn't just leave one copy of better-sqlite3 under
-// .next/standalone/node_modules — for native "external" packages it also
-// creates a second, content-hashed copy under
-// .next/standalone/.next/node_modules/better-sqlite3-<hash>/ (how Turbopack
-// loads native externals at runtime). On Mac this has resolved correctly via
-// what looked like a relative symlink back to the first copy; on Windows a
-// packaged build was observed still running the *original* plain-Node-ABI
-// binary from that hashed copy — a real "server responds with 500,
-// NODE_MODULE_VERSION mismatch" failure a friend hit, invisible until the
-// startup-error-logging work made the actual Prisma error visible. Rather
-// than assume there's exactly one binary location (accurate on Mac,
-// evidently not guaranteed on Windows), find every
-// `better_sqlite3.node` anywhere under the standalone output and overwrite
-// all of them with the verified Electron-ABI binary — correct whether a
-// given copy is a symlink target or a fully independent file.
-function findBinaries(dir, matches = []) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return matches;
-  }
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    let stat;
-    try {
-      stat = fs.statSync(full); // follows symlinks, unlike lstatSync
-    } catch {
-      continue; // broken symlink — nothing to copy into
-    }
-    if (stat.isDirectory()) {
-      findBinaries(full, matches);
-    } else if (stat.isFile() && entry.name === "better_sqlite3.node") {
-      matches.push(full);
-    }
-  }
-  return matches;
 }
 
 function loadsUnderElectron(binaryPath) {
