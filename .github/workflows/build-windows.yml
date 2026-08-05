@@ -25,6 +25,18 @@ jobs:
         env:
           DATABASE_URL: "file:./financehub.db"
 
+      # `next build` prerenders /_not-found, which renders the root layout
+      # (it wraps every route) — and the layout queries prisma.entry for the
+      # sidebar's current-month summary. Without an actual migrated database
+      # on disk, that query fails with "table Entry does not exist" and the
+      # whole build aborts. `prisma generate` alone only creates the client
+      # code, not the database tables, so this step is required before the
+      # build step, not optional.
+      - name: Set up the database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: "file:./financehub.db"
+
       - name: Build the Windows installer
         run: npm run electron:dist:win
         env:
