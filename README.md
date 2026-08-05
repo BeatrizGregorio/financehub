@@ -6,7 +6,7 @@ fixed income, taxes/IOF estimates, coupon payments, and projections) — all
 stored locally, no cloud backend, no account required.
 
 Runs as a regular web app (`npm run dev`) or as a packaged desktop app for
-macOS.
+macOS or Windows.
 
 ## Features
 
@@ -22,7 +22,7 @@ macOS.
   portfolio allocation, and monthly portfolio value, all in one view.
 - **Backup & restore** — export/import your entire dataset as JSON.
 - **Desktop app** — an Electron build so the app runs as a double-clickable
-  Mac app instead of a terminal command.
+  app instead of a terminal command, for macOS or Windows.
 
 ## Tech stack
 
@@ -57,6 +57,20 @@ npm run electron:build   # build + prep the standalone bundle
 npm run electron:start   # launch it locally
 npm run electron:dist    # package a distributable .dmg into /release
 ```
+
+## Desktop app (Windows)
+
+There's no local build command for this one — the Windows `.exe` is built by
+a GitHub Actions workflow (`.github/workflows/build-windows.yml`) on a real
+Windows runner, since the app bundles a native module that has to be
+compiled for the target OS. To get a build: open this repo's **Actions**
+tab → **Build Windows app** → **Run workflow**. Once it finishes, download
+the installer from the run's **Artifacts** section.
+
+The installer isn't code-signed, so Windows SmartScreen will show an
+"unrecognized app" warning on first run — click **More info** → **Run
+anyway** to get past it (same one-time nuisance as macOS's Gatekeeper
+warning for the `.dmg`).
 
 See [CLAUDE.md](CLAUDE.md) for the full architecture, the native-module
 packaging details, and the reasoning behind most of the app's design
