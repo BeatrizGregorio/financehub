@@ -101,7 +101,14 @@ function runMigrations(dbPath) {
 // page get loaded into the window instead of surfacing the real failure.
 // Also fails fast if the forked server process exits before ever
 // responding, instead of silently retrying for the full timeout.
-function waitForServer(url, serverExitPromise, timeoutMs = 15000) {
+//
+// 45s default (was 15s): a real first-launch-on-Windows log showed the
+// server taking ~17s to report "Ready" (antivirus scanning freshly-installed
+// files, cold disk cache, etc.) — genuinely slow, not stuck, and 15s bailed
+// out about 2 seconds before it would have succeeded. Fast failures (crashed
+// process, port conflict) are unaffected — those reject immediately via
+// serverExitPromise regardless of this timeout.
+function waitForServer(url, serverExitPromise, timeoutMs = 45000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     let settled = false;
