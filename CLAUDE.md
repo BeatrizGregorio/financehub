@@ -1050,6 +1050,21 @@ would hit the identical crash if someone ran `electron:build` before
 happens to have a migrated DB already, but keep this in mind if that ever
 stops being true (e.g. a docs rewrite that reorders the setup steps).
 
+**Second run, same day, got past the database fix and actually built the
+`.exe`** — packaging itself succeeded (`building target=nsis ... file=release\FinanceHub Setup 0.1.0.exe`),
+but the job still failed at the very last step: `GitHub Personal Access
+Token is not set, neither programmatically, nor using env "GH_TOKEN"`.
+Cause: electron-builder auto-detects a CI environment (GitHub Actions sets
+`CI=true`) and defaults to trying to *publish* the build to GitHub Releases
+unless told not to — completely separate from `actions/upload-artifact`,
+which the workflow already uses to hand back the `.exe` and doesn't need any
+token. Fixed by adding `--publish never` to both `electron:dist` and
+`electron:dist:win` in `package.json`, making the "don't auto-publish"
+behavior explicit rather than relying on electron-builder's implicit
+CI-detection (which its own log output says is being removed in v27 anyway).
+Added to the mac script too even though it isn't run in CI today, so the
+behavior doesn't silently change if that ever stops being true.
+
 No code signing is configured for Windows either (same as mac) — the `.exe`
 will trigger a Windows SmartScreen "unrecognized app" warning on first run;
 "More info" → "Run anyway" gets past it, same one-time-nuisance tradeoff as
