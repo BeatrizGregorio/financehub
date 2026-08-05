@@ -1025,18 +1025,35 @@ build could work at all:
    Mac) for exactly this kind of script; confirmed it still resolves
    correctly on this Mac after the change.
 
-**Not yet done, and worth knowing if you touch this next**: this workflow
-has never actually been run — GitHub Actions minutes/execution aren't
-available from this environment, so the YAML was validated for syntax
-(parsed clean with `js-yaml`) and the two script fixes were reasoned through
-carefully, but the *first real run* is the actual test. If it fails, the
-`npm run electron:dist:win` step's log is the place to look first — most
-likely culprits, by analogy with the mac history above, would be something
-in the `better-sqlite3` rebuild step or an install-script-blocking issue in
-whatever npm version `windows-latest` ships. No code signing is configured
-for Windows either (same as mac) — the `.exe` will trigger a Windows
-SmartScreen "unrecognized app" warning on first run; "More info" → "Run
-anyway" gets past it, same one-time-nuisance tradeoff as the mac Gatekeeper
+**First real run (2026-08-05) failed, and the fix is a good lesson for this
+whole area**: `next build` failed prerendering `/_not-found` with `The table
+main.Entry does not exist in the current database` — nothing to do with
+Windows or native modules at all, both guesses in the paragraph above this
+one were wrong. Root cause: `/_not-found` is an implicit static page that
+still renders the root layout (it wraps every route), and `layout.tsx`
+queries `prisma.entry.findMany()` for the sidebar's current-month IN/OUT
+summary — so *every* `next build`, including this one, needs a real,
+migrated database on disk, not just a generated Prisma client. The workflow
+ran `prisma generate` (creates client code) but never `prisma migrate
+deploy` (creates the actual tables), so the SQLite file existed with zero
+tables. Fixed by adding a "Set up the database" step running `prisma migrate
+deploy` before the build step. Reproduced and confirmed the fix locally
+first (temporarily pointed `DATABASE_URL` at a scratch file, ran `prisma
+generate` alone → same "table does not exist" crash; then `prisma migrate
+deploy` first → clean build) before pushing, rather than guessing again from
+a CI log alone. Worth remembering: this same requirement silently applies to
+`npm run electron:build`/`electron:dist` on Mac too — it only ever "worked"
+locally because the developer's own `financehub.db` already had every
+migration applied from normal day-to-day use; a genuinely fresh Mac clone
+would hit the identical crash if someone ran `electron:build` before
+`prisma migrate deploy`. Not fixed there since the local dev flow always
+happens to have a migrated DB already, but keep this in mind if that ever
+stops being true (e.g. a docs rewrite that reorders the setup steps).
+
+No code signing is configured for Windows either (same as mac) — the `.exe`
+will trigger a Windows SmartScreen "unrecognized app" warning on first run;
+"More info" → "Run anyway" gets past it, same one-time-nuisance tradeoff as
+the mac Gatekeeper
 warning.
 
 ### File structure additions
