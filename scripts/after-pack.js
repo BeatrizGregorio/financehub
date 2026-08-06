@@ -62,21 +62,43 @@
 //    back to plain Node ABI so `npm run dev` keeps working — has already
 //    finished), it resolved to the now-stale root copy, not the still-correct
 //    `.next/standalone` copy.
-// 5. The actual fix: stop trying to detect or correctly dereference
-//    symlinks/junctions at all — for this one file, it doesn't matter how
-//    many levels of indirection exist or whether Windows reports them
-//    accurately. `.next/standalone/node_modules/better-sqlite3`'s own copy
-//    (written directly by `fs.copyFileSync` in
-//    `rebuild-native-for-electron.js`, never touched by that script's later
-//    root-reset step) is read once as the known-good source, then every
-//    `better_sqlite3.node` location `findBinaries()` discovers in the
-//    *packaged* output gets unconditionally deleted (`fs.rmSync`, which
-//    removes the entry itself — file, symlink, or junction — without
-//    following it) and recreated as a brand-new plain file with those exact
-//    bytes. No symlink-detection or -dereferencing logic left to get wrong.
-//    If `scripts/verify-packaged-native-module.js` (run right after
+// 5. Force-writing the known-good bytes into the leaf `.node` *file* (no
+//    symlink detection, no dereferencing) still failed, with the exact same
+//    "resolved to the CI checkout's root `node_modules`" error as #3. The
+//    reason: the thing that's actually a junction here is the *directory*
+//    (`better-sqlite3-<hash>`), not the file inside it. Windows transparently
+//    redirects *every* file operation that passes through a junctioned path
+//    component — reads, writes, deletes, all of it, at the OS/filesystem-driver
+//    level, regardless of which API or tool performs them. So "deleting and
+//    recreating" the leaf file was actually deleting and recreating a file
+//    inside the junction's *target* (the CI checkout's root `node_modules`),
+//    not a genuinely separate file under the packaged output at all — our own
+//    fix was unknowingly operating on the wrong location. And that root copy
+//    gets reset back to plain Node ABI by the workflow's own final safety-net
+//    step (`npm rebuild better-sqlite3`, which runs *after* `electron-builder`
+//    — and therefore after this hook — as part of the same `electron:dist:win`
+//    command, specifically so `npm run dev` keeps working), which is why the
+//    exact same wrong-ABI failure kept reappearing no matter how carefully the
+//    leaf file was "fixed": there was never a real, independent packaged file
+//    to fix in the first place.
+// 6. The actual fix: `breakJunctionsInPlace()` walks the packaged output using
+//    `fs.lstatSync` (not `fs.readdirSync(..., { withFileTypes: true })`'s
+//    Dirent info — the exact detection gap that made fix #4 miss this) to
+//    authoritatively detect *directory-level* reparse points too, not just
+//    file-level ones. For each one found, it reads/copies the junction's
+//    *current* target content, deletes the junction entry itself (which,
+//    like `rm`/`rmdir` on any symlink, removes only the link — confirmed via
+//    Node's own documented `fs.rm` behavior, not an assumption specific to
+//    Windows this time), and recreates a real, independent directory in its
+//    place — so nothing under the packaged `standalone` folder shares storage
+//    with root `node_modules` anymore, and the later ABI-reset step can't
+//    reach it. The existing force-write-known-good-bytes pass (fix #5) then
+//    runs on top of that as defense in depth, and a final walk-up-the-path
+//    assertion throws loudly if any reparse point somehow survives, instead
+//    of silently shipping a broken build a fifth time. If
+//    `scripts/verify-packaged-native-module.js` (run right after
 //    `electron-builder` in CI) ever fails again, this is the exact spot to
-//    revisit — it's what caught #2, #3, and #4 before this fix.
+//    revisit — it's what caught #2, #3, #4, and #5 before this fix.
 //
 // electron-builder's packaged output layout differs by platform: macOS nests
 // everything inside a "<AppName>.app/Contents/Resources" bundle, while
@@ -88,6 +110,65 @@
 const fs = require("fs");
 const path = require("path");
 const { findBinaries } = require("./lib/find-native-binaries");
+
+// Authoritative reparse-point check — deliberately uses a real fs.lstatSync
+// call, not fs.readdirSync(..., { withFileTypes: true })'s Dirent info,
+// which has a known reliability gap for Windows junctions (see point 4 in
+// the comment above).
+function isReparsePoint(entryPath) {
+  try {
+    return fs.lstatSync(entryPath).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+// Recursively replaces every symlink/junction under `dir` — directories and
+// files alike — with a real, independent copy of whatever it currently
+// resolves to. Must handle directory-level reparse points, not just leaf
+// files: see point 5 in the comment above for why fixing only the file
+// inside a junctioned directory doesn't actually separate it from whatever
+// the junction points to.
+function breakJunctionsInPlace(dir) {
+  let names;
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    const entryPath = path.join(dir, name);
+    if (isReparsePoint(entryPath)) {
+      const realTarget = fs.realpathSync(entryPath);
+      const targetIsDirectory = fs.statSync(realTarget).isDirectory();
+      const targetBytes = targetIsDirectory ? null : fs.readFileSync(realTarget);
+      // Removes the reparse point entry itself, not whatever it points to —
+      // matches Node's documented fs.rm behavior for symlinks, and Windows'
+      // own RemoveDirectory/DeleteFile semantics for junctions.
+      fs.rmSync(entryPath, { recursive: true, force: true });
+      if (targetIsDirectory) {
+        fs.cpSync(realTarget, entryPath, { recursive: true });
+        breakJunctionsInPlace(entryPath); // the copied-in content may itself contain further junctions
+      } else {
+        fs.writeFileSync(entryPath, targetBytes);
+      }
+    } else if (fs.statSync(entryPath).isDirectory()) {
+      breakJunctionsInPlace(entryPath);
+    }
+  }
+}
+
+function assertNoReparsePointsAlongPath(fullPath, root) {
+  let current = fullPath;
+  while (current !== root && current !== path.dirname(current)) {
+    if (isReparsePoint(current)) {
+      throw new Error(
+        `afterPack: ${current} is still a symlink/junction after breakJunctionsInPlace — packaging is broken.`,
+      );
+    }
+    current = path.dirname(current);
+  }
+}
 
 module.exports = async function afterPack(context) {
   const root = path.join(__dirname, "..");
@@ -113,9 +194,14 @@ module.exports = async function afterPack(context) {
     dereference: true,
   });
 
-  // Fix #5 above: don't trust any symlink/junction to resolve correctly on
-  // Windows — read the known-good bytes once, then unconditionally delete
-  // and recreate every discovered binary location in the packaged output.
+  // Fix #6 above: break every directory-level (not just file-level) junction
+  // under the packaged output first, so the packaged copy no longer shares
+  // storage with root node_modules at all.
+  breakJunctionsInPlace(standaloneDest);
+
+  // Fix #5 above, now actually landing on independent files: read the
+  // known-good bytes once, then unconditionally delete and recreate every
+  // discovered binary location in the packaged output.
   const knownGoodBinary = path.join(
     standaloneSrc,
     "node_modules",
@@ -134,9 +220,10 @@ module.exports = async function afterPack(context) {
   for (const binaryPath of packagedBinaries) {
     fs.rmSync(binaryPath, { force: true });
     fs.writeFileSync(binaryPath, knownGoodBytes);
+    assertNoReparsePointsAlongPath(binaryPath, standaloneDest);
   }
   console.log(
-    `afterPack: force-wrote the verified native binary into ${packagedBinaries.length} packaged location(s).`,
+    `afterPack: force-wrote the verified native binary into ${packagedBinaries.length} packaged location(s), confirmed independent of any symlink/junction.`,
   );
 
   console.log(`afterPack: copied standalone build + migrations into ${resourcesDir}`);
