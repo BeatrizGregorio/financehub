@@ -954,9 +954,10 @@ hit the exact same `NODE_MODULE_VERSION` mismatch at the exact same path
 (`better-sqlite3-90e2652d1716b047`). So `rebuild-native-for-electron.js` was
 correctly writing the right ABI bytes to every location under
 `.next/standalone` *before* packaging — the bug was downstream of that, in
-`scripts/after-pack.js`'s copy into the packaged app (see the "force-writes a
-known-good binary" bullet under "Packaging quirks" below for the actual fix —
-it took three more attempts after this one to get right). This is the
+`scripts/after-pack.js`'s copy into the packaged app (see the "breaks every
+directory-level symlink/junction" bullet under "Packaging quirks" below for
+the actual fix — it took four more attempts after this one to get right).
+This is the
 lesson to remember here: verifying the *source* of a copy is correct proves
 nothing about the *destination* once another copy step sits between them —
 always verify what actually shipped, not what was true right before
@@ -1021,11 +1022,12 @@ for reasons that took real trial and error to find, in case they need touching:
   `Cannot find module '.../standalone/node_modules/better-sqlite3'`. The
   `afterPack` hook does a plain recursive `fs.cpSync` after `electron-builder`
   finishes its own packaging, which isn't subject to that filtering at all.
-- **`afterPack` force-writes a known-good binary into every discovered native
-  module location after copying — do not remove this.** It's the fix for the
-  single nastiest bug in this whole feature, worth understanding in full,
-  including four earlier fixes that each turned out to be incomplete: Next's
-  own build creates internal symlinks inside
+- **`afterPack` breaks every directory-level symlink/junction under the
+  copied `standalone` output, then force-writes a known-good binary into
+  every discovered native module location — do not remove either step.**
+  It's the fix for the single nastiest bug in this whole feature, worth
+  understanding in full, including five earlier fixes that each turned out to
+  be incomplete: Next's own build creates internal symlinks inside
   `.next/standalone/.next/node_modules/` (e.g.
   `better-sqlite3-<hash> -> ../../node_modules/better-sqlite3`, how Turbopack's
   output loads native "external" packages at runtime).
@@ -1096,21 +1098,44 @@ for reasons that took real trial and error to find, in case they need touching:
      resets the **root** `node_modules/better-sqlite3` back to plain Node ABI
      so `npm run dev` keeps working) has already finished — it resolved to
      that now-stale root copy, not the still-correct `.next/standalone` copy.
-  5. The actual fix: stop trying to detect or correctly dereference
-     symlinks/junctions at all. For this one file it doesn't matter how many
-     levels of indirection exist or whether Windows reports them accurately —
-     `.next/standalone/node_modules/better-sqlite3`'s own copy (written
-     directly via `fs.copyFileSync` in `rebuild-native-for-electron.js`,
-     never touched by that script's later root-reset step, and confirmed
-     correct by the CI check passing for that exact packaged path) is read
-     once as the known-good source. Then every `better_sqlite3.node` location
-     `findBinaries()` discovers in the *packaged* output gets unconditionally
-     deleted (`fs.rmSync`, which removes the directory entry itself —
-     whatever it is — without following it) and recreated as a brand-new
-     plain file with those exact bytes. There's no symlink-detection or
-     -dereferencing logic left anywhere in this path to get wrong. If
+  5. Force-writing the known-good bytes straight into the leaf `.node` file —
+     no symlink detection, no dereferencing, just delete-and-recreate that one
+     file — still failed, with the *exact same* "resolved to the CI
+     checkout's root `node_modules`" error as fix #3. The actual junction
+     turned out to be the **directory** (`better-sqlite3-<hash>`), not the
+     file inside it. Windows transparently redirects *every* file operation
+     that passes through a junctioned path component — reads, writes,
+     deletes, all of it, at the OS/filesystem-driver level, regardless of
+     which tool performs them. So "deleting and recreating" the leaf file was
+     actually deleting and recreating a file inside the junction's *target*
+     (the CI checkout's root `node_modules`) — never a genuinely separate
+     file under the packaged output at all. And that root copy gets reset
+     back to plain Node ABI by the workflow's own final safety-net step
+     (`npm rebuild better-sqlite3`, which runs *after* `electron-builder` —
+     and therefore after `afterPack` — as part of the same
+     `electron:dist:win` command, specifically so `npm run dev` keeps
+     working), which is exactly why the same wrong-ABI failure kept
+     reappearing no matter how the leaf file was "fixed": there was never a
+     real, independent packaged file to fix in the first place.
+  6. The actual fix: `breakJunctionsInPlace()` (in `scripts/after-pack.js`)
+     walks the packaged output using `fs.lstatSync` directly — not
+     `fs.readdirSync(..., { withFileTypes: true })`'s Dirent info, the exact
+     detection gap that made fix #4 miss this — to authoritatively detect
+     *directory-level* reparse points too, not just file-level ones. For each
+     one found, it reads/copies the junction's current target content,
+     deletes the junction entry itself (removing only the link, per Node's
+     documented `fs.rm` behavior and Windows' own `RemoveDirectory`/
+     `DeleteFile` semantics for junctions), and recreates a real, independent
+     directory in its place — so nothing under the packaged `standalone`
+     folder shares storage with root `node_modules` anymore, and the later
+     ABI-reset step can't reach it. The force-write-known-good-bytes pass
+     from fix #5 then runs on top of that as defense in depth, now actually
+     landing on independent files, and a final walk-up-the-path assertion
+     throws loudly if any reparse point somehow survives, instead of silently
+     shipping a broken build a sixth time. If
      `scripts/verify-packaged-native-module.js` ever fails again, this is the
-     exact spot to revisit — it's what caught #2, #3, and #4 before this fix.
+     exact spot to revisit — it's what caught #2, #3, #4, and #5 before this
+     fix.
 - No code-signing identity is configured (the owner doesn't have an Apple
   Developer ID). The built `.dmg` is unsigned — macOS Gatekeeper will show an
   "unidentified developer" warning on first open; right-click → Open (or System
