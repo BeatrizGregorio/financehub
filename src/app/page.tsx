@@ -2,8 +2,8 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Plus } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { getBudgets, getPaymentMethods, getReferenceRates } from "@/lib/data";
-import { availableMonths, monthlySeries } from "@/lib/aggregate";
-import { monthKey } from "@/lib/format";
+import { monthlySeries } from "@/lib/aggregate";
+import { currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
 import { BudgetsCard } from "@/components/BudgetsCard";
 import { RecentEntriesCard } from "@/components/RecentEntriesCard";
@@ -74,12 +74,10 @@ export default async function DashboardPage() {
     );
   }
 
-  const now = new Date();
-  const currentMonthKey = monthKey(now);
-  const months = availableMonths(entries);
-  const defaultMonth = months[0]?.key ?? currentMonthKey;
+  const currentMonthKey = currentCycleKey();
+  const defaultMonth = currentMonthKey;
 
-  const currentMonthEntries = entries.filter((e) => monthKey(e.date) === currentMonthKey);
+  const currentMonthEntries = entries.filter((e) => cycleKey(e.date) === currentMonthKey);
   const income = currentMonthEntries
     .filter((e) => e.type === "income")
     .reduce((sum, e) => sum + e.amount, 0);
@@ -104,7 +102,7 @@ export default async function DashboardPage() {
           <h1 className="text-xl font-bold text-[var(--color-ink)]">Welcome back</h1>
           <p className="mt-0.5 text-sm text-[var(--color-muted)]">
             Here&apos;s your financial snapshot for{" "}
-            <span className="font-medium text-[var(--color-ink)]">{months[0]?.label ?? "this month"}</span>
+            <span className="font-medium text-[var(--color-ink)]">{cycleLabel(currentMonthKey)}</span>
           </p>
         </div>
         <Link

@@ -1,4 +1,4 @@
-import { monthKey, monthLabel } from "@/lib/format";
+import { addCycles, currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
 
 export type EntryLike = {
   amount: number;
@@ -8,19 +8,19 @@ export type EntryLike = {
 };
 
 export function availableMonths(entries: EntryLike[]): { key: string; label: string }[] {
-  const map = new Map<string, string>();
+  const keys = new Set<string>();
   for (const e of entries) {
-    map.set(monthKey(e.date), monthLabel(e.date));
+    keys.add(cycleKey(e.date));
   }
-  return Array.from(map.entries())
-    .map(([key, label]) => ({ key, label }))
-    .sort((a, b) => (a.key < b.key ? 1 : -1));
+  return Array.from(keys)
+    .sort((a, b) => (a < b ? 1 : -1))
+    .map((key) => ({ key, label: cycleLabel(key) }));
 }
 
 export function categoryBreakdown(entries: EntryLike[], month: string) {
   const totals = new Map<string, number>();
   for (const e of entries) {
-    if (e.type !== "expense" || monthKey(e.date) !== month) continue;
+    if (e.type !== "expense" || cycleKey(e.date) !== month) continue;
     totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount);
   }
   return Array.from(totals.entries())
@@ -33,7 +33,7 @@ export type BudgetLike = { category: string; limit: number };
 export function budgetStatus(entries: EntryLike[], budgets: BudgetLike[], month: string) {
   const spent = new Map<string, number>();
   for (const e of entries) {
-    if (e.type !== "expense" || monthKey(e.date) !== month) continue;
+    if (e.type !== "expense" || cycleKey(e.date) !== month) continue;
     spent.set(e.category, (spent.get(e.category) ?? 0) + e.amount);
   }
 
@@ -50,26 +50,25 @@ export function budgetStatus(entries: EntryLike[], budgets: BudgetLike[], month:
 }
 
 export function monthlySeries(entries: EntryLike[], monthsBack = 6) {
-  const now = new Date();
+  const current = currentCycleKey();
   const keys: string[] = [];
   for (let i = monthsBack - 1; i >= 0; i--) {
-    keys.push(monthKey(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+    keys.push(addCycles(current, -i));
   }
 
   const totals = new Map(keys.map((k) => [k, { income: 0, expense: 0 }]));
   for (const e of entries) {
-    const bucket = totals.get(monthKey(e.date));
+    const bucket = totals.get(cycleKey(e.date));
     if (!bucket) continue;
     if (e.type === "income") bucket.income += e.amount;
     else bucket.expense += e.amount;
   }
 
   return keys.map((key) => {
-    const [year, month] = key.split("-").map(Number);
     const totalsForKey = totals.get(key)!;
     return {
       key,
-      label: monthLabel(new Date(year, month - 1, 1)),
+      label: cycleLabel(key),
       income: totalsForKey.income,
       expense: totalsForKey.expense,
       net: totalsForKey.income - totalsForKey.expense,

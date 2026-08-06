@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, DM_Mono } from "next/font/google";
 import { Nav } from "@/components/Nav";
 import { prisma } from "@/lib/db";
-import { monthLabel } from "@/lib/format";
+import { currentCycleKey, cycleLabel, cycleRange } from "@/lib/format";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -27,11 +27,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const currentCycle = currentCycleKey();
+  const { start, endExclusive } = cycleRange(currentCycle);
   const monthEntries = await prisma.entry.findMany({
-    where: { date: { gte: monthStart, lt: monthEnd } },
+    where: { date: { gte: start, lt: endExclusive } },
   });
   const income = monthEntries
     .filter((e) => e.type === "income")
@@ -59,7 +58,7 @@ export default async function RootLayout({
           />
 
           <div className="relative z-10 mx-auto flex h-full w-full max-w-[1600px]">
-            <Nav income={income} expense={expense} monthLabel={monthLabel(now)} />
+            <Nav income={income} expense={expense} monthLabel={cycleLabel(currentCycle)} />
             <main className="min-w-0 flex-1 overflow-y-auto">
               <div className="mx-auto max-w-[1400px] px-6 py-6 sm:px-8 sm:py-8">{children}</div>
             </main>
