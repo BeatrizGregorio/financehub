@@ -1,4 +1,4 @@
-import { toDateInputValue, monthLabel } from "@/lib/format";
+import { addCycles, currentCycleKey, cycleEndDate, cycleLabel, toDateInputValue } from "@/lib/format";
 import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
 
 export type PricePointLike = { date: Date; price: number };
@@ -255,15 +255,18 @@ function ownershipValue(inv: InvestmentLike, rates: ReferenceRatesLike, asOfDate
 }
 
 /**
- * One checkpoint date per calendar month: the last day of each of the past
- * `monthsBack` months, plus today for the current month.
+ * One checkpoint per budget cycle: the last day of each of the past
+ * `monthsBack` cycles (see cycleEndDate), plus today for the cycle currently
+ * in progress. Cycle-based rather than calendar-based so a point labeled
+ * "Aug 2026" covers the same window everywhere else in the app does.
  */
-function monthlyCheckpoints(monthsBack: number): Date[] {
+function monthlyCheckpoints(monthsBack: number): { date: Date; key: string }[] {
   const now = new Date();
+  const current = currentCycleKey();
   return Array.from({ length: monthsBack + 1 }, (_, i) => {
-    const monthsAgo = monthsBack - i;
-    if (monthsAgo === 0) return now;
-    return new Date(now.getFullYear(), now.getMonth() - monthsAgo + 1, 0);
+    const cyclesAgo = monthsBack - i;
+    const key = addCycles(current, -cyclesAgo);
+    return { key, date: cyclesAgo === 0 ? now : cycleEndDate(key) };
   });
 }
 
@@ -277,10 +280,10 @@ export function monthlyValue(
   rates: ReferenceRatesLike,
   monthsBack = 12,
 ): PortfolioValuePoint[] {
-  return monthlyCheckpoints(monthsBack).map((d) => ({
-    date: dateKey(d),
-    label: monthLabel(d),
-    value: ownershipValue(inv, rates, d),
+  return monthlyCheckpoints(monthsBack).map(({ date, key }) => ({
+    date: dateKey(date),
+    label: cycleLabel(key),
+    value: ownershipValue(inv, rates, date),
   }));
 }
 
@@ -290,10 +293,10 @@ export function monthlyPortfolioValue(
   rates: ReferenceRatesLike,
   monthsBack = 12,
 ): PortfolioValuePoint[] {
-  return monthlyCheckpoints(monthsBack).map((d) => ({
-    date: dateKey(d),
-    label: monthLabel(d),
-    value: investments.reduce((sum, inv) => sum + ownershipValue(inv, rates, d), 0),
+  return monthlyCheckpoints(monthsBack).map(({ date, key }) => ({
+    date: dateKey(date),
+    label: cycleLabel(key),
+    value: investments.reduce((sum, inv) => sum + ownershipValue(inv, rates, date), 0),
   }));
 }
 

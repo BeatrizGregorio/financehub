@@ -2,12 +2,12 @@ import Link from "next/link";
 import { Sparkles, TriangleAlert, Plus } from "lucide-react";
 import { budgetStatus, type BudgetLike, type EntryLike } from "@/lib/aggregate";
 import { categoryColor, categoryIconName } from "@/lib/categories";
-import { formatCurrency, monthKey } from "@/lib/format";
+import { currentCycleKey, formatCurrency } from "@/lib/format";
 import { CARD } from "@/lib/ui";
 import { Icon } from "./CategoryIcon";
 
 export function BudgetsCard({ entries, budgets }: { entries: EntryLike[]; budgets: BudgetLike[] }) {
-  const currentMonth = monthKey(new Date());
+  const currentMonth = currentCycleKey();
   const rows = budgetStatus(entries, budgets, currentMonth).filter((b) => b.limit > 0);
 
   const totalLimit = rows.reduce((sum, b) => sum + b.limit, 0);

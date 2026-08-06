@@ -302,6 +302,53 @@ link instead of a broken form, then restored the original rows (same IDs)
 and confirmed all 25 real entries were unaffected. `tsc --noEmit`/
 `npm run lint` both clean.
 
+V1.14 (custom budget cycles: months run 10th-to-9th, not 1st-to-last)
+added 2026-08-06, two changes in one pass:
+
+(1) **Dashboard showed the wrong month** — an owner-reported bug, and a
+real one independent of any data import: `page.tsx` derived "this month"
+from `availableMonths(entries)[0]`, i.e. *the latest month any entry
+exists in*, not the calendar. That held while every entry was in the past,
+but the imported recurring series run out to 2027, so the dashboard header
+and the Spending-by-category picker both jumped to a future month. Now
+both come from the current date. Any future-dated entry would have
+triggered this — it was never actually reading the clock.
+
+(2) **Reporting periods now run 10th → 9th**, named for the month they
+*start* in: 10 Aug – 9 Sep is "Aug 2026". A date on/after the 10th belongs
+to that month's cycle; the 1st–9th belong to the previous month's. The
+owner first asked for the 15th and corrected to the 10th mid-implementation
+— that was a one-line change because the boundary lives in a single
+`CYCLE_START_DAY` constant in `format.ts`; keep it that way. Cycle keys
+deliberately kept the same `YYYY-MM` shape calendar months already used, so
+they still sort lexicographically and read normally in the month pickers.
+
+The API is `cycleKey(date)` / `currentCycleKey()` / `cycleLabel(key)` /
+`cycleRange(key)` / `cycleEndDate(key)` / `addCycles(key, n)`, all in
+`format.ts`. The old `monthKey()` export was **removed rather than
+redefined**, so every call site had to be looked at rather than silently
+changing meaning, and `monthLabel(date)` was made module-private —
+`cycleLabel` takes a *key*, never a date, because labeling a raw date is
+exactly the bug that would reintroduce calendar months (a 3 Sep entry
+belongs to the "Aug 2026" cycle, so `monthLabel(entry.date)` would say
+"Sep"). Everything that buckets entries goes through `cycleKey()`:
+`aggregate.ts` (all four functions), the dashboard stat pills, `BudgetsCard`,
+`EntriesClient`'s filter, and — a separate code path worth remembering —
+`layout.tsx`'s sidebar IN/OUT, which is a **Prisma date-range query**
+(`cycleRange()`), not in-memory bucketing. Those two agreeing is the useful
+end-to-end check that the range and the bucketing haven't drifted apart.
+Per the owner's explicit choice, the Investments monthly-value charts
+follow the cycle too (`monthlyCheckpoints()` in `investments.ts` now
+returns `{date, key}` pairs so its labels come from the cycle key, not from
+the checkpoint date).
+
+Verified: compiled `format.ts` standalone and asserted the boundary cases
+directly (9th → previous cycle, 10th → opens, 9th-of-next → still closes
+the cycle, plus Jan↔Dec rollover in both directions), then in the browser
+confirmed the dashboard header, month picker, and sidebar all read
+"Jul 2026" on 6 Aug 2026 (cycle 10 Jul – 9 Aug) with matching IN/OUT
+figures. `tsc --noEmit` / `npm run lint` clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
@@ -786,7 +833,7 @@ FinanceHub/
 │       ├── categories.ts          # DEFAULT_* seed lists (expense/income/payment method) + categoryColor()/categoryIconName()
 │       ├── investmentTypes.ts     # added V1.7 — type/subtype taxonomy, IR/IOF tax tables, form-field visibility rules
 │       ├── ui.ts                  # shared `CARD` className constant
-│       ├── format.ts              # currency/date formatting + addMonthsClamped + formatShortDate
+│       ├── format.ts              # currency/date formatting + addMonthsClamped + formatShortDate + budget-cycle helpers (CYCLE_START_DAY, cycleKey/cycleRange/cycleLabel — see V1.14)
 │       ├── aggregate.ts           # category/month/budget aggregation helpers
 │       └── investments.ts         # added V1.6 — pure derived-math functions incl. coupons + projection (V1.10) + monthly value (V1.11/V1.12), see "Investments" above
 ```

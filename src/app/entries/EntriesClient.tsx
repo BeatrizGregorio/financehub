@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Calendar, ChevronDown } from "lucide-react";
 import { availableMonths } from "@/lib/aggregate";
-import { formatCurrency, monthKey } from "@/lib/format";
+import { cycleKey, formatCurrency } from "@/lib/format";
 import { Modal } from "@/components/Modal";
 import { EntryForm, type EditableEntry } from "./EntryForm";
 import { EntryTable } from "./EntryTable";
@@ -40,7 +40,7 @@ export function EntriesClient({
 
   const filtered = useMemo(() => {
     return entries
-      .filter((e) => month === "all" || monthKey(e.date) === month)
+      .filter((e) => month === "all" || cycleKey(e.date) === month)
       .filter((e) => type === "all" || e.type === type)
       .sort((a, b) => b.date.getTime() - a.date.getTime());
   }, [entries, month, type]);
