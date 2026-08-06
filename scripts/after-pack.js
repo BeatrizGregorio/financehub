@@ -46,21 +46,37 @@
 //    still resolved to somewhere real), but the packaged artifact would
 //    still contain a link pointing outside itself, which is broken for
 //    anyone who isn't this exact CI job.
-// 4. The actual fix: `resolveSymlinksInPlace()` below walks the packaged
-//    `standalone` output *after* the copy and, for literally every symlink
-//    it finds anywhere in that tree (not just ones related to
-//    better-sqlite3 — this is a general fix, not a one-file patch), deletes
-//    the link itself (`fs.rmSync`, which removes the link, not its target)
-//    and replaces it with a real, independent copy of whatever
-//    `fs.realpathSync` resolves it to at that moment. `realpathSync`
-//    collapses a symlink chain of any depth in one call, so this doesn't
-//    depend on knowing how many levels of indirection Next's build created.
-//    After this runs, the packaged `standalone` folder is guaranteed to
-//    contain zero symlinks — nothing left that could resolve to a path that
-//    only exists on the machine that built it. If
-//    `scripts/verify-packaged-native-module.js` (run right after
+// 4. A general `resolveSymlinksInPlace()` walk (replace every symlink found
+//    via `Dirent.isSymbolicLink()` with a real copy of `fs.realpathSync`'s
+//    target) got further — the CI error stopped pointing outside the
+//    package entirely — but *still* shipped wrong-ABI bytes. Root cause,
+//    finally nailed down: `Dirent.isSymbolicLink()` from
+//    `fs.readdirSync(..., { withFileTypes: true })` is not reliable for
+//    Windows junctions (a known libuv/Windows rough edge — the fast-path
+//    readdir type detection can misreport a junction as a plain directory,
+//    where a real `fs.lstatSync` call would correctly identify it). Whatever
+//    Node *did* end up resolving through, by the time `after-pack.js` runs
+//    (inside the `electron-builder` step, which only starts after
+//    `electron:build` — and therefore `rebuild-native-for-electron.js`'s own
+//    *last* step, which deliberately resets the **root** `node_modules/better-sqlite3`
+//    back to plain Node ABI so `npm run dev` keeps working — has already
+//    finished), it resolved to the now-stale root copy, not the still-correct
+//    `.next/standalone` copy.
+// 5. The actual fix: stop trying to detect or correctly dereference
+//    symlinks/junctions at all — for this one file, it doesn't matter how
+//    many levels of indirection exist or whether Windows reports them
+//    accurately. `.next/standalone/node_modules/better-sqlite3`'s own copy
+//    (written directly by `fs.copyFileSync` in
+//    `rebuild-native-for-electron.js`, never touched by that script's later
+//    root-reset step) is read once as the known-good source, then every
+//    `better_sqlite3.node` location `findBinaries()` discovers in the
+//    *packaged* output gets unconditionally deleted (`fs.rmSync`, which
+//    removes the entry itself — file, symlink, or junction — without
+//    following it) and recreated as a brand-new plain file with those exact
+//    bytes. No symlink-detection or -dereferencing logic left to get wrong.
+//    If `scripts/verify-packaged-native-module.js` (run right after
 //    `electron-builder` in CI) ever fails again, this is the exact spot to
-//    revisit — it's what actually caught #2 and #3 before this fix.
+//    revisit — it's what caught #2, #3, and #4 before this fix.
 //
 // electron-builder's packaged output layout differs by platform: macOS nests
 // everything inside a "<AppName>.app/Contents/Resources" bundle, while
@@ -72,50 +88,6 @@
 const fs = require("fs");
 const path = require("path");
 const { findBinaries } = require("./lib/find-native-binaries");
-
-// Recursively replaces every symlink under `dir` with a real, independent
-// copy of whatever it currently resolves to — directories and files alike.
-// See point 4 in the comment above for why this exists.
-function resolveSymlinksInPlace(dir) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isSymbolicLink()) {
-      const realTarget = fs.realpathSync(entryPath);
-      const targetStat = fs.statSync(realTarget);
-      fs.rmSync(entryPath, { recursive: true, force: true });
-      if (targetStat.isDirectory()) {
-        fs.cpSync(realTarget, entryPath, { recursive: true });
-        resolveSymlinksInPlace(entryPath); // the copied target may itself contain further symlinks
-      } else {
-        fs.writeFileSync(entryPath, fs.readFileSync(realTarget));
-      }
-    } else if (entry.isDirectory()) {
-      resolveSymlinksInPlace(entryPath);
-    }
-  }
-}
-
-function assertNoSymlinksRemain(dir) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isSymbolicLink()) {
-      throw new Error(`afterPack: ${entryPath} is still a symlink after resolveSymlinksInPlace — packaging is broken.`);
-    }
-    if (entry.isDirectory()) assertNoSymlinksRemain(entryPath);
-  }
-}
 
 module.exports = async function afterPack(context) {
   const root = path.join(__dirname, "..");
@@ -141,20 +113,30 @@ module.exports = async function afterPack(context) {
     dereference: true,
   });
 
-  // Fix #4 above: eliminate every symlink left over from the copy (whatever
-  // Windows did or didn't manage to preserve/dereference correctly), then
-  // fail loudly rather than silently ship a build if any survive.
-  resolveSymlinksInPlace(standaloneDest);
-  assertNoSymlinksRemain(standaloneDest);
-
+  // Fix #5 above: don't trust any symlink/junction to resolve correctly on
+  // Windows — read the known-good bytes once, then unconditionally delete
+  // and recreate every discovered binary location in the packaged output.
+  const knownGoodBinary = path.join(
+    standaloneSrc,
+    "node_modules",
+    "better-sqlite3",
+    "build",
+    "Release",
+    "better_sqlite3.node",
+  );
+  const knownGoodBytes = fs.readFileSync(knownGoodBinary);
   const packagedBinaries = findBinaries(standaloneDest);
   if (packagedBinaries.length === 0) {
     throw new Error(
       `afterPack: found no better_sqlite3.node under ${standaloneDest} after copying — packaging is broken.`,
     );
   }
+  for (const binaryPath of packagedBinaries) {
+    fs.rmSync(binaryPath, { force: true });
+    fs.writeFileSync(binaryPath, knownGoodBytes);
+  }
   console.log(
-    `afterPack: confirmed ${packagedBinaries.length} native binary location(s) are real files, not symlinks.`,
+    `afterPack: force-wrote the verified native binary into ${packagedBinaries.length} packaged location(s).`,
   );
 
   console.log(`afterPack: copied standalone build + migrations into ${resourcesDir}`);
