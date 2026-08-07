@@ -79,9 +79,11 @@ function SummaryPill({
 export function InvestmentsClient({
   holdings,
   rates,
+  cycleStartDay,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
+  cycleStartDay: number;
 }) {
   const [editing, setEditing] = useState<Holding | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -90,7 +92,7 @@ export function InvestmentsClient({
 
   const summary = portfolioSummary(holdings, rates);
   const projection = projectPortfolioValue(holdings, rates);
-  const monthly = monthlyPortfolioValue(holdings, rates, 12);
+  const monthly = monthlyPortfolioValue(holdings, rates, 12, cycleStartDay);
   // Derive from the live `holdings` prop (not a frozen snapshot) so editing or
   // deleting a price point inside the detail view updates it immediately.
   const viewing = viewingId ? (holdings.find((h) => h.id === viewingId) ?? null) : null;
@@ -192,7 +194,7 @@ export function InvestmentsClient({
 
       {viewing && (
         <Modal title={viewing.name} onClose={() => setViewingId(null)}>
-          <HoldingDetail holding={viewing} rates={rates} />
+          <HoldingDetail holding={viewing} rates={rates} cycleStartDay={cycleStartDay} />
         </Modal>
       )}
 

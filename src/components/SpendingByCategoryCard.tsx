@@ -9,13 +9,18 @@ import { SpendingByCategoryChart } from "./SpendingByCategoryChart";
 export function SpendingByCategoryCard({
   entries,
   defaultMonth,
+  cycleStartDay,
 }: {
   entries: EntryLike[];
   defaultMonth: string;
+  cycleStartDay: number;
 }) {
   const [month, setMonth] = useState(defaultMonth);
-  const months = useMemo(() => availableMonths(entries), [entries]);
-  const data = useMemo(() => categoryBreakdown(entries, month), [entries, month]);
+  const months = useMemo(() => availableMonths(entries, cycleStartDay), [entries, cycleStartDay]);
+  const data = useMemo(
+    () => categoryBreakdown(entries, month, cycleStartDay),
+    [entries, month, cycleStartDay],
+  );
 
   return (
     <div className={`${CARD} p-5`}>

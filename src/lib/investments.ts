@@ -1,4 +1,11 @@
-import { addCycles, currentCycleKey, cycleEndDate, cycleLabel, toDateInputValue } from "@/lib/format";
+import {
+  CYCLE_START_DAY,
+  addCycles,
+  currentCycleKey,
+  cycleEndDate,
+  cycleLabel,
+  toDateInputValue,
+} from "@/lib/format";
 import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
 
 export type PricePointLike = { date: Date; price: number };
@@ -260,13 +267,13 @@ function ownershipValue(inv: InvestmentLike, rates: ReferenceRatesLike, asOfDate
  * in progress. Cycle-based rather than calendar-based so a point labeled
  * "Aug 2026" covers the same window everywhere else in the app does.
  */
-function monthlyCheckpoints(monthsBack: number): { date: Date; key: string }[] {
+function monthlyCheckpoints(monthsBack: number, startDay: number): { date: Date; key: string }[] {
   const now = new Date();
-  const current = currentCycleKey();
+  const current = currentCycleKey(startDay);
   return Array.from({ length: monthsBack + 1 }, (_, i) => {
     const cyclesAgo = monthsBack - i;
     const key = addCycles(current, -cyclesAgo);
-    return { key, date: cyclesAgo === 0 ? now : cycleEndDate(key) };
+    return { key, date: cyclesAgo === 0 ? now : cycleEndDate(key, startDay) };
   });
 }
 
@@ -279,8 +286,9 @@ export function monthlyValue(
   inv: InvestmentLike,
   rates: ReferenceRatesLike,
   monthsBack = 12,
+  startDay: number = CYCLE_START_DAY,
 ): PortfolioValuePoint[] {
-  return monthlyCheckpoints(monthsBack).map(({ date, key }) => ({
+  return monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => ({
     date: dateKey(date),
     label: cycleLabel(key),
     value: ownershipValue(inv, rates, date),
@@ -292,8 +300,9 @@ export function monthlyPortfolioValue(
   investments: InvestmentLike[],
   rates: ReferenceRatesLike,
   monthsBack = 12,
+  startDay: number = CYCLE_START_DAY,
 ): PortfolioValuePoint[] {
-  return monthlyCheckpoints(monthsBack).map(({ date, key }) => ({
+  return monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => ({
     date: dateKey(date),
     label: cycleLabel(key),
     value: investments.reduce((sum, inv) => sum + ownershipValue(inv, rates, date), 0),

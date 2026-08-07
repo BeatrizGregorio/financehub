@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getReferenceRates } from "@/lib/data";
+import { getCycleStartDay, getReferenceRates } from "@/lib/data";
 
 export async function GET() {
-  const [entries, categories, budgets, paymentMethods, investments, rates] = await Promise.all([
-    prisma.entry.findMany(),
-    prisma.category.findMany(),
-    prisma.budget.findMany(),
-    prisma.paymentMethod.findMany(),
-    prisma.investment.findMany({ include: { prices: true, coupons: true } }),
-    getReferenceRates(),
-  ]);
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay] =
+    await Promise.all([
+      prisma.entry.findMany(),
+      prisma.category.findMany(),
+      prisma.budget.findMany(),
+      prisma.paymentMethod.findMany(),
+      prisma.investment.findMany({ include: { prices: true, coupons: true } }),
+      getReferenceRates(),
+      getCycleStartDay(),
+    ]);
 
   const backup = {
     app: "FinanceHub",
@@ -43,6 +45,9 @@ export async function GET() {
       coupons: inv.coupons.map((c) => ({ date: c.date, amount: c.amount })),
     })),
     referenceRates: { cdi: rates.cdi, selic: rates.selic, ipca: rates.ipca },
+    // Additive since V1.15 — still `version: 3`, since an older backup
+    // without this key just falls back to the default on import.
+    settings: { cycleStartDay },
   };
 
   const filename = `financehub-backup-${new Date().toISOString().slice(0, 10)}.json`;

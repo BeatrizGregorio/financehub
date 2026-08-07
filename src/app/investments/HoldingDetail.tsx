@@ -215,14 +215,22 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
   );
 }
 
-export function HoldingDetail({ holding, rates }: { holding: Holding; rates: ReferenceRatesLike }) {
+export function HoldingDetail({
+  holding,
+  rates,
+  cycleStartDay,
+}: {
+  holding: Holding;
+  rates: ReferenceRatesLike;
+  cycleStartDay: number;
+}) {
   const chartData = [...holding.prices]
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .map((p) => ({ label: formatShortDate(p.date), price: p.price }));
 
   const sortedDesc = [...holding.prices].sort((a, b) => b.date.getTime() - a.date.getTime());
   const couponsDesc = [...holding.coupons].sort((a, b) => b.date.getTime() - a.date.getTime());
-  const monthlyData = monthlyValue(holding, rates, 12);
+  const monthlyData = monthlyValue(holding, rates, 12, cycleStartDay);
   const value = currentValue(holding, rates);
   const tax = taxBreakdown(holding, rates);
   const sub = subtypeLabel(holding.type, holding.subtype);
