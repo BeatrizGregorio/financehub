@@ -7,6 +7,7 @@ import {
   DEFAULT_INCOME_CATEGORIES,
   DEFAULT_PAYMENT_METHODS,
 } from "@/lib/categories";
+import { MAX_CYCLE_START_DAY, clampCycleStartDay } from "@/lib/format";
 
 export type ActionState = { error?: string };
 
@@ -14,6 +15,33 @@ function revalidateAll() {
   revalidatePath("/");
   revalidatePath("/entries");
   revalidatePath("/settings");
+}
+
+/**
+ * The day of the month reporting periods start on. Clamped to 1–28 so the
+ * boundary exists in every month (see clampCycleStartDay) — a 31st boundary
+ * would drift in February, leaving gaps between consecutive cycles.
+ * Revalidates /investments too, since its charts are cycle-based as well.
+ */
+export async function updateCycleStartDay(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const raw = Number(formData.get("cycleStartDay"));
+  if (!Number.isFinite(raw) || raw < 1 || raw > MAX_CYCLE_START_DAY) {
+    return { error: `Pick a day between 1 and ${MAX_CYCLE_START_DAY}.` };
+  }
+
+  const cycleStartDay = clampCycleStartDay(raw);
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", cycleStartDay },
+    update: { cycleStartDay },
+  });
+
+  revalidateAll();
+  revalidatePath("/investments");
+  return {};
 }
 
 export async function addCategory(
@@ -138,6 +166,7 @@ type Backup = {
   paymentMethods?: { name: string }[];
   investments?: BackupInvestment[];
   referenceRates?: { cdi: number; selic: number; ipca: number };
+  settings?: { cycleStartDay?: number };
 };
 
 export async function importBackup(
@@ -252,7 +281,19 @@ export async function importBackup(
     });
   }
 
+  // Pre-V1.15 backups have no `settings` key — leave the current start day
+  // alone rather than silently resetting it to the default.
+  if (backup.settings?.cycleStartDay != null) {
+    const cycleStartDay = clampCycleStartDay(backup.settings.cycleStartDay);
+    await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton", cycleStartDay },
+      update: { cycleStartDay },
+    });
+  }
+
   revalidateAll();
+  revalidatePath("/investments");
   return {};
 }
 

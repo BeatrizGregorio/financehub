@@ -16,18 +16,20 @@ export function EntriesClient({
   expenseCategories,
   incomeCategories,
   paymentMethods,
+  cycleStartDay,
 }: {
   entries: EditableEntry[];
   expenseCategories: CategoryOption[];
   incomeCategories: CategoryOption[];
   paymentMethods: CategoryOption[];
+  cycleStartDay: number;
 }) {
   const [editing, setEditing] = useState<EditableEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [month, setMonth] = useState("all");
   const [type, setType] = useState<TypeFilter>("all");
 
-  const months = useMemo(() => availableMonths(entries), [entries]);
+  const months = useMemo(() => availableMonths(entries, cycleStartDay), [entries, cycleStartDay]);
 
   const groupCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -40,10 +42,10 @@ export function EntriesClient({
 
   const filtered = useMemo(() => {
     return entries
-      .filter((e) => month === "all" || cycleKey(e.date) === month)
+      .filter((e) => month === "all" || cycleKey(e.date, cycleStartDay) === month)
       .filter((e) => type === "all" || e.type === type)
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [entries, month, type]);
+  }, [entries, month, type, cycleStartDay]);
 
   const net = filtered.reduce((sum, e) => sum + (e.type === "income" ? e.amount : -e.amount), 0);
   const scopeLabel = month === "all" ? "all time" : months.find((m) => m.key === month)?.label ?? month;

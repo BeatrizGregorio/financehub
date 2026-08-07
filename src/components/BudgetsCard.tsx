@@ -6,9 +6,19 @@ import { currentCycleKey, formatCurrency } from "@/lib/format";
 import { CARD } from "@/lib/ui";
 import { Icon } from "./CategoryIcon";
 
-export function BudgetsCard({ entries, budgets }: { entries: EntryLike[]; budgets: BudgetLike[] }) {
-  const currentMonth = currentCycleKey();
-  const rows = budgetStatus(entries, budgets, currentMonth).filter((b) => b.limit > 0);
+export function BudgetsCard({
+  entries,
+  budgets,
+  cycleStartDay,
+}: {
+  entries: EntryLike[];
+  budgets: BudgetLike[];
+  cycleStartDay: number;
+}) {
+  const currentMonth = currentCycleKey(cycleStartDay);
+  const rows = budgetStatus(entries, budgets, currentMonth, cycleStartDay).filter(
+    (b) => b.limit > 0,
+  );
 
   const totalLimit = rows.reduce((sum, b) => sum + b.limit, 0);
   const totalSpent = rows.reduce((sum, b) => sum + b.spent, 0);

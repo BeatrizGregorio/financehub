@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, DM_Mono } from "next/font/google";
 import { Nav } from "@/components/Nav";
 import { prisma } from "@/lib/db";
+import { getCycleStartDay } from "@/lib/data";
 import { currentCycleKey, cycleLabel, cycleRange } from "@/lib/format";
 import "./globals.css";
 
@@ -27,8 +28,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const currentCycle = currentCycleKey();
-  const { start, endExclusive } = cycleRange(currentCycle);
+  const cycleStartDay = await getCycleStartDay();
+  const currentCycle = currentCycleKey(cycleStartDay);
+  const { start, endExclusive } = cycleRange(currentCycle, cycleStartDay);
   const monthEntries = await prisma.entry.findMany({
     where: { date: { gte: start, lt: endExclusive } },
   });

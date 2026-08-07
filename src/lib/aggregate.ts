@@ -1,4 +1,4 @@
-import { addCycles, currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
+import { CYCLE_START_DAY, addCycles, currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
 
 export type EntryLike = {
   amount: number;
@@ -7,20 +7,27 @@ export type EntryLike = {
   category: string;
 };
 
-export function availableMonths(entries: EntryLike[]): { key: string; label: string }[] {
+export function availableMonths(
+  entries: EntryLike[],
+  startDay: number = CYCLE_START_DAY,
+): { key: string; label: string }[] {
   const keys = new Set<string>();
   for (const e of entries) {
-    keys.add(cycleKey(e.date));
+    keys.add(cycleKey(e.date, startDay));
   }
   return Array.from(keys)
     .sort((a, b) => (a < b ? 1 : -1))
     .map((key) => ({ key, label: cycleLabel(key) }));
 }
 
-export function categoryBreakdown(entries: EntryLike[], month: string) {
+export function categoryBreakdown(
+  entries: EntryLike[],
+  month: string,
+  startDay: number = CYCLE_START_DAY,
+) {
   const totals = new Map<string, number>();
   for (const e of entries) {
-    if (e.type !== "expense" || cycleKey(e.date) !== month) continue;
+    if (e.type !== "expense" || cycleKey(e.date, startDay) !== month) continue;
     totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount);
   }
   return Array.from(totals.entries())
@@ -30,10 +37,15 @@ export function categoryBreakdown(entries: EntryLike[], month: string) {
 
 export type BudgetLike = { category: string; limit: number };
 
-export function budgetStatus(entries: EntryLike[], budgets: BudgetLike[], month: string) {
+export function budgetStatus(
+  entries: EntryLike[],
+  budgets: BudgetLike[],
+  month: string,
+  startDay: number = CYCLE_START_DAY,
+) {
   const spent = new Map<string, number>();
   for (const e of entries) {
-    if (e.type !== "expense" || cycleKey(e.date) !== month) continue;
+    if (e.type !== "expense" || cycleKey(e.date, startDay) !== month) continue;
     spent.set(e.category, (spent.get(e.category) ?? 0) + e.amount);
   }
 
@@ -49,8 +61,12 @@ export function budgetStatus(entries: EntryLike[], budgets: BudgetLike[], month:
     .sort((a, b) => b.spent - a.spent);
 }
 
-export function monthlySeries(entries: EntryLike[], monthsBack = 6) {
-  const current = currentCycleKey();
+export function monthlySeries(
+  entries: EntryLike[],
+  monthsBack = 6,
+  startDay: number = CYCLE_START_DAY,
+) {
+  const current = currentCycleKey(startDay);
   const keys: string[] = [];
   for (let i = monthsBack - 1; i >= 0; i--) {
     keys.push(addCycles(current, -i));
@@ -58,7 +74,7 @@ export function monthlySeries(entries: EntryLike[], monthsBack = 6) {
 
   const totals = new Map(keys.map((k) => [k, { income: 0, expense: 0 }]));
   for (const e of entries) {
-    const bucket = totals.get(cycleKey(e.date));
+    const bucket = totals.get(cycleKey(e.date, startDay));
     if (!bucket) continue;
     if (e.type === "income") bucket.income += e.amount;
     else bucket.expense += e.amount;

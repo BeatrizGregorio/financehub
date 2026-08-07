@@ -101,3 +101,13 @@ model ReferenceRates {
   ipca      Float    @default(5.5)
   updatedAt DateTime @updatedAt
 }
+
+// Singleton, same pattern as ReferenceRates. `cycleStartDay` is the day of
+// the month every reporting period begins on (1 = plain calendar months).
+// Capped at 28 in the UI so the boundary exists in every month — see
+// CYCLE_START_DAY / clampCycleStartDay in src/lib/format.ts.
+model AppSettings {
+  id            String   @id @default("singleton")
+  cycleStartDay Int      @default(10)
+  updatedAt     DateTime @updatedAt
+}

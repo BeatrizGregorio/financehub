@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Plus } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { getBudgets, getPaymentMethods, getReferenceRates } from "@/lib/data";
+import { getBudgets, getCycleStartDay, getPaymentMethods, getReferenceRates } from "@/lib/data";
 import { monthlySeries } from "@/lib/aggregate";
 import { currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
@@ -48,12 +48,13 @@ function StatPill({
 }
 
 export default async function DashboardPage() {
-  const [entries, budgets, methods, investments, rates] = await Promise.all([
+  const [entries, budgets, methods, investments, rates, cycleStartDay] = await Promise.all([
     prisma.entry.findMany(),
     getBudgets(),
     getPaymentMethods(),
     prisma.investment.findMany({ include: { prices: true, coupons: true } }),
     getReferenceRates(),
+    getCycleStartDay(),
   ]);
 
   if (entries.length === 0) {
@@ -74,10 +75,12 @@ export default async function DashboardPage() {
     );
   }
 
-  const currentMonthKey = currentCycleKey();
+  const currentMonthKey = currentCycleKey(cycleStartDay);
   const defaultMonth = currentMonthKey;
 
-  const currentMonthEntries = entries.filter((e) => cycleKey(e.date) === currentMonthKey);
+  const currentMonthEntries = entries.filter(
+    (e) => cycleKey(e.date, cycleStartDay) === currentMonthKey,
+  );
   const income = currentMonthEntries
     .filter((e) => e.type === "income")
     .reduce((sum, e) => sum + e.amount, 0);
@@ -86,14 +89,14 @@ export default async function DashboardPage() {
     .reduce((sum, e) => sum + e.amount, 0);
   const net = income - expense;
 
-  const series = monthlySeries(entries, 4);
+  const series = monthlySeries(entries, 4, cycleStartDay);
   const prevExpense = series.length >= 2 ? series[series.length - 2].expense : 0;
   const prevNet = series.length >= 2 ? series[series.length - 2].net : 0;
   const expenseDelta = expense - prevExpense;
   const netDelta = net - prevNet;
 
   const allocation = allocationByType(investments, rates);
-  const portfolioSeries = monthlyPortfolioValue(investments, rates, 12);
+  const portfolioSeries = monthlyPortfolioValue(investments, rates, 12, cycleStartDay);
 
   return (
     <div className="flex flex-col gap-5">
@@ -132,12 +135,16 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5">
-          <BudgetsCard entries={entries} budgets={budgets} />
+          <BudgetsCard entries={entries} budgets={budgets} cycleStartDay={cycleStartDay} />
           <RecentEntriesCard entries={entries} />
         </div>
 
         <div className="flex flex-col gap-5">
-          <SpendingByCategoryCard entries={entries} defaultMonth={defaultMonth} />
+          <SpendingByCategoryCard
+            entries={entries}
+            defaultMonth={defaultMonth}
+            cycleStartDay={cycleStartDay}
+          />
           <div className={`${CARD} p-5`}>
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">Income vs. expenses</h2>
             <IncomeVsExpenseChart data={series} />

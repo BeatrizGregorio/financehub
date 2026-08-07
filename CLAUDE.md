@@ -349,6 +349,52 @@ confirmed the dashboard header, month picker, and sidebar all read
 "Jul 2026" on 6 Aug 2026 (cycle 10 Jul – 9 Aug) with matching IN/OUT
 figures. `tsc --noEmit` / `npm run lint` clean.
 
+V1.15 (cycle start day is owner-configurable in Settings) added
+2026-08-06, immediately after V1.14 — the owner wanted to pick the day
+rather than have it hardcoded. Stored on a new `AppSettings` singleton
+(`prisma/migrations/20260806220000_add_app_settings`, same `id: "singleton"`
+pattern as `ReferenceRates`), defaulting to 10 so an existing database
+behaves exactly as it did before the migration. Read via
+`getCycleStartDay()` in `data.ts`, which clamps whatever is stored so a bad
+value can't produce a nonsensical range downstream.
+
+**Capped at 1–28** (`MAX_CYCLE_START_DAY`/`clampCycleStartDay` in
+`format.ts`), because a 29th–31st boundary doesn't exist in every month:
+it would silently drift in February and in 30-day months, leaving gaps or
+overlaps between consecutive cycles. Day 1 gives plain calendar months,
+i.e. the pre-V1.14 behavior, so that's the "turn this feature off" value.
+The Settings card says why 29–31 are missing rather than just disabling
+them.
+
+**The day is threaded explicitly as an argument, never read from a
+module-level global** — every cycle function takes `startDay` with the
+constant as its default. This is deliberate and worth preserving: these
+functions run in *client* components too (`SpendingByCategoryCard`,
+`EntriesClient`, `InvestmentsClient`, `HoldingDetail`) where there's no
+database access, and a mutable module-level "current setting" on the
+server would be shared across concurrently-rendering requests. Verbose,
+but it can't silently disagree with itself. The chain is: page/layout
+(server) fetches → passes as a prop → client component passes into
+`aggregate.ts`/`investments.ts`. If you add a new caller, the compiler
+won't force you to pass it (there's a default), so check it explicitly.
+
+`updateCycleStartDay` in `settings/actions.ts` revalidates `/investments`
+on top of `revalidateAll()`, since that page's charts are cycle-based too
+but aren't in the shared revalidate helper. Backup export/import gained a
+`settings: { cycleStartDay }` key — still `version: 3`, additive, and an
+older backup without it leaves the current setting alone rather than
+resetting it (same reasoning as coupons in V1.10).
+
+Verified: compiled `format.ts` standalone and asserted day 1 behaves as
+calendar months, day 28 works in February, bad input (0/31/-5/NaN/null/
+10.9) clamps rather than throwing, and — the real invariant — consecutive
+cycles are exactly 1 day apart with no gap or overlap, across year
+boundaries. Then end-to-end in the browser: saved day 1 and confirmed the
+dashboard header, month picker and sidebar all moved to calendar months
+(Aug 2026), saved 10 and confirmed they moved back to Jul 2026, with
+Entries and Investments both rendering. `tsc --noEmit` / `npm run lint`
+clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
@@ -803,7 +849,8 @@ FinanceHub/
 │   │       ├── CategoryManager.tsx
 │   │       ├── PaymentMethodManager.tsx
 │   │       ├── BudgetEditor.tsx
-│   │       └── BackupPanel.tsx    # export link + import form + reset-defaults
+│   │       ├── BackupPanel.tsx    # export link + import form + reset-defaults
+│   │       └── CycleSettingsCard.tsx  # month start-day picker w/ live range preview (V1.15)
 │   │   └── investments/            # added V1.6, full BR tax model in V1.7, coupons + projection in V1.10
 │   │       ├── page.tsx           # fetches investments + prices + coupons + reference rates
 │   │       ├── actions.ts         # createHolding/updateHolding/deleteHolding/savePrices/updatePricePoint/deletePricePoint/addCoupon/updateCoupon/deleteCoupon
@@ -829,7 +876,7 @@ FinanceHub/
 │   ├── generated/prisma/          # generated Prisma client — gitignored
 │   └── lib/
 │       ├── db.ts                  # PrismaClient singleton w/ driver adapter
-│       ├── data.ts                # getCategories/getBudgets/getPaymentMethods/getReferenceRates
+│       ├── data.ts                # getCategories/getBudgets/getPaymentMethods/getReferenceRates/getCycleStartDay
 │       ├── categories.ts          # DEFAULT_* seed lists (expense/income/payment method) + categoryColor()/categoryIconName()
 │       ├── investmentTypes.ts     # added V1.7 — type/subtype taxonomy, IR/IOF tax tables, form-field visibility rules
 │       ├── ui.ts                  # shared `CARD` className constant

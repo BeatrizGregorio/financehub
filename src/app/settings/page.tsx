@@ -1,16 +1,18 @@
-import { getBudgets, getCategories, getPaymentMethods } from "@/lib/data";
+import { getBudgets, getCategories, getCycleStartDay, getPaymentMethods } from "@/lib/data";
 import { CategoryManager } from "./CategoryManager";
 import { PaymentMethodManager } from "./PaymentMethodManager";
 import { BudgetEditor } from "./BudgetEditor";
 import { BackupPanel } from "./BackupPanel";
+import { CycleSettingsCard } from "./CycleSettingsCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [{ expense, income }, methods, budgets] = await Promise.all([
+  const [{ expense, income }, methods, budgets, cycleStartDay] = await Promise.all([
     getCategories(),
     getPaymentMethods(),
     getBudgets(),
+    getCycleStartDay(),
   ]);
 
   return (
@@ -37,6 +39,7 @@ export default async function SettingsPage() {
         />
         <BudgetEditor categories={expense} budgets={budgets} />
         <PaymentMethodManager methods={methods} />
+        <CycleSettingsCard cycleStartDay={cycleStartDay} />
         <div className="md:col-span-2">
           <BackupPanel />
         </div>
