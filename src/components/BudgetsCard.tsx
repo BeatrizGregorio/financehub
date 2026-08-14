@@ -62,7 +62,7 @@ export function BudgetsCard({
                     <span className="truncate text-[13.5px] font-bold">{b.category}</span>
                     <span
                       className="shrink-0 font-mono text-[11.5px] whitespace-nowrap"
-                      style={{ color: rowOver ? "#dc3545" : "#9ca3af" }}
+                      style={{ color: rowOver ? "#dc3545" : "#6b7280" }}
                     >
                       {formatCurrency(b.spent)} / {formatCurrency(b.limit)}
                     </span>

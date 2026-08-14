@@ -50,7 +50,9 @@ export function CycleSettingsCard({ cycleStartDay }: { cycleStartDay: number }) 
           >
             Starts on day
           </label>
-          <div className="flex items-center gap-1.5 rounded-[10px] bg-[var(--color-inset)] px-[13px] py-2">
+          {/* py sits on the input, not the wrapper, so the field itself is a
+              28px target while the pill keeps its size (same as BudgetEditor). */}
+          <div className="flex items-center gap-1.5 rounded-[10px] bg-[var(--color-inset)] px-[13px] py-1">
             <input
               id="cycleStartDay"
               type="number"
@@ -60,7 +62,7 @@ export function CycleSettingsCard({ cycleStartDay }: { cycleStartDay: number }) 
               step="1"
               value={day}
               onChange={(e) => setDay(Number(e.target.value))}
-              className="w-16 bg-transparent text-right font-mono text-[13px] outline-none"
+              className="w-16 bg-transparent py-1 text-right font-mono text-[13px] outline-none"
             />
             <span className="font-mono text-xs text-[var(--color-muted-2)]">of the month</span>
           </div>

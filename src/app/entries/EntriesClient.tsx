@@ -128,6 +128,7 @@ export function EntriesClient({
             <Calendar size={15} />
           </div>
           <select
+            aria-label="Filter entries by month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-[38px] pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"

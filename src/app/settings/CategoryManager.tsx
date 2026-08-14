@@ -64,6 +64,9 @@ export function CategoryManager({
           name="name"
           type="text"
           maxLength={40}
+          // Placeholder alone isn't an accessible name — with two of these
+          // cards on the page, `title` also disambiguates expense vs income.
+          aria-label={`New ${type} category name`}
           placeholder="New category…"
           className="flex-1 rounded-full bg-[var(--color-inset)] px-4 py-2.5 text-[13px] outline-none focus:bg-white focus:ring-1 focus:ring-[var(--color-ink)]"
         />

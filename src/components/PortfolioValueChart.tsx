@@ -16,16 +16,19 @@ export function PortfolioValueChart({ data }: { data: PortfolioValuePoint[] }) {
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
+        {/* right margin: the final x-axis label ("Aug 2026") is centred on the
+            last data point, so roughly half its width sits past the plot area
+            and was clipping. 30 ≈ half of the widest "MMM YYYY" label. */}
+        <LineChart data={data} margin={{ top: 5, right: 30, bottom: 5, left: 5 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-track)" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11.5, fill: "#9ca3af", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11.5, fill: "#9ca3af", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) => formatCurrencyAxis(v)}

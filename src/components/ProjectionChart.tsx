@@ -20,12 +20,12 @@ export function ProjectionChart({ data }: { data: ProjectionPoint[] }) {
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-track)" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11.5, fill: "#9ca3af", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11.5, fill: "#9ca3af", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) => formatCurrencyAxis(v)}

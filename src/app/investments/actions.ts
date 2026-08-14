@@ -228,3 +228,52 @@ export async function deleteCoupon(id: string) {
   await prisma.couponPayment.delete({ where: { id } });
   revalidateAll();
 }
+
+/**
+ * The savings goal shown by the Investments projector. `expectedAnnualRate`
+ * arrives from the form as a percentage (10 = 10% a.a.) and is stored as a
+ * decimal, which is what the projection math in src/lib/goal.ts expects.
+ * A blank monthly contribution is stored as null, meaning "use the recent
+ * average" — computed at render time rather than frozen here, so it keeps up
+ * as new holdings are added.
+ */
+export async function saveInvestmentGoal(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const name = parseOptionalString(formData.get("name")) ?? "My goal";
+  const targetAmount = Number(formData.get("targetAmount"));
+  const targetDate = parseLocalDate(formData.get("targetDate"));
+  const ratePercent = Number(formData.get("expectedAnnualRate"));
+  const monthlyContribution = parseOptionalNumber(formData.get("monthlyContribution"));
+
+  if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
+    return { error: "Enter a target amount greater than 0." };
+  }
+  if (!targetDate) {
+    return { error: "Choose a target date." };
+  }
+  if (!Number.isFinite(ratePercent)) {
+    return { error: "Enter an expected annual return." };
+  }
+  if (monthlyContribution !== null && monthlyContribution < 0) {
+    return { error: "The monthly contribution can't be negative." };
+  }
+
+  const data = {
+    name,
+    targetAmount,
+    targetDate,
+    expectedAnnualRate: ratePercent / 100,
+    monthlyContribution,
+  };
+
+  await prisma.investmentGoal.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", ...data },
+    update: data,
+  });
+
+  revalidateAll();
+  return {};
+}

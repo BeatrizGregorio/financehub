@@ -10,8 +10,15 @@
   --color-inset: rgba(0, 0, 0, 0.045);
   --color-inset-2: rgba(0, 0, 0, 0.035);
   --color-track: rgba(0, 0, 0, 0.08);
-  --color-muted: #6b7280;
-  --color-muted-2: #9ca3af;
+  /* Grey text scale. Darkened in the V1.17 UI audit: --color-muted-2 was
+     #9ca3af, which measured 2.45:1 against the glass card background —
+     well under WCAG AA's 4.5:1 for body text, and it carries most of the
+     app's secondary text plus every chart axis label. Both steps moved
+     down together so the ink → muted → muted-2 hierarchy stays visible
+     instead of collapsing into two levels. Now 5.78:1 and 4.67:1 on cards.
+     Keep any new grey at or below these values. */
+  --color-muted: #5b6472;
+  --color-muted-2: #6b7280;
 
   --color-meadow: #0c9e57;
   --color-emerald: #10b96a;

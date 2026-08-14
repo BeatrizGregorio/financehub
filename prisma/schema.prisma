@@ -111,3 +111,21 @@ model AppSettings {
   cycleStartDay Int      @default(10)
   updatedAt     DateTime @updatedAt
 }
+
+// Singleton — a single savings goal for the Investments projector. Multiple
+// goals are deliberately out of scope, so this follows the same
+// `id: "singleton"` pattern as ReferenceRates/AppSettings rather than being a
+// list. `expectedAnnualRate` is a DECIMAL (0.10 = 10% a.a.), unlike
+// ReferenceRates which stores percentages — the projection math in
+// src/lib/goal.ts works in decimals, and the form converts at the edge.
+// `monthlyContribution` null means "use the recent average", computed from
+// holdings rather than stored.
+model InvestmentGoal {
+  id                 String   @id @default("singleton")
+  name               String   @default("Minha meta")
+  targetAmount       Float
+  targetDate         DateTime
+  expectedAnnualRate Float    @default(0.1)
+  monthlyContribution Float?
+  updatedAt          DateTime @updatedAt
+}

@@ -74,7 +74,7 @@ export function Nav({
                 padding: collapsed ? "10px 0" : "10px 12px",
                 justifyContent: collapsed ? "center" : "flex-start",
                 background: active ? "rgba(12,158,87,0.1)" : "transparent",
-                color: active ? "#0c9e57" : "#9ca3af",
+                color: active ? "#0c9e57" : "#6b7280",
                 fontWeight: active ? 600 : 500,
               }}
             >

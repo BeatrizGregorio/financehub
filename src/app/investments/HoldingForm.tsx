@@ -29,9 +29,9 @@ const LABEL = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[
 const SECTION_LABEL = "mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase";
 
 function positionLabels(type: InvestmentTypeValue) {
-  if (type === "fundo") return { quantity: "Nº de cotas", price: "Cotação na compra" };
-  if (type === "renda-fixa") return { quantity: "Quantidade de títulos", price: "PU na compra" };
-  return { quantity: "Quantidade", price: "Preço médio de compra" };
+  if (type === "fundo") return { quantity: "Number of shares", price: "Price per share at purchase" };
+  if (type === "renda-fixa") return { quantity: "Number of units", price: "Unit price at purchase" };
+  return { quantity: "Quantity", price: "Average purchase price" };
 }
 
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
@@ -101,7 +101,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
     >
       <div className="sm:col-span-2">
         <label htmlFor={`${formId}-name`} className={LABEL}>
-          Nome
+          Name
         </label>
         <input
           id={`${formId}-name`}
@@ -110,14 +110,14 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
           maxLength={80}
           required
           defaultValue={holding?.name}
-          placeholder="e.g. CDB Nubank 12 meses"
+          placeholder="e.g. CDB Nubank 12 months"
           className={INPUT}
         />
       </div>
 
       <div>
         <label htmlFor={`${formId}-type`} className={LABEL}>
-          Tipo
+          Type
         </label>
         <select
           id={`${formId}-type`}
@@ -141,7 +141,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div>
         <label htmlFor={`${formId}-startDate`} className={LABEL}>
-          Data de início
+          Start date
         </label>
         <input
           id={`${formId}-startDate`}
@@ -156,7 +156,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {subtypes.length > 0 && (
         <div>
           <label htmlFor={`${formId}-subtype`} className={LABEL}>
-            Subtipo
+            Subtype
           </label>
           <select
             id={`${formId}-subtype`}
@@ -195,7 +195,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsMaturityDate(type) && (
         <div>
           <label htmlFor={`${formId}-maturityDate`} className={LABEL}>
-            Data de vencimento (opcional)
+            Maturity date (optional)
           </label>
           <input
             id={`${formId}-maturityDate`}
@@ -209,11 +209,11 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       {showsRateFields(type) && (
         <div className="rounded-xl bg-[var(--color-inset-2)] p-3.5 sm:col-span-2">
-          <p className={SECTION_LABEL}>Rendimento</p>
+          <p className={SECTION_LABEL}>Return</p>
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
             <div className="w-full sm:w-auto sm:flex-1">
               <label htmlFor={`${formId}-indexador`} className={LABEL}>
-                Indexador
+                Index
               </label>
               <select
                 id={`${formId}-indexador`}
@@ -251,7 +251,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
             {showsSpreadField(indexador) && (
               <div className="w-full sm:w-auto sm:flex-1">
                 <label htmlFor={`${formId}-spread`} className={LABEL}>
-                  Spread (% a.a.)
+                  Spread (% p.a.)
                 </label>
                 <input
                   id={`${formId}-spread`}
@@ -289,7 +289,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsAdminFee(type) && (
         <div>
           <label htmlFor={`${formId}-adminFee`} className={LABEL}>
-            Taxa de administração (% a.a., opcional)
+            Management fee (% p.a., optional)
           </label>
           <input
             id={`${formId}-adminFee`}
@@ -349,7 +349,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div>
         <label htmlFor={`${formId}-amountInvested`} className={LABEL}>
-          Valor investido (R$)
+          Amount invested (R$)
         </label>
         <input
           id={`${formId}-amountInvested`}
@@ -371,7 +371,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsExpectedReturn(type) && (
         <div>
           <label htmlFor={`${formId}-expectedReturn`} className={LABEL}>
-            Retorno esperado (% a.a.)
+            Expected return (% p.a.)
           </label>
           <input
             id={`${formId}-expectedReturn`}
@@ -388,7 +388,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsCorretagem(type) && (
         <div>
           <label htmlFor={`${formId}-corretagem`} className={LABEL}>
-            Corretagem estimada (R$, opcional)
+            Estimated brokerage fee (R$, optional)
           </label>
           <input
             id={`${formId}-corretagem`}
@@ -405,7 +405,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div>
         <label htmlFor={`${formId}-institution`} className={LABEL}>
-          Instituição (opcional)
+          Institution (optional)
         </label>
         <input
           id={`${formId}-institution`}
@@ -420,7 +420,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div className="sm:col-span-2">
         <label htmlFor={`${formId}-notes`} className={LABEL}>
-          Observações (opcional)
+          Notes (optional)
         </label>
         <input
           id={`${formId}-notes`}

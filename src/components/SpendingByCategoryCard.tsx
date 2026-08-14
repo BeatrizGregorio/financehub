@@ -28,6 +28,7 @@ export function SpendingByCategoryCard({
         <span className="text-[17px] font-extrabold tracking-tight">Spending by category</span>
         <div className="relative">
           <select
+            aria-label="Month shown in spending by category"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="appearance-none rounded-full bg-[var(--color-panel)] py-1.5 pl-3 pr-7 text-xs font-semibold text-[var(--color-ink)] outline-none"
