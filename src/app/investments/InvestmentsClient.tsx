@@ -1,21 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { PartyPopper, Plus, RefreshCw } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { HoldingForm } from "./HoldingForm";
 import { HoldingsTable } from "./HoldingsTable";
+import { CouponSection } from "./CouponSection";
 import { UpdatePricesModal } from "./UpdatePricesModal";
 import { HoldingDetail } from "./HoldingDetail";
 import { ProjectionChart } from "@/components/ProjectionChart";
+import { GoalProjectionCard } from "./GoalProjectionCard";
+import type { GoalLike } from "./GoalForm";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
 import {
+  currentValue,
+  isMatured,
   monthlyPortfolioValue,
   portfolioSummary,
   projectPortfolioValue,
   type ReferenceRatesLike,
 } from "@/lib/investments";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { CARD } from "@/lib/ui";
 
 export type Holding = {
@@ -80,22 +85,32 @@ export function InvestmentsClient({
   holdings,
   rates,
   cycleStartDay,
+  goal,
+  emergencyReserveTarget,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
   cycleStartDay: number;
+  goal: GoalLike | null;
+  emergencyReserveTarget: number | null;
 }) {
   const [editing, setEditing] = useState<Holding | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showPrices, setShowPrices] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [couponForId, setCouponForId] = useState<string | null>(null);
 
   const summary = portfolioSummary(holdings, rates);
+  const maturedHoldings = holdings.filter((h) => isMatured(h));
   const projection = projectPortfolioValue(holdings, rates);
   const monthly = monthlyPortfolioValue(holdings, rates, 12, cycleStartDay);
   // Derive from the live `holdings` prop (not a frozen snapshot) so editing or
   // deleting a price point inside the detail view updates it immediately.
   const viewing = viewingId ? (holdings.find((h) => h.id === viewingId) ?? null) : null;
+  // Derived from the live `holdings` prop by id rather than held as a frozen
+  // object, so a coupon added in the modal shows up immediately — same
+  // reasoning as `viewing` above.
+  const couponFor = couponForId ? (holdings.find((h) => h.id === couponForId) ?? null) : null;
 
   function startEdit(holding: Holding) {
     setEditing(holding);
@@ -139,6 +154,39 @@ export function InvestmentsClient({
         </div>
       </div>
 
+      {maturedHoldings.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-[18px] border border-[#0c9e57]/25 bg-[#0c9e57]/[0.07] px-5 py-4">
+          <div className="flex items-start gap-2.5">
+            <PartyPopper size={17} className="mt-px shrink-0 text-[#0c9e57]" />
+            <p className="text-[13.5px] leading-snug text-[var(--color-ink)]">
+              {maturedHoldings.length === 1
+                ? "Your investment is finalized — you have "
+                : `${maturedHoldings.length} investments are finalized — you have `}
+              <span className="font-mono font-bold">{formatCurrency(summary.maturedValue)}</span> to
+              reinvest!
+            </p>
+          </div>
+          <ul className="flex flex-col gap-1 pl-[27px]">
+            {maturedHoldings.map((h) => (
+              <li
+                key={h.id}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[12.5px]"
+              >
+                <span className="font-semibold text-[var(--color-ink)]">{h.name}</span>
+                <span className="font-mono text-[var(--color-muted)]">
+                  matured {h.maturityDate ? formatDate(h.maturityDate) : ""} ·{" "}
+                  {formatCurrency(currentValue(h, rates))}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="pl-[27px] text-[11.5px] text-[var(--color-muted)]">
+            These are no longer counted in your totals below. They stay here until you delete them,
+            so nothing is lost.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         <SummaryPill label="Total value" value={formatCurrency(summary.totalValue)} />
         <SummaryPill label="Total invested" value={formatCurrency(summary.totalInvested)} />
@@ -180,6 +228,13 @@ export function InvestmentsClient({
         </div>
       </div>
 
+      <GoalProjectionCard
+        goal={goal}
+        holdings={holdings}
+        currentValue={summary.totalValue}
+        emergencyReserveTarget={emergencyReserveTarget}
+      />
+
       {showForm && (
         <Modal title={editing ? "Edit holding" : "Add holding"} onClose={closeForm}>
           <HoldingForm key={editing?.id ?? "new"} holding={editing ?? undefined} onDone={closeForm} />
@@ -198,7 +253,19 @@ export function InvestmentsClient({
         </Modal>
       )}
 
-      <HoldingsTable holdings={holdings} rates={rates} onEdit={startEdit} onView={(h) => setViewingId(h.id)} />
+      {couponFor && (
+        <Modal title={`Coupons — ${couponFor.name}`} onClose={() => setCouponForId(null)}>
+          <CouponSection holding={couponFor} />
+        </Modal>
+      )}
+
+      <HoldingsTable
+        holdings={holdings}
+        rates={rates}
+        onEdit={startEdit}
+        onView={(h) => setViewingId(h.id)}
+        onAddCoupon={(h) => setCouponForId(h.id)}
+      />
     </div>
   );
 }

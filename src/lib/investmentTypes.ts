@@ -6,11 +6,11 @@
 export type InvestmentTypeValue = "renda-fixa" | "fundo" | "acao" | "cripto" | "outro";
 
 export const INVESTMENT_TYPES: { value: InvestmentTypeValue; label: string; color: string }[] = [
-  { value: "renda-fixa", label: "Renda Fixa", color: "#2e7d50" },
-  { value: "fundo", label: "Fundo", color: "#3d6b9e" },
-  { value: "acao", label: "Ação / ETF", color: "#8C2D3F" },
-  { value: "cripto", label: "Cripto", color: "#a87b3a" },
-  { value: "outro", label: "Outro", color: "#7a6855" },
+  { value: "renda-fixa", label: "Fixed income", color: "#2e7d50" },
+  { value: "fundo", label: "Fund", color: "#3d6b9e" },
+  { value: "acao", label: "Stock / ETF", color: "#8C2D3F" },
+  { value: "cripto", label: "Crypto", color: "#a87b3a" },
+  { value: "outro", label: "Other", color: "#7a6855" },
 ];
 
 export function typeLabel(type: string): string {
@@ -56,30 +56,30 @@ export const RENDA_FIXA_SUBTYPES: SubtypeConfig[] = [
   { value: "cdb", label: "CDB", irExempt: false, valuationMode: "direct", fallback: "accrual" },
   { value: "lci", label: "LCI", irExempt: true, valuationMode: "direct", fallback: "accrual" },
   { value: "lca", label: "LCA", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "poupanca", label: "Poupança", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "poupanca", label: "Poupança (savings)", irExempt: true, valuationMode: "direct", fallback: "accrual" },
   { value: "tesouro-selic", label: "Tesouro Selic", irExempt: false, valuationMode: "unit", fallback: "accrual" },
   { value: "tesouro-ipca", label: "Tesouro IPCA+", irExempt: false, valuationMode: "unit", fallback: "accrual" },
   { value: "tesouro-pre", label: "Tesouro Prefixado", irExempt: false, valuationMode: "unit", fallback: "accrual" },
   { value: "tesouro-renda", label: "Tesouro Renda+", irExempt: false, valuationMode: "unit", fallback: "accrual" },
   { value: "tesouro-educa", label: "Tesouro Educa+", irExempt: false, valuationMode: "unit", fallback: "accrual" },
-  { value: "ntn-f", label: "NTN-F (Prefixado c/ Juros)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "debenture-incent", label: "Debênture Incentivada", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "debenture-comum", label: "Debênture Comum", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "ntn-f", label: "NTN-F (fixed rate w/ coupons)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "debenture-incent", label: "Debênture (tax-exempt)", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "debenture-comum", label: "Debênture (standard)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
   { value: "cri", label: "CRI", irExempt: true, valuationMode: "direct", fallback: "accrual" },
   { value: "cra", label: "CRA", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "outro-rf", label: "Outro RF", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "outro-rf", label: "Other fixed income", irExempt: false, valuationMode: "direct", fallback: "accrual" },
 ];
 
 export const FUNDO_SUBTYPES: SubtypeConfig[] = [
-  { value: "fidc", label: "FIDC / FIC-FIDC (Cota Sênior)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fidc-sub", label: "FIDC (Cota Subordinada)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fii-fechado", label: "FII Fechado / Não Listado", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fidc", label: "FIDC / FIC-FIDC (senior share)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fidc-sub", label: "FIDC (subordinated share)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fii-fechado", label: "FII (closed-end / unlisted)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
   { value: "fi-infra", label: "FI-Infra", irExempt: true, valuationMode: "direct", fallback: "accrual" },
   { value: "fi-agro", label: "FI-Agro", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "fundo-rf", label: "Fundo Renda Fixa", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fundo-mm", label: "Fundo Multimercado", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fundo-acoes", label: "Fundo de Ações", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "outro-fundo", label: "Outro Fundo", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fundo-rf", label: "Fixed income fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fundo-mm", label: "Multi-strategy fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fundo-acoes", label: "Equity fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "outro-fundo", label: "Other fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
 ];
 
 export function subtypesForType(type: string): SubtypeConfig[] {
@@ -158,17 +158,17 @@ export function isIrExempt(type: string, subtype: string | null | undefined): bo
 }
 
 export const INDEXADOR_OPTIONS: { value: string; label: string }[] = [
-  { value: "prefixada", label: "Prefixada" },
-  { value: "cdi-pct", label: "% do CDI" },
+  { value: "prefixada", label: "Fixed rate" },
+  { value: "cdi-pct", label: "% of CDI" },
   { value: "cdi-plus", label: "CDI +" },
   { value: "ipca-plus", label: "IPCA +" },
-  { value: "selic-pct", label: "% da SELIC" },
+  { value: "selic-pct", label: "% of SELIC" },
 ];
 
 export function rateFieldLabel(indexador: string | null | undefined): string {
-  if (indexador === "cdi-pct") return "% do CDI";
-  if (indexador === "selic-pct") return "% da SELIC";
-  return "Taxa % a.a.";
+  if (indexador === "cdi-pct") return "% of CDI";
+  if (indexador === "selic-pct") return "% of SELIC";
+  return "Rate % p.a.";
 }
 
 export function showsSpreadField(indexador: string | null | undefined): boolean {

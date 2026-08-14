@@ -47,16 +47,23 @@ export function BudgetEditor({
                   />
                   {c.name}
                 </span>
-                <div className="flex items-center gap-1.5 rounded-[10px] bg-[var(--color-inset)] px-[13px] py-2">
-                  <span className="font-mono text-xs text-[var(--color-muted-2)]">$</span>
+                {/* py moved off the wrapper and onto the input below, so the
+                    pill keeps its size but the input itself is a 28px target
+                    rather than 20px of bare text. */}
+                <div className="flex items-center gap-1.5 rounded-[10px] bg-[var(--color-inset)] px-[13px] py-1">
+                  <span className="font-mono text-xs text-[var(--color-muted-2)]">R$</span>
                   <input
                     type="number"
                     name={`budget:${c.name}`}
+                    // The category name is only a visual sibling, so screen
+                    // readers would otherwise announce four identical
+                    // unlabelled number fields.
+                    aria-label={`Monthly budget limit for ${c.name}`}
                     min="0"
                     step="10"
                     defaultValue={limitByCategory.get(c.name) || ""}
                     placeholder="0"
-                    className="w-20 bg-transparent text-right font-mono text-[13px] outline-none"
+                    className="w-20 bg-transparent py-1 text-right font-mono text-[13px] outline-none"
                   />
                 </div>
               </div>

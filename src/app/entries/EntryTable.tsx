@@ -19,7 +19,10 @@ function DeleteButton({ id }: { id: string }) {
     >
       <button
         type="submit"
-        className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
+        // px/py enlarge the hit area to the 24px WCAG minimum (the bare text
+        // was 16px tall); the matching negative margin keeps the row's
+        // visual height unchanged.
+        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
       >
         Delete
       </button>
@@ -39,7 +42,10 @@ function DeleteSeriesButton({ groupId, count }: { groupId: string; count: number
     >
       <button
         type="submit"
-        className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
+        // px/py enlarge the hit area to the 24px WCAG minimum (the bare text
+        // was 16px tall); the matching negative margin keeps the row's
+        // visual height unchanged.
+        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
       >
         Series
       </button>
@@ -134,7 +140,7 @@ export function EntryTable({
                   <button
                     type="button"
                     onClick={() => onEdit(entry)}
-                    className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
+                    className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
                   >
                     Edit
                   </button>

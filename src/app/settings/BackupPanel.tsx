@@ -54,6 +54,7 @@ export function BackupPanel() {
             ref={fileRef}
             type="file"
             name="file"
+            aria-label="Backup file to import"
             accept="application/json"
             required
             className="hidden"

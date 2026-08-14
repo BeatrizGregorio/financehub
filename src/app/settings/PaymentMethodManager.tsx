@@ -53,6 +53,7 @@ export function PaymentMethodManager({
           name="name"
           type="text"
           maxLength={40}
+          aria-label="New payment method name"
           placeholder="e.g. Debit Card"
           className="flex-1 rounded-full bg-[var(--color-inset)] px-4 py-2.5 text-[13px] outline-none focus:bg-white focus:ring-1 focus:ring-[var(--color-ink)]"
         />

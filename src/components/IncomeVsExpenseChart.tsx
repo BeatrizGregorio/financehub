@@ -16,12 +16,12 @@ export function IncomeVsExpenseChart({
           <XAxis
             dataKey="label"
             tickFormatter={(v: string) => v.split(" ")[0]}
-            tick={{ fontSize: 11.5, fill: "#9ca3af", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11.5, fill: "#9ca3af", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) => formatCurrencyAxis(v)}

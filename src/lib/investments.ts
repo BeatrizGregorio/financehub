@@ -132,8 +132,30 @@ function latestPriceOnOrBefore(inv: InvestmentLike, asOfDate: Date): PricePointL
  * spec are intentionally not implemented — every price in this app is entered
  * by hand via the Update Prices screen.
  */
+/**
+ * True once a holding has reached its maturity date — the money has been paid
+ * back and is sitting as cash to reinvest, so it's no longer an active
+ * position. Inclusive of the maturity date itself: a CDB maturing today is
+ * finalized today.
+ *
+ * Holdings with no maturity date (stocks, crypto, open-ended funds) never
+ * mature.
+ */
+export function isMatured(inv: InvestmentLike, asOfDate: Date = new Date()): boolean {
+  if (!inv.maturityDate) return false;
+  return dateKey(asOfDate) >= dateKey(inv.maturityDate);
+}
+
 export function valueAtDate(inv: InvestmentLike, rates: ReferenceRatesLike, asOfDate: Date): number {
   const { mode, fallback } = valuation(inv.type, inv.subtype);
+  // A matured holding stops earning, so its value freezes at the redemption
+  // figure instead of accruing forever. Capping the *date* rather than
+  // special-casing the value keeps every branch below (manual price, MTM,
+  // accrual, coupons) consistent, and matches what projectPortfolioValue()
+  // already did for future dates.
+  if (inv.maturityDate && dateKey(asOfDate) > dateKey(inv.maturityDate)) {
+    asOfDate = inv.maturityDate;
+  }
   const manual = latestPriceOnOrBefore(inv, asOfDate);
 
   if (manual) {
@@ -213,6 +235,10 @@ export type AllocationSlice = { type: string; value: number };
 export function allocationByType(investments: InvestmentLike[], rates: ReferenceRatesLike): AllocationSlice[] {
   const totals = new Map<string, number>();
   for (const inv of investments) {
+    // Matured holdings are cash awaiting reinvestment, not an allocation to
+    // their old asset class — excluded here so this agrees with the
+    // active-only totals in portfolioSummary().
+    if (isMatured(inv)) continue;
     const value = currentValue(inv, rates);
     if (!value) continue;
     totals.set(inv.type, (totals.get(inv.type) ?? 0) + value);
@@ -223,23 +249,48 @@ export function allocationByType(investments: InvestmentLike[], rates: Reference
 }
 
 export type PortfolioSummary = {
+  /** Active (not yet matured) holdings only — see maturedValue. */
   totalValue: number;
   totalInvested: number;
   totalCouponsReceived: number;
   gain: number;
   returnPct: number | null;
+  /** Redemption value of matured holdings: cash available to reinvest. */
+  maturedValue: number;
+  maturedCount: number;
 };
 
+/**
+ * Portfolio figures for *active* holdings. Matured ones are reported
+ * separately (maturedValue/maturedCount) rather than folded into the totals —
+ * that money has been paid back and is waiting to be reinvested, so counting
+ * it as an open position would overstate what's actually invested. The
+ * Investments page surfaces it as a "ready to reinvest" notice instead.
+ */
 export function portfolioSummary(investments: InvestmentLike[], rates: ReferenceRatesLike): PortfolioSummary {
-  const totalValue = investments.reduce((sum, inv) => sum + currentValue(inv, rates), 0);
-  const totalInvested = investments.reduce((sum, inv) => sum + inv.amountInvested, 0);
-  const totalCouponsReceived = investments.reduce((sum, inv) => sum + totalCoupons(inv), 0);
+  const active = investments.filter((inv) => !isMatured(inv));
+  const matured = investments.filter((inv) => isMatured(inv));
+
+  const totalValue = active.reduce((sum, inv) => sum + currentValue(inv, rates), 0);
+  const totalInvested = active.reduce((sum, inv) => sum + inv.amountInvested, 0);
+  const totalCouponsReceived = active.reduce((sum, inv) => sum + totalCoupons(inv), 0);
   // Coupons already left the holding (see valueAtDate), so add them back here
   // for the same reason taxBreakdown() does — gain/loss should reflect total
   // return, not just what's still sitting in the holdings.
   const gain = totalValue + totalCouponsReceived - totalInvested;
   const returnPct = totalInvested > 0 ? gain / totalInvested : null;
-  return { totalValue, totalInvested, totalCouponsReceived, gain, returnPct };
+
+  const maturedValue = matured.reduce((sum, inv) => sum + currentValue(inv, rates), 0);
+
+  return {
+    totalValue,
+    totalInvested,
+    totalCouponsReceived,
+    gain,
+    returnPct,
+    maturedValue,
+    maturedCount: matured.length,
+  };
 }
 
 export type PortfolioValuePoint = { date: string; label: string; value: number };
@@ -257,7 +308,12 @@ export type PortfolioValuePoint = { date: string; label: string; value: number }
  */
 function ownershipValue(inv: InvestmentLike, rates: ReferenceRatesLike, asOfDate: Date): number {
   if (dateKey(asOfDate) < dateKey(inv.startDate)) return 0;
-  if (inv.maturityDate && dateKey(asOfDate) > dateKey(inv.maturityDate)) return 0;
+  // Goes through isMatured() rather than its own date comparison so the charts
+  // and the summary pills use the exact same boundary — this used to be a `>`
+  // against maturityDate while isMatured() is inclusive of it, which meant that
+  // on the maturity date itself the totals dropped the holding but the chart's
+  // last point still counted it.
+  if (isMatured(inv, asOfDate)) return 0;
   return valueAtDate(inv, rates, asOfDate);
 }
 

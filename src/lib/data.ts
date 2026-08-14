@@ -33,3 +33,12 @@ export async function getCycleStartDay(): Promise<number> {
   const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
   return clampCycleStartDay(settings?.cycleStartDay ?? CYCLE_START_DAY);
 }
+
+/**
+ * The savings goal, or null when none is set yet — there's no sensible
+ * default target amount or date to invent, so the projector shows an empty
+ * state instead of a fabricated goal.
+ */
+export async function getInvestmentGoal() {
+  return prisma.investmentGoal.findUnique({ where: { id: "singleton" } });
+}

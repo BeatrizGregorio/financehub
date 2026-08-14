@@ -395,6 +395,274 @@ dashboard header, month picker and sidebar all moved to calendar months
 Entries and Investments both rendering. `tsc --noEmit` / `npm run lint`
 clean.
 
+V1.16 (Investments: "Meta & Projeção" — goal + projection block) added
+2026-08-11, from a written spec the owner provided. This is the
+goal-tracking / monthly-contribution simulator that V1.7 and V1.10
+explicitly deferred ("the Investment Projector calculator"), so it closes
+that gap — it is *not* the same thing as V1.10's `ProjectionChart`, which
+plots portfolio value at fixed horizons with no goal or contributions.
+Both now live on the Investments page.
+
+**The spec described a different app.** It was written against the
+single-file HTML/Chart.js/localStorage reference app (Controle Financeiro),
+not this Next.js/Prisma/Recharts one, and it assumed a **dated contribution
+log ("log de aportes datados") that this app does not have** — the buy/sell
+transaction log is still the deferred P2 work described above. Adapted
+rather than stopped: localStorage → an `InvestmentGoal` singleton, Chart.js
+→ Recharts, and the cash flows are built from what *does* exist — each
+holding's `startDate` + `amountInvested` is a genuine dated outflow, plus
+`CouponPayment`s as inflows and current portfolio value as the closing
+inflow. **Known limitation, stated in the UI rather than hidden:** topping
+up an existing holding raises `amountInvested` without recording a new
+date, so that money is attributed to the holding's original `startDate`
+and XIRR reads slightly low. Building the real transaction log would fix
+this and nothing else here would need to change.
+
+Math lives in `src/lib/goal.ts`, pure and dependency-free so it runs both
+server-side for the first render and in the browser as the owner edits:
+`annualToMonthly`/`fv`/`requiredPMT`/`monthsToGoal`/`xirr` transcribed from
+the spec with the arithmetic untouched (only types added), plus
+`buildCashFlows`/`averageMonthlyContribution`/`goalProjection`/
+`averageMonthlyExpenses` adapting this app's data to them. XIRR is
+bisection, and returns `null` rather than a wrong number when the flows
+can't bracket a root (fewer than 2 flows, or no sign change) — the UI shows
+"sem dados suficientes ainda" in that case. `SPREAD = 0.03` at the top of
+the file drives the pessimistic/optimistic band; it's one constant on
+purpose.
+
+Rates in `goal.ts` are **decimals** (0.10 = 10% a.a.) because the
+compounding formulas need them that way, which is the opposite of
+`ReferenceRates`/`annualRate` elsewhere in this app (12.65 = 12.65%). The
+conversion happens at exactly one place, `saveInvestmentGoal` in
+`investments/actions.ts` (`ratePercent / 100`) and the form's
+`defaultValue`; don't let it leak inward.
+
+UI is `GoalProjectionCard.tsx` (real return + progress bar + the two
+solvers + chart), `GoalForm.tsx` (the modal, reusing `Modal.tsx` and
+EntryForm's `submitCount` close-on-success pattern), and
+`components/GoalProjectionChart.tsx`. The band is a **single Recharts
+`Area` whose dataKey holds a `[low, high]` pair** — Recharts renders a
+two-value key as a range, which is why there aren't two stacked Areas.
+Its `YAxis width` is 92 rather than the 72 the other charts use: a
+projection runs years out, so ticks reach 6–7 figures and were clipping at
+72 (caught by measuring tick `getBoundingClientRect().left` against the
+SVG's left edge, not by eyeballing a screenshot).
+
+Verified: compiled `goal.ts` standalone and asserted the round-trip that
+matters (saving exactly `requiredPMT` for n months lands exactly on the
+target), plus every edge case the spec listed — rate 0, goal already
+reached, goal unreachable at the current contribution, target date in the
+past, XIRR with too few flows / no sign change. Then end-to-end in the
+browser against real holdings: set a goal through the modal, confirmed it
+persisted (rate stored as a decimal, blank contribution stored as null),
+and hand-checked both solvers against the rendered figures
+(R$ 477,69/month and April 2027 both reconcile). Forced each edge case
+through the DB and confirmed the right message renders.
+
+**A "narrow-viewport sidebar bug" reported during this work turned out not
+to exist** — worth recording because the false positive is easy to
+reproduce. At 375px the sidebar measured 207–240px wide (instead of the
+collapsed 72px), `<main>` was squeezed to 135px, and every chart on the
+page rendered 14–40px wide. All of that was real on screen *and* entirely
+an artifact of the Browser pane: `document.visibilityState` is `"hidden"`
+there, and **a hidden page pauses CSS transitions**, so `Nav.tsx`'s
+`transition-[width,padding] duration-300` never advanced. React state was
+correct the whole time (`collapsed === true`, inline `style.width = "72px"`),
+but *computed* width stayed at the pre-transition 240px, and Recharts'
+ResponsiveContainer then measured that squeezed parent. Setting
+`el.style.transition = "none"` and forcing a reflow immediately reported
+the correct 72px / 12px padding. **Whenever a measured layout disagrees
+with the inline style, check `document.hidden` and kill transitions before
+concluding anything** — see the audit note under "Version-specific
+gotchas".
+
+V1.17 (UI/UX audit) added 2026-08-11, checking all four pages at 1440px,
+1280px and 375px. Unlike V1.8's audit (which was about layout collapse),
+this one was mostly **contrast and accessible naming** — the layout held up
+well. Nine fixes:
+
+**Contrast.** `--color-muted-2` was `#9ca3af`, measuring **2.45:1** against
+the glass card background — far under WCAG AA's 4.5:1, and it carries most
+secondary text plus every chart axis tick. Both grey steps were darkened
+together (`--color-muted` #6b7280 → **#5b6472**, `--color-muted-2` #9ca3af →
+**#6b7280**, now 5.78:1 and 4.67:1 on cards) so the ink → muted → muted-2
+hierarchy survives instead of collapsing into two levels. The same value was
+hardcoded as `#9ca3af` in nine chart/component files for Recharts tick
+fills; all were updated, so `#9ca3af` should no longer appear anywhere in
+`src/`. **Deliberately not changed:** the brand green `#0c9e57` (3.36:1) and
+red `#dc3545` (4.37:1), which also fail AA for body text — those are the
+Figma palette's identity colors, and altering them is a design decision for
+the owner, not a bug fix. Flagged, not touched.
+
+**Accessible naming** (all four pages now report zero): the two month
+`<select>`s (dashboard spending card, entries filter) had no accessible
+name at all; the Settings inputs — both "New category…" fields, all four
+budget-limit numbers, "e.g. Debit Card", and the backup file input — had
+only placeholders, which are not accessible names. Budget inputs get
+`aria-label={`Monthly budget limit for ${category}`}` specifically because
+the category name beside them is only a visual sibling, so a screen reader
+would otherwise announce several identical unlabelled number fields.
+
+**Hit targets** raised to the 24px WCAG 2.2 minimum: the Edit/Delete/Series
+row actions in `EntryTable` and `HoldingsTable` were 16px of bare text, and
+holding-name buttons 20px. Fixed with `px-1.5 py-1 -my-1` — padding grows
+the hit area while the matching negative margin keeps row height identical
+(verified: entry rows still 70px, zero vertical overlap). The two number
+inputs in `BudgetEditor`/`CycleSettingsCard` were 20px inside a 36px pill,
+so `py` moved off the wrapper onto the input: same pill, 28px field.
+
+**Layout:** `PortfolioValueChart`'s last x-axis label ("Aug 2026") is
+centred on the final data point and overflowed the plot area, so it needed
+`margin.right: 30` (~half the widest "MMM YYYY" label). A first attempt at
+14 left 2px still clipping — measured, not eyeballed.
+
+**Methodology note, important for any future audit here:** the Browser pane
+runs with `document.visibilityState === "hidden"`, and **a hidden page
+pauses CSS transitions and throttles ResizeObserver/rAF**. That produces
+convincing but false readings — a sidebar mid-transition reporting 207–240px
+instead of its settled 72px, and Recharts `ResponsiveContainer` reporting
+14–40px chart widths. Both were briefly reported as real bugs during this
+work and were not. Before trusting any measurement, inject
+`*{transition:none!important;animation:none!important}`, force a reflow, and
+if a chart looks collapsed take a screenshot first (that forces a paint).
+Where layout isn't needed at all — accessible names, labels, markup — prefer
+`curl`ing the page HTML and parsing it, which sidesteps the pane entirely.
+
+V1.19 (Investments: row actions "View more" + "Add coupon") added
+2026-08-11. The holdings table previously only exposed Edit/Delete, with the
+detail view reachable only by clicking the holding's name — not discoverable.
+Now each row has **View more · Add coupon · Edit · Delete**.
+
+"View more" just calls the same `onView` the name click already used.
+"Add coupon" opens a dedicated modal, and is **gated to
+`showsRateFields(type)`** (Renda Fixa/Fundo only) — the same gate
+`HoldingDetail` uses, so the button never offers a meaningless action on
+Ação/Cripto/Outro. Verified by temporarily inserting an `acao` holding into
+the dev database: 11 rows rendered 11 "View more" but only 10 "Add coupon",
+and the Ação row specifically had no coupon button. Row removed afterwards.
+
+The coupon UI was **extracted** to `investments/CouponSection.tsx` rather
+than duplicated — `CouponRow`/`CouponAddForm` and the heading/total/list
+layout were inline in `HoldingDetail`, and a second entry point would have
+meant two copies of the add/edit/delete wiring drifting apart. Both the
+detail modal and the new row modal now render `<CouponSection holding={…} />`.
+Like `viewing`, the modal's holding is derived from the live `holdings` prop
+by id (`couponForId`), not held as a frozen object, so a coupon added inside
+the modal appears in its own list immediately — confirmed in the browser
+(added R$ 123,45, saw the row and the "total received" line appear without
+closing the modal, then removed it).
+
+**Column widths in `HoldingsTable` are measured, not guessed — re-measure
+before touching them.** Four actions need 276px on one line (73 + 83 + 35 +
+51 + three 10px gaps = 272); at 250 they wrapped and rows grew 70→75px. That
+width is paid for by trimming Type 160→140 and Value 150→120, whose widest
+real content is only 100px and 101px. Two intermediate attempts each
+introduced a hairline horizontal scrollbar — first 6px at the desktop app's
+1360px window, then 16px at 1280px — because the `min-w` floor was raised
+naively; it ended at **960px**, which fits both (1049px and 969px of usable
+width respectively, measured, with the Name column absorbing the remainder
+and truncating). `tsc --noEmit` / `npm run lint` clean.
+
+V1.20 (matured holdings + English-language audit) added 2026-08-12, two
+things in one pass.
+
+**(1) Maturity.** A holding past its `maturityDate` is money already paid
+back — cash waiting to be reinvested, not an active position. The owner
+asked to "exclude the investment" and show a celebratory prompt; confirmed
+with her first that this means **flag it, not delete it** (deleting a real
+holding on a date rollover would destroy price/coupon history nobody asked
+to lose). So:
+- `isMatured(inv, asOfDate = new Date())` in `investments.ts` — **inclusive
+  of the maturity date itself** (a CDB maturing today is finalized today).
+  Holdings with no `maturityDate` (Ação/Cripto/open-ended Fundo) never
+  mature.
+- `valueAtDate()` **caps `asOfDate` at `maturityDate`** rather than
+  special-casing the value, so the figure freezes at the redemption amount
+  and every branch below it (manual price, MTM, accrual, coupon
+  subtraction) stays consistent. This generalizes what
+  `projectPortfolioValue()` was already doing for future dates.
+- `portfolioSummary()` now totals **active holdings only** and reports
+  `maturedValue`/`maturedCount` separately; `allocationByType()` skips
+  matured holdings, so the Dashboard donut doesn't show redeemed money as
+  an allocation.
+- `ownershipValue()` (the monthly-chart wrapper) delegates its maturity
+  check to `isMatured()` instead of its own comparison. **This fixed a real
+  one-day inconsistency**: it used `>` against `maturityDate` while
+  `isMatured()` is inclusive, so on the maturity date itself the summary
+  pills dropped the holding but the chart's final point still counted it.
+  If you add another maturity check anywhere, route it through
+  `isMatured()` for exactly this reason.
+- UI: a green `PartyPopper` banner in `InvestmentsClient.tsx` ("Your
+  investment is finalized — you have R$ X to reinvest!"), listing each
+  matured holding with its maturity date and final value, plus a line
+  saying they're no longer in the totals and stay until deleted — the
+  "nothing was silently lost" reassurance that makes excluding them from
+  the totals safe. `HoldingsTable` shows a "Matured" pill and swaps the
+  value hint to "final value".
+
+Verified against the owner's real data without any temporary edits — a
+holding (CDB - BANCO BMG S.A) matures exactly 2026-08-12, so this session
+was itself the boundary case. Confirmed the banner, the badge, totals
+excluding it (R$ 65.039,11 active vs. R$ 21.963,52 matured), and that the
+monthly chart's last point drops by the matured amount. That drop was
+verified by reading the Recharts dot `cy` values and interpolating against
+the y-axis tick positions, not by eyeballing the line.
+
+**(2) English audit.** The V1.16 goal work and the V1.7 investment taxonomy
+had been transcribed straight from Portuguese specs, leaving Portuguese
+strings in an otherwise-English UI. Translated `investmentTypes.ts`,
+`HoldingForm.tsx`, `HoldingDetail.tsx`, `GoalProjectionCard.tsx`,
+`GoalForm.tsx`, and the `"Minha meta"` fallback in `investments/actions.ts`.
+Per the owner's explicit choice, **Brazilian product names stay in
+Portuguese** — Poupança, Debênture, Tesouro Selic/IPCA+/Prefixado/Renda+/
+Educa+, CDB, LCI, LCA, CRI, CRA, FI-Infra, FI-Agro — since those are what
+the statements say. `a.a.` → `p.a.` throughout.
+
+**The `value` keys in `investmentTypes.ts` were deliberately left
+untouched** — they're persisted in `Investment.type`/`subtype` (free text,
+no FK), so translating them would orphan every existing holding. Only the
+`label`s changed.
+
+Found one unrelated real bug while sweeping: `BudgetEditor`'s limit inputs
+still had a `$` prefix, missed when the app switched USD → BRL in V1.6.
+Now `R$`. Remaining Portuguese in the running app is the owner's **own
+data** (category "Fatura", methods "Crédito"/"Débito/PIX", entry names) —
+left alone. The saved goal's name was `"Reserva de emergência"`, which came
+from this app's own preset rather than from her typing it, so it was
+renamed to "Emergency fund" in the database; it's editable from the goal
+modal either way. `tsc --noEmit` / `npm run lint` clean.
+
+V1.21 (Goal & projection is collapsible) added 2026-08-12 — it's the
+tallest block on the Investments page (704px expanded at 1280px) and the
+owner wanted it out of the way. Collapsed it's 89px.
+
+Three decisions worth keeping:
+- **The body unmounts (`{open && …}`) rather than being hidden with CSS.**
+  Inside a `display:none` parent Recharts' `ResponsiveContainer` measures 0
+  and the chart comes back collapsed; unmounting means it measures a real
+  width on remount. Verified by collapsing and re-expanding, then checking
+  the chart measured 929×288 with a 1220-character area path, and the body
+  returned to exactly its original 599.94px.
+- **Collapse state is per-visit, deliberately not persisted.** Reading
+  `localStorage` during the first render would disagree with the
+  server-rendered HTML, and the usual escape hatch (set it in an effect) is
+  what this project's lint config forbids. If the owner asks for it to
+  stick, the honest fix is a column on `AppSettings` — same pattern as
+  `cycleStartDay` — not a client-side hack.
+- **Collapsed still shows the number that matters** ("Emergency fund —
+  43.4% of R$ 150.000,00") and keeps the Edit-goal button, so collapsing
+  isn't the same as losing the block. The modal renders outside the
+  collapsible region for that reason.
+
+Markup is `<h2><button aria-expanded aria-controls>`, the standard accordion
+shape — a `<button>` can't legally contain an `<h2>`, so it can't be the
+other way round. Verified at 1280px and 375px: at 375px the header wraps the
+Edit button onto its own line with no overlap and no horizontal scroll, and
+the toggle's hit area is 169×34 (over the 24px WCAG 2.2 minimum). The
+sidebar read 207px mid-measurement at first — the documented hidden-pane
+transition artifact again, cleared by reloading at that width instead of
+resizing into it. `tsc --noEmit` / `npm run lint` clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
@@ -457,6 +725,34 @@ assume. Things that broke naive assumptions during the build:
   with the page, verify via `javascript_tool` (check `getBoundingClientRect()`,
   `scrollY`) before assuming the app broke — a plain re-navigate or resizing the
   window taller (to avoid needing to scroll at all) also clears it.
+- **The Browser pane is `document.visibilityState === "hidden"`, which pauses CSS
+  transitions and throttles ResizeObserver/rAF** — so `getBoundingClientRect()`
+  can report the *pre-transition* layout indefinitely. This produced two
+  convincing false bug reports during the V1.17 audit: `Nav.tsx`'s sidebar
+  measuring 207–240px instead of its settled 72px (its `transition-[width]`
+  never advanced, though React state and the inline `style.width` were already
+  correct), and Recharts `ResponsiveContainer` reporting 14–40px chart widths.
+  Before trusting any measurement, inject
+  `*{transition:none!important;animation:none!important}` and force a reflow;
+  a screenshot also forces a paint. If a measured layout disagrees with the
+  element's own inline style, suspect this first. For anything that doesn't
+  need layout (accessible names, labels, markup), `curl` the page and parse the
+  HTML instead — far more reliable than driving the pane.
+- **`Modal.tsx` portals to `document.body`, and must keep doing so** — a
+  `position: fixed` overlay normally resolves against the viewport, but any
+  ancestor with `backdrop-filter` (also transform/filter/perspective/contain)
+  becomes the containing block for fixed descendants instead. This app's glass
+  `CARD` style includes `backdrop-blur-xl`, so a `<Modal>` rendered anywhere
+  inside a card sizes and centres itself **against that card** rather than the
+  screen. That's exactly what happened to the "Definir meta" dialog in V1.16,
+  which renders `<Modal>` inside `GoalProjectionCard`'s own card (the other
+  four call sites happen to sit at the top level of their client components,
+  which is why they never showed it). Fixed in V1.18 with `createPortal` into
+  `document.body`, so placement in the component tree can't matter again. The
+  `typeof document === "undefined"` guard is there because `createPortal`
+  needs a real DOM node and this renders during SSR too — deliberately not a
+  mounted-flag-in-an-effect, since this project's lint config rejects
+  `setState` inside an effect.
 - **Recharts `Pie` sometimes renders an empty `<g class="recharts-shape">`** (no
   `<path>`, so the donut is just... gone) with the default animation on, in this
   Next 16 dev + React 19 setup — looked like a real bug (confirmed via
@@ -652,13 +948,30 @@ test holdings were disposable fixtures and were dropped rather than migrated
   foreign_keys = ON` for the connection, and this project doesn't rely on that
   being set. Do the same (explicit delete, don't trust the cascade) anywhere
   else you delete an `Investment` row, including in `importBackup`'s wipe step.
-- **Not built** (deferred, matching the owner's own scoping): the
-  goal-tracking/monthly-contribution-simulation Investment Projector
-  calculator (distinct from the value-projection chart shipped in V1.10
-  above), and any live price/rate fetching. Both would slot in without a
-  schema change if asked for later — a `ticker` field + manual "refresh"
-  button for prices, per the P2 note below; the projector calculator is pure
-  UI + the existing `getEffectiveRate()`.
+- **Goal & projection** (`GoalProjectionCard.tsx` + `GoalForm.tsx` +
+  `components/GoalProjectionChart.tsx`, added V1.16, math in
+  `src/lib/goal.ts`): the goal-tracking/monthly-contribution simulator the
+  earlier specs deferred — money-weighted actual return (XIRR), a progress
+  bar against an `InvestmentGoal` singleton, and two solvers (contribution
+  needed to hit the target date / date reached at the current
+  contribution). Distinct from the V1.10 Projection chart above, which has
+  no goal or contributions. Framed as tracking, never as advice.
+  **Collapsible since V1.21** — the body unmounts rather than being CSS-
+  hidden (Recharts measures 0 inside a `display:none` parent), and the
+  collapsed header keeps the progress figure plus the Edit-goal button.
+- **Matured holdings** (added V1.20): once a holding reaches its
+  `maturityDate` (inclusive), `isMatured()` treats it as finalized — its
+  value freezes at the redemption figure, it drops out of the summary
+  totals, the allocation donut and the monthly charts, and a banner on the
+  Investments page says how much is now free to reinvest. It is **not**
+  deleted; the row stays with a "Matured" badge until the owner removes it,
+  so price and coupon history survive. Route any new maturity check through
+  `isMatured()` rather than comparing dates again — see V1.20 for the
+  off-by-one-day bug that came from having two comparisons.
+- **Not built** (deferred, matching the owner's own scoping): any live
+  price/rate fetching. It would slot in without a schema change if asked
+  for later — a `ticker` field + a manual "refresh" button, per the P2 note
+  below.
 
 **Settings** (`src/app/settings/`) — a dedicated page, not a slide-over panel like
 the reference file used (simpler to reason about, consistent with how
@@ -856,13 +1169,16 @@ FinanceHub/
 │   │       ├── actions.ts         # createHolding/updateHolding/deleteHolding/savePrices/updatePricePoint/deletePricePoint/addCoupon/updateCoupon/deleteCoupon
 │   │       ├── InvestmentsClient.tsx  # owns modal state; exports the shared `Holding` type; renders ProjectionChart
 │   │       ├── HoldingForm.tsx    # add/edit holding form, all sections conditional per investmentTypes.ts
-│   │       ├── HoldingsTable.tsx  # holdings table; row name opens HoldingDetail
+│   │       ├── HoldingsTable.tsx  # holdings table; row actions View more / Add coupon / Edit / Delete (V1.19)
 │   │       ├── UpdatePricesModal.tsx  # the batch "Update prices" form
+│   │       ├── CouponSection.tsx  # V1.19 — coupon total/add-form/list, shared by HoldingDetail + the row's Add-coupon modal
+│   │       ├── GoalProjectionCard.tsx # V1.16 — Meta & Projeção block (real return, progress, solvers)
+│   │       ├── GoalForm.tsx       # V1.16 — goal modal + emergency-reserve preset
 │   │       └── HoldingDetail.tsx  # sparkline + tax breakdown + editable/deletable price + coupon lists
 │   ├── components/
 │   │   ├── Nav.tsx                 # collapsible left sidebar nav (see Visual design system)
 │   │   ├── CategoryIcon.tsx        # <Icon name="..."/> — kebab-case name → lucide component
-│   │   ├── Modal.tsx                # reusable popup dialog (entries + investments forms) — solid white card, not the translucent CARD, since V1.9 (see gotchas)
+│   │   ├── Modal.tsx                # reusable popup dialog — portals to document.body (V1.18, see gotchas); solid white card, not the translucent CARD, since V1.9
 │   │   ├── BudgetsCard.tsx         # Dashboard col 1: budget progress bars + insight
 │   │   ├── RecentEntriesCard.tsx   # Dashboard col 1: last 5 entries
 │   │   ├── SpendingByCategoryCard.tsx  # Dashboard col 2: owns month-picker state
@@ -872,6 +1188,7 @@ FinanceHub/
 │   │   ├── IncomeVsExpenseChart.tsx
 │   │   ├── MonthlyTrendChart.tsx
 │   │   ├── PortfolioValueChart.tsx # Dashboard col 3 "Monthly value" line, added V1.6, reused on Investments page since V1.11
+│   │   ├── GoalProjectionChart.tsx # added V1.16 — band + goal line + crossing dot
 │   │   └── ProjectionChart.tsx     # added V1.10 — Investments page: value at fixed future horizons
 │   ├── generated/prisma/          # generated Prisma client — gitignored
 │   └── lib/
