@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, DM_Mono } from "next/font/google";
 import { Nav } from "@/components/Nav";
 import { prisma } from "@/lib/db";
-import { getAccentColor, getCycleStartDay, getLanguage } from "@/lib/data";
+import { getAccentColor, getCycleStartDay, getLanguage, getLicenseStatus } from "@/lib/data";
+import { LicenseGate } from "@/components/LicenseGate";
+import { TrialBanner } from "@/components/TrialBanner";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import { currentCycleKey, cycleLabel, cycleRange } from "@/lib/format";
 import "./globals.css";
@@ -32,6 +34,7 @@ export default async function RootLayout({
   const cycleStartDay = await getCycleStartDay();
   const accentColor = await getAccentColor();
   const language = await getLanguage();
+  const license = await getLicenseStatus();
   const currentCycle = currentCycleKey(cycleStartDay);
   const { start, endExclusive } = cycleRange(currentCycle, cycleStartDay);
   const monthEntries = await prisma.entry.findMany({
@@ -77,7 +80,17 @@ export default async function RootLayout({
                 monthLabel={cycleLabel(currentCycle, language)}
               />
               <main className="min-w-0 flex-1 overflow-y-auto">
-                <div className="mx-auto max-w-[1400px] px-6 py-6 sm:px-8 sm:py-8">{children}</div>
+                {/* The gate replaces the page content but keeps the chrome, so
+                    an expired copy still looks like the app the buyer paid for
+                    rather than an error screen. */}
+                {license.state === "expired" ? (
+                  <LicenseGate />
+                ) : (
+                  <div className="mx-auto max-w-[1400px] px-6 py-6 sm:px-8 sm:py-8">
+                    {license.state === "trial" && <TrialBanner daysLeft={license.daysLeft} />}
+                    {children}
+                  </div>
+                )}
               </main>
             </div>
           </LanguageProvider>

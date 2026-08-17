@@ -238,6 +238,11 @@ export async function importBackup(
     return { error: "That doesn't look like a FinanceHub backup file." };
   }
 
+  // NOTE: `License` is deliberately absent from this wipe, and from the backup
+  // export. A backup is for moving the owner's own data between machines;
+  // carrying the licence inside it would make "send me your backup file" a way
+  // to hand someone a paid copy, and wiping it here would deactivate the app
+  // every time someone restored a backup.
   await prisma.entry.deleteMany();
   await prisma.category.deleteMany();
   await prisma.budget.deleteMany();

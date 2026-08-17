@@ -327,6 +327,27 @@ const en = {
     saveGoal: "Save goal",
     defaultGoalName: "My goal",
   },
+  license: {
+    trialBanner: (days: number) =>
+      `Trial — ${days} day${days === 1 ? "" : "s"} left. Everything works; activate whenever you're ready.`,
+    activate: "Activate",
+    gateTitle: "Your trial has ended",
+    gateBody:
+      "Enter the email and license key from your purchase to keep using FinanceHub. Your data is untouched and waiting.",
+    email: "Email used to buy",
+    key: "License key",
+    keyPlaceholder: "Paste the key from your purchase email",
+    activating: "Activating…",
+    invalid:
+      "That email and key don't match. Check both — the key only works with the address it was issued to.",
+    missing: "Enter both your email and your license key.",
+    licensedTo: (email: string) => `Licensed to ${email}`,
+    exportFirst: "Export my data",
+    exportHint: "You can always export your data, licensed or not.",
+    settingsTitle: "License",
+    settingsBlurbTrial: "You're on the free trial.",
+    settingsBlurbLicensed: "This copy is activated.",
+  },
   charts: {
     /** Projection horizon suffixes: 30d / 6m / 1y. */
     horizonDays: "d",
@@ -673,6 +694,27 @@ const pt: Dict = {
       `Deixe em branco para usar sua média recente (${avg}/mês nos últimos 6 meses).`,
     saveGoal: "Salvar meta",
     defaultGoalName: "Minha meta",
+  },
+  license: {
+    trialBanner: (days: number) =>
+      `Teste — ${days} dia${days === 1 ? "" : "s"} restante${days === 1 ? "" : "s"}. Tudo funciona; ative quando quiser.`,
+    activate: "Ativar",
+    gateTitle: "Seu período de teste terminou",
+    gateBody:
+      "Digite o e-mail e a chave de licença da sua compra para continuar usando o FinanceHub. Seus dados estão intactos, esperando por você.",
+    email: "E-mail usado na compra",
+    key: "Chave de licença",
+    keyPlaceholder: "Cole a chave que veio no e-mail da compra",
+    activating: "Ativando…",
+    invalid:
+      "Esse e-mail e essa chave não combinam. Confira os dois — a chave só funciona com o endereço para o qual foi emitida.",
+    missing: "Digite seu e-mail e sua chave de licença.",
+    licensedTo: (email: string) => `Licenciado para ${email}`,
+    exportFirst: "Exportar meus dados",
+    exportHint: "Você sempre pode exportar seus dados, com ou sem licença.",
+    settingsTitle: "Licença",
+    settingsBlurbTrial: "Você está no período de teste gratuito.",
+    settingsBlurbLicensed: "Esta cópia está ativada.",
   },
   charts: {
     horizonDays: "d",

@@ -128,6 +128,21 @@ model AppSettings {
 // src/lib/goal.ts works in decimals, and the form converts at the edge.
 // `monthlyContribution` null means "use the recent average", computed from
 // holdings rather than stored.
+// Singleton. Holds the activated license, plus the timestamp the app was
+// first opened so the trial can be counted without any network call.
+//
+// Deliberately NOT included in backup export/import: a backup file is meant to
+// be portable between the owner's own machines, and carrying the licence inside
+// it would turn "send me your backup" into a way to hand someone a paid copy.
+// It also means restoring a backup never accidentally deactivates the app.
+model License {
+  id          String    @id @default("singleton")
+  email       String?
+  key         String?
+  activatedAt DateTime?
+  firstRunAt  DateTime  @default(now())
+}
+
 model InvestmentGoal {
   id                 String   @id @default("singleton")
   name               String   @default("Minha meta")
