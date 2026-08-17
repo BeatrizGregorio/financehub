@@ -881,16 +881,29 @@ and a decorative one: confirmed by hand-writing
 `email='pirate@example.com', activatedAt=now` straight into SQLite and
 watching the app stay gated. If you ever cache this, keep the re-verification.
 
-**Trial:** `TRIAL_DAYS = 14` in `data.ts`; **set it to 0 for a hard gate**.
-The clock runs from `License.firstRunAt`, which the migration seeds with
-`CURRENT_TIMESTAMP` — so an existing install gets a fresh 14 days on update
-rather than being instantly expired, which would lock the owner out of data
-she already had.
+**No trial — `TRIAL_DAYS = 0` in `data.ts`, a hard gate**, per the owner's
+decision: the model is a one-time payment where the buyer receives the
+installer plus a key, so there is nothing to try before buying. The trial
+machinery (the `trial` status, `TrialBanner`, the countdown copy in both
+languages, `License.firstRunAt`) is **deliberately left in place** rather than
+deleted, because it makes offering a trial later a genuine one-constant change.
+That is configuration, not dead code — don't strip it on a tidy-up pass. The
+clock would run from `firstRunAt`, which the migration seeds with
+`CURRENT_TIMESTAMP`, so raising the constant later gives existing installs the
+remainder of the new window rather than nothing.
+
+Because a hard gate means the very first screen a buyer ever sees is the
+activation form, its copy is written as an invitation ("Activate FinanceHub …
+runs offline on this computer — no account, no sign-in"), not as an
+expiry notice. If a trial is ever enabled the same wording still reads
+correctly at expiry.
 
 **Two things stay open when the trial expires, on purpose:**
 - `/api/backup` is a Route Handler and therefore *not* behind the layout gate,
-  and the gate screen links to it ("Export my data"). A lapsed trial must
-  never hold someone's own numbers hostage to a sale.
+  and the gate screen links to it ("Export my data"). Nobody should ever have
+  their own numbers held hostage to a sale. That link is hidden when
+  `hasAnyData()` is false, so it doesn't appear on a fresh install where there
+  is nothing to export and it would only confuse.
 - Nothing is deleted or hidden; activating later brings the app back exactly
   as it was, which is also what the gate copy promises.
 
