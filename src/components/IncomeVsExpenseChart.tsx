@@ -2,12 +2,14 @@
 
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatCurrencyAxis } from "@/lib/format";
+import { useT } from "@/components/LanguageProvider";
 
 export function IncomeVsExpenseChart({
   data,
 }: {
   data: { label: string; income: number; expense: number }[];
 }) {
+  const { t } = useT();
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -40,8 +42,8 @@ export function IncomeVsExpenseChart({
             }}
           />
           <Legend wrapperStyle={{ fontSize: 12.5, fontFamily: "var(--font-jakarta)" }} />
-          <Bar dataKey="income" name="Income" fill="#0c9e57" radius={[4, 4, 0, 0]} isAnimationActive={false} />
-          <Bar dataKey="expense" name="Expense" fill="#dc3545" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="income" name={t.charts.income} fill="var(--color-positive)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="expense" name={t.charts.expenses} fill="#dc3545" radius={[4, 4, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>

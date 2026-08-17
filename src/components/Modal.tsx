@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useT } from "@/components/LanguageProvider";
 
 /**
  * Reusable popup dialog. Rendered through a portal into document.body rather
@@ -27,6 +28,7 @@ export function Modal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useT();
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -58,7 +60,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t.common.closeDialog}
             className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--color-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-ink)]"
           >
             <X size={16} />

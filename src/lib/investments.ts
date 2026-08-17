@@ -7,6 +7,7 @@ import {
   toDateInputValue,
 } from "@/lib/format";
 import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
+import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
 
 export type PricePointLike = { date: Date; price: number };
 export type CouponPaymentLike = { date: Date; amount: number };
@@ -343,10 +344,11 @@ export function monthlyValue(
   rates: ReferenceRatesLike,
   monthsBack = 12,
   startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
 ): PortfolioValuePoint[] {
   return monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => ({
     date: dateKey(date),
-    label: cycleLabel(key),
+    label: cycleLabel(key, lang),
     value: ownershipValue(inv, rates, date),
   }));
 }
@@ -357,10 +359,11 @@ export function monthlyPortfolioValue(
   rates: ReferenceRatesLike,
   monthsBack = 12,
   startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
 ): PortfolioValuePoint[] {
   return monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => ({
     date: dateKey(date),
-    label: cycleLabel(key),
+    label: cycleLabel(key, lang),
     value: investments.reduce((sum, inv) => sum + ownershipValue(inv, rates, date), 0),
   }));
 }
@@ -370,19 +373,30 @@ export type ProjectionPoint = { label: string; days: number; value: number };
 // 90d and "3 months" land on (almost) the same day, so only one is kept —
 // the near-term horizons are day-based (30/60/90d) and everything from 6
 // months on is calendar-month-based, per the owner's requested list.
-const PROJECTION_HORIZONS: { label: string; days?: number; months?: number }[] = [
-  { label: "30d", days: 30 },
-  { label: "60d", days: 60 },
-  { label: "90d", days: 90 },
-  { label: "6m", months: 6 },
-  { label: "9m", months: 9 },
-  { label: "1y", months: 12 },
-  { label: "3y", months: 36 },
-  { label: "5y", months: 60 },
-  { label: "10y", months: 120 },
-  { label: "15y", months: 180 },
-  { label: "20y", months: 240 },
+// The label is built from `n` + a translated unit suffix rather than stored
+// as text, so "1y" becomes "1a" in Portuguese without a second table.
+const PROJECTION_HORIZONS: { n: number; unit: "d" | "m" | "y"; days?: number; months?: number }[] = [
+  { n: 30, unit: "d", days: 30 },
+  { n: 60, unit: "d", days: 60 },
+  { n: 90, unit: "d", days: 90 },
+  { n: 6, unit: "m", months: 6 },
+  { n: 9, unit: "m", months: 9 },
+  { n: 1, unit: "y", months: 12 },
+  { n: 3, unit: "y", months: 36 },
+  { n: 5, unit: "y", months: 60 },
+  { n: 10, unit: "y", months: 120 },
+  { n: 15, unit: "y", months: 180 },
+  { n: 20, unit: "y", months: 240 },
 ];
+
+export function horizonLabel(
+  h: { n: number; unit: "d" | "m" | "y" },
+  t: { horizonDays: string; horizonMonths: string; horizonYears: string },
+): string {
+  const suffix =
+    h.unit === "d" ? t.horizonDays : h.unit === "m" ? t.horizonMonths : t.horizonYears;
+  return `${h.n}${suffix}`;
+}
 
 function addHorizon(base: Date, h: { days?: number; months?: number }): Date {
   const d = new Date(base);
@@ -414,11 +428,16 @@ function projectedInvestmentValue(inv: InvestmentLike, rates: ReferenceRatesLike
 export function projectPortfolioValue(
   investments: InvestmentLike[],
   rates: ReferenceRatesLike,
+  units: { horizonDays: string; horizonMonths: string; horizonYears: string } = {
+    horizonDays: "d",
+    horizonMonths: "m",
+    horizonYears: "y",
+  },
 ): ProjectionPoint[] {
   const today = new Date();
   return PROJECTION_HORIZONS.map((h) => {
     const targetDate = addHorizon(today, h);
     const value = investments.reduce((sum, inv) => sum + projectedInvestmentValue(inv, rates, targetDate), 0);
-    return { label: h.label, days: daysBetween(today, targetDate), value };
+    return { label: horizonLabel(h, units), days: daysBetween(today, targetDate), value };
   });
 }

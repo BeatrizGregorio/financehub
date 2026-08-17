@@ -5,6 +5,7 @@ import { addCoupon, deleteCoupon, updateCoupon, type ActionState } from "./actio
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { totalCoupons } from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
+import { useT } from "@/components/LanguageProvider";
 
 /**
  * Coupon payments (juros semestrais and similar) for one holding: running
@@ -20,6 +21,7 @@ import type { Holding } from "./InvestmentsClient";
  */
 
 function CouponRow({ id, date, amount }: { id: string; date: Date; amount: number }) {
+  const { t, lang } = useT();
   const [editing, setEditing] = useState(false);
   const initialState: ActionState = {};
   const [state, formAction] = useActionState(updateCoupon.bind(null, id), initialState);
@@ -33,7 +35,7 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
   if (editing) {
     return (
       <form action={formAction} className="flex items-center justify-between gap-2 py-1.5">
-        <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date)}</span>
+        <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
         <div className="flex items-center gap-2">
           <input
             name="amount"
@@ -43,18 +45,18 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
             required
             defaultValue={amount}
             autoFocus
-            aria-label={`Coupon amount for ${formatDate(date)}`}
+            aria-label={t.investments.couponAmountFor(formatDate(date, lang))}
             className="w-24 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1 text-right font-mono text-[12.5px] outline-none focus:border-[var(--color-ink)]"
           />
-          <button type="submit" className="text-xs font-semibold text-[#0c9e57]">
-            Save
+          <button type="submit" className="text-xs font-semibold text-[var(--color-brand)]">
+            {t.common.save}
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
             className="text-xs font-semibold text-[var(--color-muted)]"
           >
-            Cancel
+            {t.common.cancel}
           </button>
         </div>
       </form>
@@ -63,9 +65,9 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
 
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date)}</span>
+      <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
       <div className="flex items-center gap-3">
-        <span className="font-mono text-[12.5px] font-medium text-[#0c9e57]">
+        <span className="font-mono text-[12.5px] font-medium text-[var(--color-positive)]">
           +{formatCurrency(amount)}
         </span>
         <button
@@ -73,19 +75,19 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
           onClick={() => setEditing(true)}
           className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
         >
-          Edit
+          {t.common.edit}
         </button>
         <form
           action={deleteCoupon.bind(null, id)}
           onSubmit={(e) => {
-            if (!confirm("Delete this coupon payment?")) e.preventDefault();
+            if (!confirm(t.investments.confirmDeleteCoupon)) e.preventDefault();
           }}
         >
           <button
             type="submit"
             className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
           >
-            Delete
+            {t.common.delete}
           </button>
         </form>
       </div>
@@ -94,6 +96,7 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
 }
 
 function CouponAddForm({ investmentId }: { investmentId: string }) {
+  const { t } = useT();
   const initialState: ActionState = {};
   const [state, formAction] = useActionState(addCoupon.bind(null, investmentId), initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -112,7 +115,7 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
           htmlFor={`coupon-date-${investmentId}`}
           className="mb-1 block text-[10px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase"
         >
-          Date
+          {t.common.date}
         </label>
         <input
           id={`coupon-date-${investmentId}`}
@@ -128,7 +131,7 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
           htmlFor={`coupon-amount-${investmentId}`}
           className="mb-1 block text-[10px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase"
         >
-          Amount
+          {t.common.amount}
         </label>
         <input
           id={`coupon-amount-${investmentId}`}
@@ -144,9 +147,9 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
       <button
         type="submit"
         className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white"
-        style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+        style={{ background: "var(--gradient-brand)" }}
       >
-        Add coupon
+        {t.investments.addCoupon}
       </button>
       {state.error && (
         <p className="w-full text-[12px] text-[var(--color-rust)]">{state.error}</p>
@@ -156,6 +159,7 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
 }
 
 export function CouponSection({ holding }: { holding: Holding }) {
+  const { t } = useT();
   const couponsDesc = [...holding.coupons].sort((a, b) => b.date.getTime() - a.date.getTime());
   const couponsReceived = totalCoupons(holding);
 
@@ -163,11 +167,11 @@ export function CouponSection({ holding }: { holding: Holding }) {
     <div>
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <p className="text-[11px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase">
-          Coupon payments
+          {t.investments.couponPayments}
         </p>
         {couponsReceived > 0 && (
-          <p className="font-mono text-[11.5px] font-medium text-[#0c9e57]">
-            {formatCurrency(couponsReceived)} total received
+          <p className="font-mono text-[11.5px] font-medium text-[var(--color-positive)]">
+            {formatCurrency(couponsReceived)} {t.investments.totalReceived}
           </p>
         )}
       </div>
@@ -178,7 +182,7 @@ export function CouponSection({ holding }: { holding: Holding }) {
         ))}
         {couponsDesc.length === 0 && (
           <p className="py-4 text-center text-[13px] text-[var(--color-muted-2)]">
-            No coupon payments recorded.
+            {t.investments.noCoupons}
           </p>
         )}
       </div>

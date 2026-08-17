@@ -663,6 +663,195 @@ sidebar read 207px mid-measurement at first — the documented hidden-pane
 transition artifact again, cleared by reloading at that width instead of
 resizing into it. `tsc --noEmit` / `npm run lint` clean.
 
+V1.22 (the brand color is owner-selectable in Settings) added 2026-08-12.
+Five options — Green (default), Blue, Violet, Teal, Amber — picked in a new
+`AccentColorCard` and stored as `AppSettings.accentColor`
+(`prisma/migrations/20260812210000_add_accent_color`, defaulting to `green`
+so an existing database looks exactly as it did before).
+
+**The important decision, confirmed with the owner first: green was doing
+two different jobs, and only one of them is themeable.** It was both the
+brand color (buttons, sidebar, logo, gradients, links) *and* the "positive"
+color (income amounts, gains, under-budget bars, the matured banner) paired
+against `#dc3545` for expenses. Recoloring both would leave a blue
+"positive" against a red "negative", which reads as two arbitrary colors
+rather than good vs. bad. So the ~90 hardcoded green hexes in `src/` were
+classified one by one into two token families in `globals.css`:
+- `--color-brand` / `--color-brand-deep` / `--brand-rgb` — themeable.
+- `--color-positive` / `--color-positive-light` / `--color-positive-tint` /
+  `--color-positive-glow` — permanently `#0c9e57`, the money semantics.
+
+**Only three values are declared per theme**; everything else
+(`--color-brand-tint`, the three button/logo/panel shadows,
+`--gradient-brand`) is derived once in a later `:root` block using
+`rgb(var(--brand-rgb) / …)`. Custom properties resolve at *use* time, not
+where they're declared, so those derived values pick up whichever
+`--brand-rgb` won the cascade even though they're declared on the same
+element. Adding a sixth color is three lines in `globals.css` plus one entry
+in `src/lib/theme.ts` — nothing else.
+
+`theme.ts` holds the names and a **swatch hex per color**. That hex
+duplication is deliberate and shouldn't be "cleaned up" into a CSS variable:
+`--color-brand` only ever holds the *current* theme's value, so a picker
+built on it would render five identical swatches.
+
+The attribute lands on `<html>` **server-side** in `layout.tsx`
+(`data-accent={accentColor}`), so the chosen color is in the first painted
+frame — a client-side swap would flash green on every page load.
+`clampAccentColor()` maps anything unrecognized back to green, because an
+unknown `data-accent` matches no CSS block and would silently leave the app
+on `:root`'s defaults, which looks like "my setting didn't save".
+`updateAccentColor` revalidates `/investments` on top of `revalidateAll()`
+for the same reason `updateCycleStartDay` does — the accent is applied in
+the root layout, so every route re-renders. Backup gained
+`settings.accentColor` (still `version: 3`, additive; an older backup
+without it leaves the current color alone).
+
+**Deliberately left green: `categoryColor()`'s `PALETTE` and
+`PaymentMethodsCard`'s `TILE_COLORS`.** Both are fixed multi-hue identity
+palettes (a category keeps its color regardless of branding) and both happen
+to start with `#0C9E57`. Theming one without the other would be
+inconsistent, so they stay as-is — if the owner ever wants them off-green,
+change both together.
+
+Verified in the browser by switching to Violet through the real Settings
+form and then sweeping every element on all four pages for a computed
+`rgb(12, 158, 87)`: every remaining hit was money-semantic (income amounts,
+gain/loss, budget bars, the "Nice pace" insight, the Income bars/legend, the
+matured banner and pill) and no brand element was left green. CSS variables
+**do** resolve inside Recharts' SVG presentation attributes — the
+`stroke`/`fill` props take `var(--color-brand)` fine, confirmed by the
+monthly-value and month-over-month lines turning violet while the Income
+bars stayed green. Tailwind's opacity modifier on an arbitrary variable
+(`bg-[var(--color-positive)]/12`) also works, compiling to an `oklab()`
+mix. Contrast against the glass card: Blue 4.99:1, Violet 5.50:1, Amber
+4.85:1 all clear WCAG AA for body text; Teal 3.62:1 and Green 3.36:1 sit in
+the same large-text/UI band the brand green has been in since V1.17, so no
+option is worse than the previous status quo. `tsc --noEmit` /
+`npm run lint` clean.
+
+V1.23 (English / Portuguese language setting) added 2026-08-12, the same
+pattern as V1.22's color picker: a `language` column on `AppSettings`
+(`prisma/migrations/20260812230000_add_language`, defaulting to `en` so an
+existing database keeps the language the app has always been in), a
+`LanguageCard` in Settings, and `data-*`-free application via a React
+context.
+
+**Hand-rolled, no i18n framework.** Two languages and one user do not
+justify next-intl. `src/lib/i18n.ts` is the whole feature: an `en` object,
+a `pt` object typed as `Dict` (so a missing key is a **compile error**, not
+a stray English string found later in the running app), and `dict(lang)`.
+Interpolated copy is a function on the dictionary
+(`budgetInsight(amount, over)`, `taxNote(iof, ir, rate, days)`) rather than
+string concatenation at the call site, so word order can differ between
+languages.
+
+**Server components read the language; client components use a context.**
+`getLanguage()` + `dict()` in pages and layouts; `useT()` (from
+`components/LanguageProvider.tsx`) everywhere else. The context is
+deliberately *not* the explicit prop-threading used for `cycleStartDay` —
+the dictionary is needed nearly everywhere and would bury real props — and
+it is safe in a way a module-level `let currentLanguage` would not be: a
+context value belongs to one render tree, so concurrent requests can't see
+each other's language. **The four dashboard cards take `t` as a prop and
+that only works because they are server components** — passing an object
+containing functions to a *client* component would fail serialization. If
+you add `"use client"` to `BudgetsCard`/`RecentEntriesCard`/
+`AllocationCard`/`PaymentMethodsCard`, switch them to `useT()` at the same
+time.
+
+**Dates follow the language; money never does.** `formatCurrency` stays
+pt-BR/BRL in both languages — the money is Brazilian whatever the interface
+language is. The date helpers in `format.ts` take an optional `lang`
+(threaded the same way `startDay` is, defaulting to `en`), and Portuguese
+deliberately uses **numeric** formats rather than Intl's `short` style:
+pt-BR renders `{month:"short", day:"numeric", year:"numeric"}` as
+"15 de jun. de 2027", three times the width of "Jun 15, 2027", which
+overflows a 90px table column. So pt gets `dd/MM/yyyy` and `dd/MM` — which
+is what Brazilians write anyway. `monthLabel` composes the month and year
+**separately** for the same reason: asking Intl for month+year together
+gives "ago. de 2026" and wraps every chart axis, versus "ago 2026" built
+from the parts.
+
+**The investment taxonomy's labels moved out of `investmentTypes.ts` into
+the dictionary**, keyed by the same `value` that's persisted in
+`Investment.type`/`subtype`. Those keys are still never translated (that
+would orphan every holding) — only the labels are, and there's now exactly
+one place per language holding them. **The persisted values are not what
+you'd guess from the English labels**: they're `tesouro-pre`,
+`debenture-incent`, `fidc`, `fii-fechado`, `fundo-mm` — a first pass at the
+dictionary invented plausible-looking keys and silently fell through to the
+raw value. Check `investmentTypes.ts` before adding a subtype key.
+Projection horizon labels ("1y" → "1a") are likewise built from a number
+plus a translated unit rather than stored as text.
+
+**Not translated, deliberately:** the owner's own data (category names,
+payment methods, entry and holding names, the goal name), the "financehub"
+wordmark, and Brazilian product names in the taxonomy (CDB, LCI, Poupança,
+Tesouro IPCA+…) — same reasoning as the V1.20 English audit, those are what
+the statements say.
+
+Verified end to end: switched to Portuguese and dumped the rendered text of
+all four pages, confirming every string was translated except the owner's
+own data; switched back to English through the actual Settings form and
+watched the whole page (including cards above and below) follow. Then a
+regex sweep of every `.tsx` for JSX text nodes and copy-bearing attributes,
+which now reports exactly one hardcoded string left — the "financehub"
+wordmark. `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
+V1.24 (chart-legend overlap fix + Settings reorganized) added 2026-08-12.
+
+**(1) Legend overlap.** The owner sent a screenshot of the dashboard's
+Spending-by-category legend with the category name painted straight over the
+amount ("Mimos" across "R$ 200,00"). The markup already looked like the V1.8
+fix — `justify-between`, `gap-3`, `shrink-0 whitespace-nowrap` on the value,
+`min-w-0` on the label — but it had only **half** of that pattern: `min-w-0`
+without a matching `truncate`. `min-w-0` lets the box shrink below its text,
+and with nothing clipping, the text renders outside the box. Since the value
+is `shrink-0`, *all* shrinkage lands on the label, so in a ~120px legend
+column beside the 160px donut a 72px label plus a 60px amount overflows by
+about the amount seen in the screenshot.
+
+Fixed by making the row wrap instead of crushing the label: `flex-wrap`
+plus `gap-x`/`gap-y` on the `<li>`, **`min-w-0` removed** from the label
+(it suppresses the wrap — it's what removes the `min-width: auto` that
+triggers wrapping, exactly as the V1.8 note warns), and `break-words` for a
+single category name longer than the column. Truncation was rejected: a
+legend that says "Assinatu…" is worse than one that uses a second line. The
+identical markup in `AllocationChart` had the same latent bug and was fixed
+in the same pass.
+
+**Reproducing it needed real data** — the dev database had no expenses in
+the current cycle, so temporary "Mimos"/"Assinaturas" entries and categories
+were inserted (ids prefixed `tmp-`), measured, then deleted; the owner's 25
+real entries were untouched.
+
+**Methodology note, again:** the first three measurement attempts reported
+`viewport: 0` and every ancestor at zero width, which "explained" the
+overlap perfectly and was entirely false — the Browser pane had stopped
+compositing. `window.innerWidth === 0` is the cheapest tell that a
+measurement is worthless; a reload in a **fresh tab** (`tabs_create`) is
+what recovered it, not `resize_window`. After that the fix measured
+correctly: short labels share a line with the amount, long ones push it to
+a second line, `overlaps: false` and nothing clipped.
+
+**(2) Settings reorganized.** Eight cards sat in one flat grid at equal
+visual weight, so "Language" read as being as important as "Monthly
+budgets". Now three headed sections on the same scrollable page (confirmed
+with the owner — tabs and a plain reorder were the alternatives offered):
+- **Money** — expense categories, income categories, monthly budgets,
+  payment methods.
+- **Preferences** — month start day, plus colour and language stacked in
+  one column so the two "how it looks" settings sit together.
+- **Data** — backup & restore, full width.
+
+Section headings are the small uppercase mono style already used for card
+sub-labels, so they read as structure rather than as more cards. The owner
+chose to keep the two category cards separate rather than merging them
+behind an Expense/Income toggle. Verified at 1280px and 375px (no
+horizontal overflow, sections collapse to one column) and in both
+languages. `tsc --noEmit` / `npm run lint` clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
@@ -1017,15 +1206,25 @@ unchanged). Keep new UI consistent with these tokens rather than inventing new o
   + DM Mono (numbers, dates, uppercase labels/badges) — loaded via
   `next/font/google` in `layout.tsx` as `--font-jakarta` / `--font-dm-mono`, wired
   into Tailwind's `font-sans`/`font-mono` in `globals.css`'s `@theme inline` block.
-- **Colors** (CSS custom properties in `globals.css`, also hardcoded as arbitrary
-  Tailwind/inline-style hex in places, e.g. chart `fill`/`stroke` props, gradient
-  buttons): primary green `#0C9E57` (income/positive/primary CTAs, usually as a
-  `linear-gradient(135deg, #0c9e57, #0a7a43)` on buttons), accent emerald `#10B96A`,
-  negative red `#DC3545` (expense/over-budget/destructive — replaced V1.2's brown
-  "rust" `#8A3A28`), ink `#111827` (primary text). Page bg `#EEF1F7` (was `#E9E9EC`).
-  The `--color-meadow`/`--color-rust` CSS variable *names* from V1.2 were kept as-is
-  (to avoid touching every call site) but now point at the new green/red hex values
-  above — don't be misled by "rust" meaning brown, it's red now.
+- **Colors** (CSS custom properties in `globals.css`). Since V1.22 these split
+  into two families, and which one a new piece of UI belongs to is a real
+  decision, not a formatting choice:
+  - **Brand, themeable** — `--color-brand` / `--color-brand-deep` /
+    `--brand-rgb`, plus the derived `--color-brand-tint`, `--gradient-brand`
+    and the three `--shadow-brand*` values. Buttons, sidebar, logo, links,
+    highlights, single-series chart lines. The owner picks one of five in
+    Settings; default green `#0C9E57` with `#0A7A43` as the gradient end, i.e.
+    the V1.4 Figma palette.
+  - **Money semantics, fixed** — `--color-positive` `#0C9E57` (+ `-light`,
+    `-tint`, `-glow`) for income/gain/under-budget, against `--color-rust`
+    `#DC3545` for expense/over-budget/destructive (which replaced V1.2's brown
+    "rust" `#8A3A28` — don't be misled by the name, it's red). These never
+    follow the brand color; see V1.22 for why.
+  - Ink `#111827` (primary text), page bg `#EEF1F7` (was `#E9E9EC`).
+  **Never hardcode either family's hex again** — a literal `#0c9e57` in a new
+  component is invisible to the theme switcher. `--color-meadow`/
+  `--color-emerald`/`--color-green-tint` were removed in V1.22; `grep` for them
+  returns nothing, and the brand ones now carry an honest name.
 - **Category colors**: `src/lib/categories.ts`'s `categoryColor()`/`PALETTE` were
   reassigned to a brighter multi-hue set (blue/amber/purple/teal/pink/orange) to
   match the reference's playful category-chip look, replacing V1.2's
@@ -1130,6 +1329,17 @@ there's just nothing left that writes to it, so it stays at whatever it was
 last set to (or the defaults, if never touched). This app has never fetched
 CDI/SELIC/IPCA from anywhere live.
 
+`AppSettings` (added V1.15): another **singleton** (`id: "singleton"`) holding
+the owner's app-wide preferences — `cycleStartDay` (Int, default 10, see V1.14/
+V1.15) and, since V1.22, `accentColor` (String, default `"green"`) and, since V1.23, `language`
+(String, default `"en"`). The accent
+stores the palette *name*, not a hex, so a future tweak to a color's value
+restyles the app instead of leaving a stale hex in the database; the values
+live in `src/lib/theme.ts` + `globals.css`. Both fields are read through
+clamping getters in `data.ts` (`getCycleStartDay`/`getAccentColor`/
+`getLanguage`), so a bad stored value can't produce a broken range, an
+unmatched `data-accent`, or an empty dictionary.
+
 `PaymentMethod`: `id`, `name` (unique).
 
 ## File structure (actual)
@@ -1163,7 +1373,9 @@ FinanceHub/
 │   │       ├── PaymentMethodManager.tsx
 │   │       ├── BudgetEditor.tsx
 │   │       ├── BackupPanel.tsx    # export link + import form + reset-defaults
-│   │       └── CycleSettingsCard.tsx  # month start-day picker w/ live range preview (V1.15)
+│   │       ├── CycleSettingsCard.tsx  # month start-day picker w/ live range preview (V1.15)
+│   │       ├── AccentColorCard.tsx    # brand color picker (V1.22)
+│       └── LanguageCard.tsx       # English / Português picker (V1.23)
 │   │   └── investments/            # added V1.6, full BR tax model in V1.7, coupons + projection in V1.10
 │   │       ├── page.tsx           # fetches investments + prices + coupons + reference rates
 │   │       ├── actions.ts         # createHolding/updateHolding/deleteHolding/savePrices/updatePricePoint/deletePricePoint/addCoupon/updateCoupon/deleteCoupon
@@ -1177,6 +1389,7 @@ FinanceHub/
 │   │       └── HoldingDetail.tsx  # sparkline + tax breakdown + editable/deletable price + coupon lists
 │   ├── components/
 │   │   ├── Nav.tsx                 # collapsible left sidebar nav (see Visual design system)
+│   │   ├── LanguageProvider.tsx    # added V1.23 — language context + useT() for client components
 │   │   ├── CategoryIcon.tsx        # <Icon name="..."/> — kebab-case name → lucide component
 │   │   ├── Modal.tsx                # reusable popup dialog — portals to document.body (V1.18, see gotchas); solid white card, not the translucent CARD, since V1.9
 │   │   ├── BudgetsCard.tsx         # Dashboard col 1: budget progress bars + insight
@@ -1197,6 +1410,8 @@ FinanceHub/
 │       ├── categories.ts          # DEFAULT_* seed lists (expense/income/payment method) + categoryColor()/categoryIconName()
 │       ├── investmentTypes.ts     # added V1.7 — type/subtype taxonomy, IR/IOF tax tables, form-field visibility rules
 │       ├── ui.ts                  # shared `CARD` className constant
+│       ├── theme.ts               # added V1.22 — the five brand accent colors + clampAccentColor()
+│       ├── i18n.ts                # added V1.23 — en/pt dictionaries, Dict type, clampLanguage()
 │       ├── format.ts              # currency/date formatting + addMonthsClamped + formatShortDate + budget-cycle helpers (CYCLE_START_DAY, cycleKey/cycleRange/cycleLabel — see V1.14)
 │       ├── aggregate.ts           # category/month/budget aggregation helpers
 │       └── investments.ts         # added V1.6 — pure derived-math functions incl. coupons + projection (V1.10) + monthly value (V1.11/V1.12), see "Investments" above

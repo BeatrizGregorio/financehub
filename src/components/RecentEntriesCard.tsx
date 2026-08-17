@@ -2,6 +2,7 @@ import { categoryColor, categoryIconName } from "@/lib/categories";
 import { formatCurrency } from "@/lib/format";
 import { CARD } from "@/lib/ui";
 import { Icon } from "./CategoryIcon";
+import type { Dict } from "@/lib/i18n";
 
 type RecentEntry = {
   id: string;
@@ -14,20 +15,20 @@ type RecentEntry = {
   method: string | null;
 };
 
-export function RecentEntriesCard({ entries }: { entries: RecentEntry[] }) {
+export function RecentEntriesCard({ entries, t }: { entries: RecentEntry[]; t: Dict }) {
   const recent = [...entries].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5);
 
   return (
     <div className={`${CARD} p-[18px]`}>
       <div className="mb-3.5 flex items-center justify-between">
-        <span className="text-[17px] font-extrabold tracking-tight">Recent</span>
-        <span className="rounded-full bg-[var(--color-green-tint)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-meadow)]">
+        <span className="text-[17px] font-extrabold tracking-tight">{t.dashboard.recent}</span>
+        <span className="rounded-full bg-[var(--color-brand-tint)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-brand)]">
           {entries.length}
         </span>
       </div>
 
       {recent.length === 0 ? (
-        <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">No entries yet.</p>
+        <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">{t.dashboard.noEntriesYet}</p>
       ) : (
         <div className="flex flex-col gap-1">
           {recent.map((t) => (
@@ -47,7 +48,7 @@ export function RecentEntriesCard({ entries }: { entries: RecentEntry[] }) {
               </div>
               <span
                 className="font-mono text-[12.5px] font-medium"
-                style={{ color: t.type === "income" ? "#0c9e57" : "var(--color-ink)" }}
+                style={{ color: t.type === "income" ? "var(--color-positive)" : "var(--color-ink)" }}
               >
                 {t.type === "income" ? "+" : "−"}
                 {formatCurrency(t.amount)}

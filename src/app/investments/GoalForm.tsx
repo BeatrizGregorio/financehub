@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { ShieldCheck } from "lucide-react";
 import { saveInvestmentGoal } from "./actions";
 import { formatCurrency, toDateInputValue } from "@/lib/format";
+import { useT } from "@/components/LanguageProvider";
 
 export type GoalLike = {
   name: string;
@@ -15,20 +16,21 @@ export type GoalLike = {
 };
 
 const FIELD =
-  "w-full rounded-[10px] bg-[var(--color-inset)] px-[13px] py-2.5 text-[13.5px] outline-none focus:ring-2 focus:ring-[var(--color-meadow)]/30";
+  "w-full rounded-[10px] bg-[var(--color-inset)] px-[13px] py-2.5 text-[13.5px] outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30";
 const LABEL = "mb-1.5 block text-[12.5px] font-semibold text-[var(--color-ink)]";
 
 function SaveButton({ onSubmit }: { onSubmit: () => void }) {
+  const { t } = useT();
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={pending}
       onClick={onSubmit}
-      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_4px_16px_rgba(12,158,87,0.28)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
-      style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[var(--shadow-brand)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
+      style={{ background: "var(--gradient-brand)" }}
     >
-      {pending ? "Saving…" : "Save goal"}
+      {pending ? t.common.saving : t.goal.saveGoal}
     </button>
   );
 }
@@ -45,6 +47,7 @@ export function GoalForm({
   emergencyReserveTarget: number | null;
   onDone: () => void;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState(saveInvestmentGoal, {});
   const [submitCount, setSubmitCount] = useState(0);
   // Controlled so the "Emergency fund" preset can fill them in.
@@ -61,21 +64,21 @@ export function GoalForm({
   function applyEmergencyReserve() {
     if (emergencyReserveTarget === null) return;
     setTargetAmount(String(Math.round(emergencyReserveTarget)));
-    if (!name.trim()) setName("Emergency fund");
+    if (!name.trim()) setName(t.goal.emergencyFund);
   }
 
   return (
     <form action={formAction} className="flex flex-col gap-3.5">
       <div>
         <label className={LABEL} htmlFor="goal-name">
-          Goal name
+          {t.goal.goalName}
         </label>
         <input
           id="goal-name"
           name="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Emergency fund"
+          placeholder={t.goal.goalNamePlaceholder}
           className={FIELD}
         />
       </div>
@@ -83,7 +86,7 @@ export function GoalForm({
       <div>
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
           <label className={`${LABEL} mb-0`} htmlFor="goal-target">
-            Target amount (R$)
+            {t.goal.targetAmount}
           </label>
           {emergencyReserveTarget !== null && (
             <button
@@ -92,7 +95,7 @@ export function GoalForm({
               className="flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-panel)] px-2.5 py-1 text-[11.5px] font-semibold whitespace-nowrap text-[var(--color-ink)] transition hover:brightness-95"
             >
               <ShieldCheck size={12} />
-              Emergency fund
+              {t.goal.emergencyFund}
             </button>
           )}
         </div>
@@ -110,8 +113,7 @@ export function GoalForm({
         />
         {emergencyReserveTarget !== null && (
           <p className="mt-1 text-[11.5px] text-[var(--color-muted-2)]">
-            Fills in 6 × your average monthly expenses (
-            {formatCurrency(emergencyReserveTarget / 6)}/month).
+            {t.goal.emergencyFundHint(formatCurrency(emergencyReserveTarget / 6))}
           </p>
         )}
       </div>
@@ -119,7 +121,7 @@ export function GoalForm({
       <div className="flex flex-col gap-3.5 sm:flex-row">
         <div className="flex-1">
           <label className={LABEL} htmlFor="goal-date">
-            Target date
+            {t.goal.targetDate}
           </label>
           <input
             id="goal-date"
@@ -132,7 +134,7 @@ export function GoalForm({
         </div>
         <div className="flex-1">
           <label className={LABEL} htmlFor="goal-rate">
-            Expected return (% p.a.)
+            {t.goal.expectedReturn}
           </label>
           <input
             id="goal-rate"
@@ -148,7 +150,7 @@ export function GoalForm({
 
       <div>
         <label className={LABEL} htmlFor="goal-pmt">
-          Monthly contribution (R$)
+          {t.goal.monthlyContribution}
         </label>
         <input
           id="goal-pmt"
@@ -161,8 +163,7 @@ export function GoalForm({
           className={FIELD}
         />
         <p className="mt-1 text-[11.5px] text-[var(--color-muted-2)]">
-          Leave blank to use your recent average ({formatCurrency(averageContribution)}/month over
-          the last 6 months).
+          {t.goal.contributionHint(formatCurrency(averageContribution))}
         </p>
       </div>
 

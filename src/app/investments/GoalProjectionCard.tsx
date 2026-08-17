@@ -7,6 +7,7 @@ import { GoalProjectionChart } from "@/components/GoalProjectionChart";
 import { GoalForm, type GoalLike } from "./GoalForm";
 import { CARD } from "@/lib/ui";
 import { formatCurrency } from "@/lib/format";
+import { localeOf } from "@/lib/i18n";
 import {
   SPREAD,
   addMonths,
@@ -20,12 +21,14 @@ import {
   xirr,
 } from "@/lib/goal";
 import type { Holding } from "./InvestmentsClient";
+import { useT } from "@/components/LanguageProvider";
+import type { Language } from "@/lib/i18n";
 
 /** Ties the collapse button to the region it opens, for screen readers. */
 const BODY_ID = "goal-projection-body";
 
-function monthYear(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(date);
+function monthYear(date: Date, lang: Language): string {
+  return new Intl.DateTimeFormat(localeOf(lang), { month: "long", year: "numeric" }).format(date);
 }
 
 function Stat({
@@ -61,6 +64,7 @@ export function GoalProjectionCard({
   currentValue: number;
   emergencyReserveTarget: number | null;
 }) {
+  const { t } = useT();
   const [editing, setEditing] = useState(false);
   // Lets "use as the projection rate" preview the real return without saving.
   const [rateOverride, setRateOverride] = useState<number | null>(null);
@@ -111,9 +115,9 @@ export function GoalProjectionCard({
               onClick={() => setOpen((o) => !o)}
               aria-expanded={open}
               aria-controls={BODY_ID}
-              className="-my-1 -ml-1 flex items-center gap-1.5 rounded px-1 py-1 text-left hover:text-[var(--color-meadow)]"
+              className="-my-1 -ml-1 flex items-center gap-1.5 rounded px-1 py-1 text-left hover:text-[var(--color-brand)]"
             >
-              Goal &amp; projection
+              {t.goal.title}
               <ChevronDown
                 size={16}
                 className={`shrink-0 text-[var(--color-muted-2)] transition-transform ${open ? "" : "-rotate-90"}`}
@@ -122,7 +126,7 @@ export function GoalProjectionCard({
           </h2>
           <p className="mt-0.5 text-[12.5px] text-[var(--color-muted-2)]">
             {open ? (
-              "Where your portfolio is heading, and what it takes to hit your goal."
+              t.goal.blurb
             ) : goal ? (
               // Collapsed still says where you stand, so hiding the block
               // doesn't mean losing the one number you check most.
@@ -131,10 +135,10 @@ export function GoalProjectionCard({
                 <span className="font-mono font-semibold text-[var(--color-ink)]">
                   {((collapsedProgress ?? 0) * 100).toFixed(1)}%
                 </span>{" "}
-                of {formatCurrency(goal.targetAmount)}
+                {t.goal.collapsedOf} {formatCurrency(goal.targetAmount)}
               </>
             ) : (
-              "No goal set yet."
+              t.goal.setGoal
             )}
           </p>
         </div>
@@ -144,7 +148,7 @@ export function GoalProjectionCard({
           className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--color-panel)] px-3.5 py-2 text-[13px] font-semibold text-[var(--color-ink)] transition hover:brightness-95 active:scale-95"
         >
           <Pencil size={13} />
-          {goal ? "Edit goal" : "Set a goal"}
+          {goal ? t.goal.editGoal : t.goal.setGoal}
         </button>
       </div>
 
@@ -159,15 +163,16 @@ export function GoalProjectionCard({
           <TrendingUp size={15} className="shrink-0 text-[var(--color-muted-2)]" />
           {realReturn === null ? (
             <p className="text-[13px] text-[var(--color-muted)]">
-              Actual return:{" "}
-              <span className="font-semibold text-[var(--color-ink)]">not enough data yet</span>
+              {t.goal.actualReturn}{" "}
+              <span className="font-semibold text-[var(--color-ink)]">{t.goal.notEnoughData}</span>
             </p>
           ) : (
             <>
               <p className="text-[13.5px] text-[var(--color-ink)]">
-                Actual return:{" "}
+                {t.goal.actualReturn}{" "}
                 <span className="font-mono font-bold">
-                  {(realReturn * 100).toFixed(2)}% p.a.
+                  {(realReturn * 100).toFixed(2)}
+                  {t.charts.perAnnum}
                 </span>
               </p>
               <button
@@ -175,44 +180,41 @@ export function GoalProjectionCard({
                 onClick={() => setRateOverride(realReturn)}
                 className="rounded-full bg-white/70 px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-ink)] transition hover:brightness-95"
               >
-                Use as the projection rate
+                {t.goal.useAsRate}
               </button>
             </>
           )}
           <p className="w-full text-[11.5px] text-[var(--color-muted-2)]">
-            Money-weighted, from your contributions and today&apos;s value — each purchase counts
-            from its holding&apos;s start date, so a top-up on an existing holding is attributed to
-            that original date.
+            {t.goal.actualReturnFootnote}
           </p>
         </div>
 
         {rateOverride !== null && (
-          <p className="mb-4 rounded-[10px] bg-[var(--color-meadow)]/10 px-3 py-2 text-[12px] text-[var(--color-ink)]">
-            Previewing at {(rateOverride * 100).toFixed(2)}% p.a. —{" "}
+          <p className="mb-4 rounded-[10px] bg-[var(--color-brand)]/10 px-3 py-2 text-[12px] text-[var(--color-ink)]">
+            {t.goal.previewingAt((rateOverride * 100).toFixed(2))}
             <button
               type="button"
               onClick={() => setRateOverride(null)}
               className="font-semibold underline underline-offset-2"
             >
-              reset
+              {t.goal.reset}
             </button>{" "}
-            or save it via Edit goal to keep it.
+            {t.goal.orSaveVia}
           </p>
         )}
 
         {!goal ? (
           <div className="flex flex-col items-start gap-3 rounded-[12px] bg-[var(--color-inset)] px-4 py-6">
             <p className="text-[13.5px] text-[var(--color-muted)]">
-              No goal set yet. Add one to see how far along you are and what monthly contribution
-              gets you there.
+              {t.goal.empty}
             </p>
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_4px_16px_rgba(12,158,87,0.28)] transition hover:brightness-105 active:scale-95"
-              style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white shadow-[var(--shadow-brand)] transition hover:brightness-105 active:scale-95"
+              style={{ background: "var(--gradient-brand)" }}
             >
-              <Target size={14} /> Set a goal
+              <Target size={14} /> {t.goal.setGoal}
             </button>
           </div>
         ) : (
@@ -228,7 +230,7 @@ export function GoalProjectionCard({
       )}
 
       {editing && (
-        <Modal title={goal ? "Edit goal" : "Set a goal"} onClose={() => setEditing(false)}>
+        <Modal title={goal ? t.goal.editGoal : t.goal.setGoal} onClose={() => setEditing(false)}>
           <GoalForm
             goal={
               goal
@@ -261,6 +263,7 @@ function GoalBody({
   monthlyContribution: number;
   projection: ReturnType<typeof goalProjection> | null;
 }) {
+  const { t, lang } = useT();
   const today = new Date();
   const i = annualToMonthly(expectedAnnualRate);
   const n = monthsBetween(today, goal.targetDate);
@@ -276,11 +279,11 @@ function GoalBody({
       <div className="mb-4">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div className="flex items-center gap-2">
-            <Target size={15} className="shrink-0 text-[var(--color-meadow)]" />
+            <Target size={15} className="shrink-0 text-[var(--color-brand)]" />
             <span className="text-[14.5px] font-bold text-[var(--color-ink)]">{goal.name}</span>
           </div>
           <span className="font-mono text-[12px] text-[var(--color-muted-2)]">
-            by {monthYear(goal.targetDate)}
+            {t.goal.by} {monthYear(goal.targetDate, lang)}
           </span>
         </div>
 
@@ -290,7 +293,7 @@ function GoalBody({
             style={{
               width: `${Math.min(100, Math.max(0, progress * 100))}%`,
               background: reached
-                ? "linear-gradient(90deg, #0c9e57, #10b96a)"
+                ? "linear-gradient(90deg, var(--color-positive), var(--color-positive-light))"
                 : "linear-gradient(90deg, #3d6b9e, #5a8bc4)",
             }}
           />
@@ -307,33 +310,27 @@ function GoalBody({
 
       {/* The two solvers. */}
       <div className="mb-4 flex flex-col gap-2.5 sm:flex-row">
-        <Stat icon={<Wallet size={15} />} label="To hit the goal">
+        <Stat icon={<Wallet size={15} />} label={t.goal.toHitTheGoal}>
           {n <= 0 ? (
             <span className="text-[var(--color-muted)]">
-              The target date has already passed — adjust it to see the contribution needed.
+              {t.goal.targetDatePassed}
             </span>
           ) : needed <= 0 ? (
-            <span>At this pace you pass the goal before the target date 🎯</span>
+            <span>{t.goal.passGoalEarly}</span>
           ) : (
-            <span>
-              contribute <span className="font-mono font-bold">{formatCurrency(needed)}</span>
-              /month to get there by {monthYear(goal.targetDate)}
-            </span>
+            <span>{t.goal.contributeToGetThere(formatCurrency(needed), monthYear(goal.targetDate, lang))}</span>
           )}
         </Stat>
 
-        <Stat icon={<CalendarClock size={15} />} label="At your current contribution">
+        <Stat icon={<CalendarClock size={15} />} label={t.goal.atCurrentContribution}>
           {reached ? (
-            <span>Goal already reached 🎉</span>
+            <span>{t.goal.alreadyReached}</span>
           ) : arrival === null ? (
             <span className="text-[var(--color-muted)]">
-              the goal isn&apos;t reached at this contribution — raise it or move the date
+              {t.goal.unreachable}
             </span>
           ) : (
-            <span>
-              <span className="font-mono font-bold">{formatCurrency(monthlyContribution)}</span>
-              /month → arrives {monthYear(arrival)}
-            </span>
+            <span>{t.goal.arrivesIn(formatCurrency(monthlyContribution), monthYear(arrival, lang))}</span>
           )}
         </Stat>
       </div>
@@ -347,9 +344,10 @@ function GoalBody({
       )}
 
       <p className="mt-2.5 text-[11.5px] leading-relaxed text-[var(--color-muted-2)]">
-        Projected from the assumptions above ({(expectedAnnualRate * 100).toFixed(2)}% p.a., with a
-        ±{(SPREAD * 100).toFixed(0)} p.p. band). Past performance doesn&apos;t guarantee future
-        results.
+        {t.goal.projectionFootnote(
+          (expectedAnnualRate * 100).toFixed(2),
+          (SPREAD * 100).toFixed(0),
+        )}
       </p>
     </>
   );

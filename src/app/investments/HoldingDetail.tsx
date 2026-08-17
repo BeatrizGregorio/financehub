@@ -8,8 +8,22 @@ import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
 import { typeLabel, subtypeLabel, showsRateFields } from "@/lib/investmentTypes";
 import { currentValue, monthlyValue, taxBreakdown, type ReferenceRatesLike } from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
+import { useT } from "@/components/LanguageProvider";
+import type { Dict, Language } from "@/lib/i18n";
 
-function PriceRow({ id, date, price }: { id: string; date: Date; price: number }) {
+function PriceRow({
+  id,
+  date,
+  price,
+  t,
+  lang,
+}: {
+  id: string;
+  date: Date;
+  price: number;
+  t: Dict;
+  lang: Language;
+}) {
   const [editing, setEditing] = useState(false);
   const initialState: ActionState = {};
   const [state, formAction] = useActionState(updatePricePoint.bind(null, id), initialState);
@@ -27,7 +41,7 @@ function PriceRow({ id, date, price }: { id: string; date: Date; price: number }
   if (editing) {
     return (
       <form action={formAction} className="flex items-center justify-between gap-2 py-1.5">
-        <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date)}</span>
+        <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
         <div className="flex items-center gap-2">
           <input
             name="price"
@@ -39,15 +53,15 @@ function PriceRow({ id, date, price }: { id: string; date: Date; price: number }
             autoFocus
             className="w-24 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1 text-right font-mono text-[12.5px] outline-none focus:border-[var(--color-ink)]"
           />
-          <button type="submit" className="text-xs font-semibold text-[#0c9e57]">
-            Save
+          <button type="submit" className="text-xs font-semibold text-[var(--color-brand)]">
+            {t.common.save}
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
             className="text-xs font-semibold text-[var(--color-muted)]"
           >
-            Cancel
+            {t.common.cancel}
           </button>
         </div>
       </form>
@@ -56,7 +70,7 @@ function PriceRow({ id, date, price }: { id: string; date: Date; price: number }
 
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date)}</span>
+      <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
       <div className="flex items-center gap-3">
         <span className="font-mono text-[12.5px] font-medium text-[var(--color-ink)]">
           {formatCurrency(price)}
@@ -66,19 +80,19 @@ function PriceRow({ id, date, price }: { id: string; date: Date; price: number }
           onClick={() => setEditing(true)}
           className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
         >
-          Edit
+          {t.common.edit}
         </button>
         <form
           action={deletePricePoint.bind(null, id)}
           onSubmit={(e) => {
-            if (!confirm("Delete this price point?")) e.preventDefault();
+            if (!confirm(t.investments.confirmDeletePrice)) e.preventDefault();
           }}
         >
           <button
             type="submit"
             className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
           >
-            Delete
+            {t.common.delete}
           </button>
         </form>
       </div>
@@ -95,50 +109,51 @@ export function HoldingDetail({
   rates: ReferenceRatesLike;
   cycleStartDay: number;
 }) {
+  const { t, lang } = useT();
   const chartData = [...holding.prices]
     .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .map((p) => ({ label: formatShortDate(p.date), price: p.price }));
+    .map((p) => ({ label: formatShortDate(p.date, lang), price: p.price }));
 
   const sortedDesc = [...holding.prices].sort((a, b) => b.date.getTime() - a.date.getTime());
-  const monthlyData = monthlyValue(holding, rates, 12, cycleStartDay);
+  const monthlyData = monthlyValue(holding, rates, 12, cycleStartDay, lang);
   const value = currentValue(holding, rates);
   const tax = taxBreakdown(holding, rates);
-  const sub = subtypeLabel(holding.type, holding.subtype);
+  const sub = subtypeLabel(holding.type, holding.subtype, t);
 
   return (
     <div className="flex flex-col gap-5">
       <p className="text-sm text-[var(--color-muted)]">
-        {typeLabel(holding.type)}
+        {typeLabel(holding.type, t)}
         {sub ? ` · ${sub}` : ""}
         {holding.institution ? ` · ${holding.institution}` : ""}
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
-          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">Current value</p>
+          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.currentValue}</p>
           <p className="font-mono text-sm font-semibold text-[var(--color-ink)]">{formatCurrency(value)}</p>
         </div>
         <div>
-          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">Invested</p>
+          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.invested}</p>
           <p className="font-mono text-sm font-semibold text-[var(--color-ink)]">
             {formatCurrency(holding.amountInvested)}
           </p>
         </div>
         <div>
-          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">Gross gain</p>
+          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.grossGain}</p>
           <p
             className="font-mono text-sm font-semibold"
-            style={{ color: tax.grossGain >= 0 ? "#0c9e57" : "#dc3545" }}
+            style={{ color: tax.grossGain >= 0 ? "var(--color-positive)" : "#dc3545" }}
           >
             {tax.grossGain >= 0 ? "+" : "−"}
             {formatCurrency(Math.abs(tax.grossGain))}
           </p>
         </div>
         <div>
-          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">Net gain*</p>
+          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.netGain}</p>
           <p
             className="font-mono text-sm font-semibold"
-            style={{ color: tax.netGain >= 0 ? "#0c9e57" : "#dc3545" }}
+            style={{ color: tax.netGain >= 0 ? "var(--color-positive)" : "#dc3545" }}
           >
             {tax.netGain >= 0 ? "+" : "−"}
             {formatCurrency(Math.abs(tax.netGain))}
@@ -148,17 +163,21 @@ export function HoldingDetail({
 
       {(tax.iof > 0 || tax.ir > 0) && (
         <p className="text-[11px] text-[var(--color-muted-2)]">
-          *Estimated after IOF ({formatCurrency(tax.iof)}) and IR ({formatCurrency(tax.ir)}, {(tax.irRate * 100).toFixed(1)}%
-          on {tax.holdingDays}d held) — an estimate for personal reference, not tax filing guidance.
+          {t.investments.taxNote(
+            formatCurrency(tax.iof),
+            formatCurrency(tax.ir),
+            (tax.irRate * 100).toFixed(1),
+            tax.holdingDays,
+          )}
         </p>
       )}
 
       <div>
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <p className="text-[11px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase">
-            Monthly value
+            {t.investments.monthlyValue}
           </p>
-          <span className="text-[11px] text-[var(--color-muted-2)]">last 12 months</span>
+          <span className="text-[11px] text-[var(--color-muted-2)]">{t.common.lastMonths(12)}</span>
         </div>
         <div className="h-40 w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -186,7 +205,7 @@ export function HoldingDetail({
               <Line
                 type="monotone"
                 dataKey="value"
-                name="Value"
+                name={t.charts.value}
                 stroke="#3d6b9e"
                 strokeWidth={2}
                 dot={{ r: 3, fill: "#3d6b9e" }}
@@ -200,7 +219,7 @@ export function HoldingDetail({
 
       <div>
         <p className="mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase">
-          Manual price entries
+          {t.investments.manualPriceEntries}
         </p>
         {chartData.length > 0 ? (
           <div className="h-40 w-full">
@@ -229,31 +248,31 @@ export function HoldingDetail({
                 <Line
                   type="monotone"
                   dataKey="price"
-                  name="Price"
-                  stroke="#0c9e57"
+                  name={t.charts.price}
+                  stroke="var(--color-brand)"
                   strokeWidth={2}
-                  dot={{ r: 3, fill: "#0c9e57" }}
-                  activeDot={{ r: 5, fill: "#10b96a" }}
+                  dot={{ r: 3, fill: "var(--color-brand)" }}
+                  activeDot={{ r: 5, fill: "var(--color-brand-deep)" }}
                   isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">No price history yet.</p>
+          <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">{t.investments.noPriceHistory}</p>
         )}
       </div>
 
       <div>
         <p className="mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase">
-          Price history
+          {t.investments.priceHistory}
         </p>
         <div className="flex max-h-64 flex-col divide-y divide-black/[0.04] overflow-y-auto">
           {sortedDesc.map((p) => (
-            <PriceRow key={p.id} id={p.id} date={p.date} price={p.price} />
+            <PriceRow key={p.id} id={p.id} date={p.date} price={p.price} t={t} lang={lang} />
           ))}
           {sortedDesc.length === 0 && (
-            <p className="py-4 text-center text-[13px] text-[var(--color-muted-2)]">No prices recorded.</p>
+            <p className="py-4 text-center text-[13px] text-[var(--color-muted-2)]">{t.investments.noPricesRecorded}</p>
           )}
         </div>
       </div>

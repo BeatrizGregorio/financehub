@@ -7,24 +7,27 @@ import { latestPrice } from "@/lib/investments";
 import { valuation } from "@/lib/investmentTypes";
 import { formatCurrency, toDateInputValue } from "@/lib/format";
 import type { Holding } from "./InvestmentsClient";
+import { useT } from "@/components/LanguageProvider";
 
 const LABEL = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[var(--color-muted-2)]";
 
 function SubmitButton() {
+  const { t } = useT();
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={pending}
-      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_4px_16px_rgba(12,158,87,0.28)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
-      style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[var(--shadow-brand)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
+      style={{ background: "var(--gradient-brand)" }}
     >
-      {pending ? "Saving…" : "Save prices"}
+      {pending ? t.common.saving : t.investments.savePrices}
     </button>
   );
 }
 
 export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; onDone: () => void }) {
+  const { t } = useT();
   const formId = useId();
   const initialState: ActionState = {};
   const [state, formAction] = useActionState(savePrices, initialState);
@@ -46,7 +49,7 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
     >
       <div>
         <label htmlFor={`${formId}-date`} className={LABEL}>
-          Date
+          {t.common.date}
         </label>
         <input
           id={`${formId}-date`}
@@ -72,7 +75,7 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
                 <p className="text-[11px] text-[var(--color-muted-2)]">
                   {latest ? `Last: ${formatCurrency(latest.price)}` : "No manual value yet"}
                   {" · "}
-                  {mode === "unit" ? "price per unit" : "current total value"}
+                  {mode === "unit" ? t.investments.pricePerUnit : t.investments.currentTotalValue}
                 </p>
               </div>
               <input
@@ -87,7 +90,7 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
           );
         })}
         {holdings.length === 0 && (
-          <p className="py-4 text-center text-[13px] text-[var(--color-muted-2)]">Add a holding first.</p>
+          <p className="py-4 text-center text-[13px] text-[var(--color-muted-2)]">{t.investments.addHoldingFirst}</p>
         )}
       </div>
 
@@ -100,7 +103,7 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
           onClick={onDone}
           className="text-sm font-semibold text-[var(--color-muted)] hover:text-[var(--color-ink)]"
         >
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
     </form>

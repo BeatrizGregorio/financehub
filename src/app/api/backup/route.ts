@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getCycleStartDay, getReferenceRates } from "@/lib/data";
+import { getAccentColor, getCycleStartDay, getLanguage, getReferenceRates } from "@/lib/data";
 
 export async function GET() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay] =
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language] =
     await Promise.all([
       prisma.entry.findMany(),
       prisma.category.findMany(),
@@ -12,6 +12,8 @@ export async function GET() {
       prisma.investment.findMany({ include: { prices: true, coupons: true } }),
       getReferenceRates(),
       getCycleStartDay(),
+      getAccentColor(),
+      getLanguage(),
     ]);
 
   const backup = {
@@ -45,9 +47,10 @@ export async function GET() {
       coupons: inv.coupons.map((c) => ({ date: c.date, amount: c.amount })),
     })),
     referenceRates: { cdi: rates.cdi, selic: rates.selic, ipca: rates.ipca },
-    // Additive since V1.15 — still `version: 3`, since an older backup
-    // without this key just falls back to the default on import.
-    settings: { cycleStartDay },
+    // Additive since V1.15 (accentColor since V1.22) — still `version: 3`,
+    // since an older backup without these keys just falls back to the
+    // current value on import.
+    settings: { cycleStartDay, accentColor, language },
   };
 
   const filename = `financehub-backup-${new Date().toISOString().slice(0, 10)}.json`;

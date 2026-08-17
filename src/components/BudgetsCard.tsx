@@ -5,15 +5,18 @@ import { categoryColor, categoryIconName } from "@/lib/categories";
 import { currentCycleKey, formatCurrency } from "@/lib/format";
 import { CARD } from "@/lib/ui";
 import { Icon } from "./CategoryIcon";
+import type { Dict } from "@/lib/i18n";
 
 export function BudgetsCard({
   entries,
   budgets,
   cycleStartDay,
+  t,
 }: {
   entries: EntryLike[];
   budgets: BudgetLike[];
   cycleStartDay: number;
+  t: Dict;
 }) {
   const currentMonth = currentCycleKey(cycleStartDay);
   const rows = budgetStatus(entries, budgets, currentMonth, cycleStartDay).filter(
@@ -27,7 +30,7 @@ export function BudgetsCard({
   return (
     <div className={`${CARD} p-[18px]`}>
       <div className="mb-3.5 flex items-center justify-between">
-        <span className="text-[17px] font-extrabold tracking-tight">Budgets</span>
+        <span className="text-[17px] font-extrabold tracking-tight">{t.dashboard.budgets}</span>
         <Link
           href="/settings"
           className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[var(--color-panel)] text-[var(--color-ink)] transition hover:bg-[var(--color-inset)]"
@@ -38,11 +41,10 @@ export function BudgetsCard({
 
       {rows.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">
-          No budgets set yet.{" "}
-          <Link href="/settings" className="font-semibold text-[var(--color-meadow)]">
-            Set one in Settings
+          {t.dashboard.noBudgets}{" "}
+          <Link href="/settings" className="font-semibold text-[var(--color-brand)]">
+            {t.dashboard.setOneInSettings}
           </Link>
-          .
         </p>
       ) : (
         <div className="flex flex-col gap-[15px]">
@@ -72,8 +74,8 @@ export function BudgetsCard({
                       className="h-full rounded-full transition-all duration-500"
                       style={{
                         width: `${pct}%`,
-                        backgroundColor: rowOver ? "#dc3545" : "#0c9e57",
-                        boxShadow: `0 0 6px ${rowOver ? "#dc354555" : "#0c9e5755"}`,
+                        backgroundColor: rowOver ? "#dc3545" : "var(--color-positive)",
+                        boxShadow: `0 0 6px ${rowOver ? "#dc354555" : "var(--color-positive-glow)"}`,
                       }}
                     />
                   </div>
@@ -90,25 +92,21 @@ export function BudgetsCard({
             <span
               className="flex h-5 w-5 items-center justify-center rounded-full"
               style={{
-                backgroundColor: over ? "rgba(220,53,69,0.12)" : "rgba(12,158,87,0.12)",
-                color: over ? "#dc3545" : "#0c9e57",
+                backgroundColor: over ? "rgba(220,53,69,0.12)" : "var(--color-positive-tint)",
+                color: over ? "#dc3545" : "var(--color-positive)",
               }}
             >
               {over ? <TriangleAlert size={12} /> : <Sparkles size={12} />}
             </span>
             <span
               className="text-xs font-bold"
-              style={{ color: over ? "#dc3545" : "#0c9e57" }}
+              style={{ color: over ? "#dc3545" : "var(--color-positive)" }}
             >
-              {over ? "Over budget" : "Nice pace"}
+              {over ? t.dashboard.overBudget : t.dashboard.nicePace}
             </span>
           </div>
           <p className="m-0 text-[12.5px] leading-snug text-[var(--color-muted)]">
-            You&apos;re{" "}
-            <strong className="text-[var(--color-ink)]">
-              {formatCurrency(Math.abs(totalLimit - totalSpent))} {over ? "over" : "under"}
-            </strong>{" "}
-            budget this month{over ? "." : ". Keep it up."}
+            {t.dashboard.budgetInsight(formatCurrency(Math.abs(totalLimit - totalSpent)), over)}
           </p>
         </div>
       )}

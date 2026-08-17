@@ -1,3 +1,5 @@
+import type { Dict } from "@/lib/i18n";
+
 // Investment taxonomy, tax tables, and per-subtype behavior flags, transcribed
 // from the "Controle Financeiro" investment system spec. Excludes anything
 // related to live price APIs (brapi/CoinGecko/BCB/Tesouro Direto) — every
@@ -5,16 +7,23 @@
 
 export type InvestmentTypeValue = "renda-fixa" | "fundo" | "acao" | "cripto" | "outro";
 
-export const INVESTMENT_TYPES: { value: InvestmentTypeValue; label: string; color: string }[] = [
-  { value: "renda-fixa", label: "Fixed income", color: "#2e7d50" },
-  { value: "fundo", label: "Fund", color: "#3d6b9e" },
-  { value: "acao", label: "Stock / ETF", color: "#8C2D3F" },
-  { value: "cripto", label: "Crypto", color: "#a87b3a" },
-  { value: "outro", label: "Other", color: "#7a6855" },
+export const INVESTMENT_TYPES: { value: InvestmentTypeValue; color: string }[] = [
+  { value: "renda-fixa", color: "#2e7d50" },
+  { value: "fundo", color: "#3d6b9e" },
+  { value: "acao", color: "#8C2D3F" },
+  { value: "cripto", color: "#a87b3a" },
+  { value: "outro", color: "#7a6855" },
 ];
 
-export function typeLabel(type: string): string {
-  return INVESTMENT_TYPES.find((t) => t.value === type)?.label ?? type;
+/**
+ * Display labels live in the dictionary (src/lib/i18n.ts), keyed by the same
+ * `value` that's persisted in Investment.type/subtype — so a label can be
+ * translated without touching a single stored row. Falling back to the raw
+ * key means a holding saved under a value we no longer know still renders
+ * something identifiable rather than blank.
+ */
+export function typeLabel(type: string, t: Dict): string {
+  return t.types[type] ?? type;
 }
 
 export function typeColor(type: string): string {
@@ -45,7 +54,6 @@ export type ValuationMode = "unit" | "direct";
 
 export type SubtypeConfig = {
   value: string;
-  label: string;
   irExempt: boolean;
   valuationMode: ValuationMode;
   /** Tesouro Direto titles fall back to accrual, not flat amountInvested, when unpriced. */
@@ -53,33 +61,33 @@ export type SubtypeConfig = {
 };
 
 export const RENDA_FIXA_SUBTYPES: SubtypeConfig[] = [
-  { value: "cdb", label: "CDB", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "lci", label: "LCI", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "lca", label: "LCA", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "poupanca", label: "Poupança (savings)", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "tesouro-selic", label: "Tesouro Selic", irExempt: false, valuationMode: "unit", fallback: "accrual" },
-  { value: "tesouro-ipca", label: "Tesouro IPCA+", irExempt: false, valuationMode: "unit", fallback: "accrual" },
-  { value: "tesouro-pre", label: "Tesouro Prefixado", irExempt: false, valuationMode: "unit", fallback: "accrual" },
-  { value: "tesouro-renda", label: "Tesouro Renda+", irExempt: false, valuationMode: "unit", fallback: "accrual" },
-  { value: "tesouro-educa", label: "Tesouro Educa+", irExempt: false, valuationMode: "unit", fallback: "accrual" },
-  { value: "ntn-f", label: "NTN-F (fixed rate w/ coupons)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "debenture-incent", label: "Debênture (tax-exempt)", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "debenture-comum", label: "Debênture (standard)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "cri", label: "CRI", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "cra", label: "CRA", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "outro-rf", label: "Other fixed income", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "cdb", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "lci", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "lca", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "poupanca", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "tesouro-selic", irExempt: false, valuationMode: "unit", fallback: "accrual" },
+  { value: "tesouro-ipca", irExempt: false, valuationMode: "unit", fallback: "accrual" },
+  { value: "tesouro-pre", irExempt: false, valuationMode: "unit", fallback: "accrual" },
+  { value: "tesouro-renda", irExempt: false, valuationMode: "unit", fallback: "accrual" },
+  { value: "tesouro-educa", irExempt: false, valuationMode: "unit", fallback: "accrual" },
+  { value: "ntn-f", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "debenture-incent", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "debenture-comum", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "cri", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "cra", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "outro-rf", irExempt: false, valuationMode: "direct", fallback: "accrual" },
 ];
 
 export const FUNDO_SUBTYPES: SubtypeConfig[] = [
-  { value: "fidc", label: "FIDC / FIC-FIDC (senior share)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fidc-sub", label: "FIDC (subordinated share)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fii-fechado", label: "FII (closed-end / unlisted)", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fi-infra", label: "FI-Infra", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "fi-agro", label: "FI-Agro", irExempt: true, valuationMode: "direct", fallback: "accrual" },
-  { value: "fundo-rf", label: "Fixed income fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fundo-mm", label: "Multi-strategy fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "fundo-acoes", label: "Equity fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
-  { value: "outro-fundo", label: "Other fund", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fidc", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fidc-sub", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fii-fechado", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fi-infra", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "fi-agro", irExempt: true, valuationMode: "direct", fallback: "accrual" },
+  { value: "fundo-rf", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fundo-mm", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "fundo-acoes", irExempt: false, valuationMode: "direct", fallback: "accrual" },
+  { value: "outro-fundo", irExempt: false, valuationMode: "direct", fallback: "accrual" },
 ];
 
 export function subtypesForType(type: string): SubtypeConfig[] {
@@ -93,8 +101,17 @@ export function subtypeConfig(type: string, subtype: string | null | undefined):
   return subtypesForType(type).find((s) => s.value === subtype) ?? null;
 }
 
-export function subtypeLabel(type: string, subtype: string | null | undefined): string | null {
-  return subtypeConfig(type, subtype)?.label ?? null;
+export function subtypeLabel(
+  type: string,
+  subtype: string | null | undefined,
+  t: Dict,
+): string | null {
+  if (!subtypeConfig(type, subtype)) return null;
+  return t.subtypes[subtype as string] ?? subtype ?? null;
+}
+
+export function indexadorLabel(value: string, t: Dict): string {
+  return t.indexadores[value] ?? value;
 }
 
 const TESOURO_SUBTYPES = new Set([
@@ -157,18 +174,18 @@ export function isIrExempt(type: string, subtype: string | null | undefined): bo
   return subtypeConfig(type, subtype)?.irExempt ?? false;
 }
 
-export const INDEXADOR_OPTIONS: { value: string; label: string }[] = [
-  { value: "prefixada", label: "Fixed rate" },
-  { value: "cdi-pct", label: "% of CDI" },
-  { value: "cdi-plus", label: "CDI +" },
-  { value: "ipca-plus", label: "IPCA +" },
-  { value: "selic-pct", label: "% of SELIC" },
+export const INDEXADOR_OPTIONS: { value: string }[] = [
+  { value: "prefixada" },
+  { value: "cdi-pct" },
+  { value: "cdi-plus" },
+  { value: "ipca-plus" },
+  { value: "selic-pct" },
 ];
 
-export function rateFieldLabel(indexador: string | null | undefined): string {
-  if (indexador === "cdi-pct") return "% of CDI";
-  if (indexador === "selic-pct") return "% of SELIC";
-  return "Rate % p.a.";
+export function rateFieldLabel(indexador: string | null | undefined, t: Dict): string {
+  if (indexador === "cdi-pct") return t.indexadores["cdi-pct"];
+  if (indexador === "selic-pct") return t.indexadores["selic-pct"];
+  return t.indexadores.rateLabel;
 }
 
 export function showsSpreadField(indexador: string | null | undefined): boolean {

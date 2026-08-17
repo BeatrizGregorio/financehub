@@ -8,6 +8,8 @@ import {
   DEFAULT_PAYMENT_METHODS,
 } from "@/lib/categories";
 import { MAX_CYCLE_START_DAY, clampCycleStartDay } from "@/lib/format";
+import { ACCENT_COLORS, clampAccentColor } from "@/lib/theme";
+import { LANGUAGES, clampLanguage } from "@/lib/i18n";
 
 export type ActionState = { error?: string };
 
@@ -37,6 +39,53 @@ export async function updateCycleStartDay(
     where: { id: "singleton" },
     create: { id: "singleton", cycleStartDay },
     update: { cycleStartDay },
+  });
+
+  revalidateAll();
+  revalidatePath("/investments");
+  return {};
+}
+
+/**
+ * The brand accent color. Revalidates /investments as well as revalidateAll()'s
+ * three routes — the accent is applied in the root layout, so every route has
+ * to re-render, not just the ones that own data.
+ */
+export async function updateAccentColor(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const raw = String(formData.get("accentColor") ?? "");
+  if (!ACCENT_COLORS.some((c) => c.value === raw)) return { error: "Pick one of the colors." };
+
+  const accentColor = clampAccentColor(raw);
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", accentColor },
+    update: { accentColor },
+  });
+
+  revalidateAll();
+  revalidatePath("/investments");
+  return {};
+}
+
+/**
+ * The UI language. Like the accent, this is applied in the root layout, so
+ * every route has to re-render — hence the extra /investments revalidate.
+ */
+export async function updateLanguage(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const raw = String(formData.get("language") ?? "");
+  if (!LANGUAGES.some((l) => l.value === raw)) return { error: "Pick one of the languages." };
+
+  const language = clampLanguage(raw);
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", language },
+    update: { language },
   });
 
   revalidateAll();
@@ -166,7 +215,7 @@ type Backup = {
   paymentMethods?: { name: string }[];
   investments?: BackupInvestment[];
   referenceRates?: { cdi: number; selic: number; ipca: number };
-  settings?: { cycleStartDay?: number };
+  settings?: { cycleStartDay?: number; accentColor?: string; language?: string };
 };
 
 export async function importBackup(
@@ -289,6 +338,26 @@ export async function importBackup(
       where: { id: "singleton" },
       create: { id: "singleton", cycleStartDay },
       update: { cycleStartDay },
+    });
+  }
+
+  // Same reasoning for the accent: absent means "leave it as it is", not
+  // "reset to green".
+  if (backup.settings?.accentColor != null) {
+    const accentColor = clampAccentColor(backup.settings.accentColor);
+    await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton", accentColor },
+      update: { accentColor },
+    });
+  }
+
+  if (backup.settings?.language != null) {
+    const language = clampLanguage(backup.settings.language);
+    await prisma.appSettings.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton", language },
+      update: { language },
     });
   }
 
