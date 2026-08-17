@@ -109,6 +109,14 @@ model ReferenceRates {
 model AppSettings {
   id            String   @id @default("singleton")
   cycleStartDay Int      @default(10)
+  // Brand accent name, not a hex — the palette lives in src/lib/theme.ts and
+  // globals.css. Storing the name means a palette tweak restyles the app
+  // instead of leaving a stale hex behind in the database.
+  accentColor   String   @default("green")
+  // UI language: "en" | "pt". Only the app's own copy follows this — the
+  // owner's data (category names, entry names, payment methods) is never
+  // translated, and currency stays pt-BR formatted since it's always BRL.
+  language      String   @default("en")
   updatedAt     DateTime @updatedAt
 }
 

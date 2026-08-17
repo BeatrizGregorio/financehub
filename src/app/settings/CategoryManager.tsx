@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { addCategory, removeCategory, type ActionState } from "./actions";
 import { categoryColor } from "@/lib/categories";
 import { CARD } from "@/lib/ui";
+import { useT } from "@/components/LanguageProvider";
 
 export function CategoryManager({
   type,
@@ -19,6 +20,7 @@ export function CategoryManager({
 }) {
   const action = addCategory.bind(null, type);
   const initialState: ActionState = {};
+  const { t } = useT();
   const [state, formAction] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const submitCount = useRef(0);
@@ -50,7 +52,7 @@ export function CategoryManager({
           </form>
         ))}
         {categories.length === 0 && (
-          <p className="text-[13px] text-[var(--color-muted-2)]">No categories yet.</p>
+          <p className="text-[13px] text-[var(--color-muted-2)]">{t.settings.noCategories}</p>
         )}
       </div>
 
@@ -67,15 +69,15 @@ export function CategoryManager({
           // Placeholder alone isn't an accessible name — with two of these
           // cards on the page, `title` also disambiguates expense vs income.
           aria-label={`New ${type} category name`}
-          placeholder="New category…"
+          placeholder={t.settings.newCategory}
           className="flex-1 rounded-full bg-[var(--color-inset)] px-4 py-2.5 text-[13px] outline-none focus:bg-white focus:ring-1 focus:ring-[var(--color-ink)]"
         />
         <button
           type="submit"
           className="rounded-full px-[19px] text-[13px] font-semibold text-white transition hover:brightness-105 active:scale-95"
-          style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+          style={{ background: "var(--gradient-brand)" }}
         >
-          Add
+          {t.common.add}
         </button>
       </form>
       {state.error && <p className="mt-2 text-sm text-[#dc3545]">{state.error}</p>}

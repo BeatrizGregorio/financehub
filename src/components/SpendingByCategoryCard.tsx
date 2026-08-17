@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { availableMonths, categoryBreakdown, type EntryLike } from "@/lib/aggregate";
 import { CARD } from "@/lib/ui";
 import { SpendingByCategoryChart } from "./SpendingByCategoryChart";
+import { useT } from "@/components/LanguageProvider";
 
 export function SpendingByCategoryCard({
   entries,
@@ -15,8 +16,12 @@ export function SpendingByCategoryCard({
   defaultMonth: string;
   cycleStartDay: number;
 }) {
+  const { t, lang } = useT();
   const [month, setMonth] = useState(defaultMonth);
-  const months = useMemo(() => availableMonths(entries, cycleStartDay), [entries, cycleStartDay]);
+  const months = useMemo(
+    () => availableMonths(entries, cycleStartDay, lang),
+    [entries, cycleStartDay, lang],
+  );
   const data = useMemo(
     () => categoryBreakdown(entries, month, cycleStartDay),
     [entries, month, cycleStartDay],
@@ -25,10 +30,10 @@ export function SpendingByCategoryCard({
   return (
     <div className={`${CARD} p-5`}>
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-[17px] font-extrabold tracking-tight">Spending by category</span>
+        <span className="text-[17px] font-extrabold tracking-tight">{t.dashboard.spendingByCategory}</span>
         <div className="relative">
           <select
-            aria-label="Month shown in spending by category"
+            aria-label={t.dashboard.monthShownLabel}
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="appearance-none rounded-full bg-[var(--color-panel)] py-1.5 pl-3 pr-7 text-xs font-semibold text-[var(--color-ink)] outline-none"

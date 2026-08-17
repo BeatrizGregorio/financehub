@@ -2,12 +2,14 @@
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatCurrencyAxis } from "@/lib/format";
+import { useT } from "@/components/LanguageProvider";
 
 export function MonthlyTrendChart({
   data,
 }: {
   data: { label: string; net: number }[];
 }) {
+  const { t } = useT();
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -42,11 +44,11 @@ export function MonthlyTrendChart({
           <Line
             type="monotone"
             dataKey="net"
-            name="Net"
-            stroke="#0c9e57"
+            name={t.charts.net}
+            stroke="var(--color-brand)"
             strokeWidth={2.5}
-            dot={{ r: 3, fill: "#0c9e57" }}
-            activeDot={{ r: 5, fill: "#10b96a" }}
+            dot={{ r: 3, fill: "var(--color-brand)" }}
+            activeDot={{ r: 5, fill: "var(--color-brand-deep)" }}
             isAnimationActive={false}
           />
         </LineChart>

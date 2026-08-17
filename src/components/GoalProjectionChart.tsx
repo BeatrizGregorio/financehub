@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { formatCurrency, formatCurrencyAxis } from "@/lib/format";
 import type { GoalProjectionPoint } from "@/lib/goal";
+import { useT } from "@/components/LanguageProvider";
 
 /**
  * Projection out to the goal: a shaded band between the pessimistic and
@@ -33,10 +34,11 @@ export function GoalProjectionChart({
   targetAmount: number;
   crossingIndex: number | null;
 }) {
+  const { t } = useT();
   if (data.length === 0) {
     return (
       <p className="flex h-56 items-center justify-center text-[13px] text-[var(--color-muted-2)]">
-        Set a goal to see the projection.
+        {t.goal.chartEmpty}
       </p>
     );
   }
@@ -89,7 +91,7 @@ export function GoalProjectionChart({
 
           <Area
             dataKey="band"
-            name="Scenario range"
+            name={t.charts.projected}
             stroke="none"
             fill="#3d6b9e"
             fillOpacity={0.13}
@@ -98,7 +100,7 @@ export function GoalProjectionChart({
           <Line
             type="monotone"
             dataKey="realistic"
-            name="Projected"
+            name={t.charts.projected}
             stroke="#3d6b9e"
             strokeWidth={2.5}
             dot={false}
@@ -108,13 +110,13 @@ export function GoalProjectionChart({
 
           <ReferenceLine
             y={targetAmount}
-            stroke="#0c9e57"
+            stroke="var(--color-brand)"
             strokeDasharray="5 4"
             strokeWidth={1.5}
             label={{
-              value: "Goal",
+              value: t.goal.goalLine,
               position: "insideTopLeft",
-              fill: "#0c9e57",
+              fill: "var(--color-brand)",
               fontSize: 11.5,
               fontFamily: "var(--font-dm-mono)",
             }}
@@ -124,7 +126,7 @@ export function GoalProjectionChart({
               x={crossing.label}
               y={targetAmount}
               r={5}
-              fill="#0c9e57"
+              fill="var(--color-brand)"
               stroke="#fff"
               strokeWidth={2}
             />

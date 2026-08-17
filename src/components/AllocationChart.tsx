@@ -4,12 +4,16 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { typeColor, typeLabel } from "@/lib/investmentTypes";
 import { formatCurrency } from "@/lib/format";
 import type { AllocationSlice } from "@/lib/investments";
+import { useT } from "@/components/LanguageProvider";
+
 
 export function AllocationChart({ data }: { data: AllocationSlice[] }) {
+  const { t } = useT();
+
   if (data.length === 0) {
     return (
       <p className="flex h-56 items-center justify-center text-[13px] text-[var(--color-muted-2)]">
-        No holdings yet.
+        {t.investments.noHoldings}
       </p>
     );
   }
@@ -50,13 +54,24 @@ export function AllocationChart({ data }: { data: AllocationSlice[] }) {
       </div>
       <ul className="min-w-0 flex-1 space-y-2.5 text-[13px]">
         {data.map((d) => (
-          <li key={d.type} className="flex items-start justify-between gap-3">
-            <span className="flex min-w-0 items-start gap-2 font-semibold text-[var(--color-ink)]">
+          // flex-wrap + no min-w-0 on the label: the value drops to its own
+          // line when the row is too narrow, instead of the label (the only
+          // shrinkable item, since the value is shrink-0) being crushed
+          // below its text width. min-w-0 here would suppress the wrap —
+          // it removes the min-width:auto that triggers it — and without a
+          // matching `truncate` the label's text then overflows its box and
+          // paints straight over the amount. break-words handles a single
+          // category name longer than the whole legend column.
+          <li
+            key={d.type}
+            className="flex flex-wrap items-start justify-between gap-x-3 gap-y-0.5"
+          >
+            <span className="flex items-start gap-2 font-semibold text-[var(--color-ink)]">
               <span
                 className="mt-[5px] h-2 w-2 shrink-0 rounded-[3px]"
                 style={{ backgroundColor: typeColor(d.type) }}
               />
-              <span className="min-w-0">{typeLabel(d.type)}</span>
+              <span className="break-words">{typeLabel(d.type, t)}</span>
             </span>
             <span className="shrink-0 whitespace-nowrap font-mono text-[12.5px] font-medium">
               {formatCurrency(d.value)}

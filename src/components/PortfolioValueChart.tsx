@@ -3,12 +3,14 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatCurrencyAxis } from "@/lib/format";
 import type { PortfolioValuePoint } from "@/lib/investments";
+import { useT } from "@/components/LanguageProvider";
 
 export function PortfolioValueChart({ data }: { data: PortfolioValuePoint[] }) {
+  const { t } = useT();
   if (data.length === 0) {
     return (
       <p className="flex h-56 items-center justify-center text-[13px] text-[var(--color-muted-2)]">
-        No price history yet.
+        {t.investments.noPriceHistory}
       </p>
     );
   }
@@ -49,11 +51,11 @@ export function PortfolioValueChart({ data }: { data: PortfolioValuePoint[] }) {
           <Line
             type="monotone"
             dataKey="value"
-            name="Value"
-            stroke="#0c9e57"
+            name={t.charts.value}
+            stroke="var(--color-brand)"
             strokeWidth={2.5}
-            dot={{ r: 3, fill: "#0c9e57" }}
-            activeDot={{ r: 5, fill: "#10b96a" }}
+            dot={{ r: 3, fill: "var(--color-brand)" }}
+            activeDot={{ r: 5, fill: "var(--color-brand-deep)" }}
             isAnimationActive={false}
           />
         </LineChart>

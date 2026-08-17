@@ -4,15 +4,17 @@ import { deleteEntry, deleteSeries } from "./actions";
 import { categoryColor } from "@/lib/categories";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { EditableEntry } from "./EntryForm";
+import { useT } from "@/components/LanguageProvider";
+import type { Dict } from "@/lib/i18n";
 
 const GRID_COLS = "90px 1.4fr 1.1fr 1fr 110px 150px";
 
-function DeleteButton({ id }: { id: string }) {
+function DeleteButton({ id, t }: { id: string; t: Dict }) {
   return (
     <form
       action={deleteEntry.bind(null, id)}
       onSubmit={(e) => {
-        if (!confirm("Delete this entry? This can't be undone.")) {
+        if (!confirm(t.entries.confirmDelete)) {
           e.preventDefault();
         }
       }}
@@ -24,18 +26,26 @@ function DeleteButton({ id }: { id: string }) {
         // visual height unchanged.
         className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
       >
-        Delete
+        {t.common.delete}
       </button>
     </form>
   );
 }
 
-function DeleteSeriesButton({ groupId, count }: { groupId: string; count: number }) {
+function DeleteSeriesButton({
+  groupId,
+  count,
+  t,
+}: {
+  groupId: string;
+  count: number;
+  t: Dict;
+}) {
   return (
     <form
       action={deleteSeries.bind(null, groupId)}
       onSubmit={(e) => {
-        if (!confirm(`Delete all ${count} entries in this series? This can't be undone.`)) {
+        if (!confirm(t.entries.confirmDeleteSeries(count))) {
           e.preventDefault();
         }
       }}
@@ -47,16 +57,16 @@ function DeleteSeriesButton({ groupId, count }: { groupId: string; count: number
         // visual height unchanged.
         className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
       >
-        Series
+        {t.entries.series}
       </button>
     </form>
   );
 }
 
-function seriesBadge(entry: EditableEntry): string | null {
-  if (entry.seriesType === "fixed") return "recurring";
+function seriesBadge(entry: EditableEntry, t: Dict): string | null {
+  if (entry.seriesType === "fixed") return t.entries.recurring;
   if (entry.seriesType === "installment") {
-    return `${entry.installmentTotal}× installment`;
+    return `${entry.installmentTotal}× ${t.entries.installment}`;
   }
   return null;
 }
@@ -70,10 +80,12 @@ export function EntryTable({
   groupCounts: Map<string, number>;
   onEdit: (entry: EditableEntry) => void;
 }) {
+  const { t, lang } = useT();
+
   if (entries.length === 0) {
     return (
       <p className="py-12 text-center text-[13px] text-[var(--color-muted-2)]">
-        No entries match these filters yet.
+        {t.entries.noneMatch}
       </p>
     );
   }
@@ -86,16 +98,16 @@ export function EntryTable({
             className="grid gap-4 border-b border-[var(--color-track)] px-6 py-[15px] font-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]"
             style={{ gridTemplateColumns: GRID_COLS }}
           >
-            <span>Date</span>
-            <span>Name</span>
-            <span>Category</span>
-            <span>Method</span>
-            <span className="text-right">Amount</span>
-            <span className="text-right">Actions</span>
+            <span>{t.common.date}</span>
+            <span>{t.common.name}</span>
+            <span>{t.common.category}</span>
+            <span>{t.entries.method}</span>
+            <span className="text-right">{t.common.amount}</span>
+            <span className="text-right">{t.common.actions}</span>
           </div>
 
           {entries.map((entry) => {
-            const badge = seriesBadge(entry);
+            const badge = seriesBadge(entry, t);
             const seriesCount = entry.groupId ? groupCounts.get(entry.groupId) ?? 0 : 0;
             return (
               <div
@@ -104,7 +116,7 @@ export function EntryTable({
                 style={{ gridTemplateColumns: GRID_COLS }}
               >
                 <span className="font-mono text-[13px] text-[var(--color-muted-2)]">
-                  {formatDate(entry.date)}
+                  {formatDate(entry.date, lang)}
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="flex items-center gap-2 truncate text-[13.5px] font-semibold text-[var(--color-ink)]">
@@ -131,7 +143,7 @@ export function EntryTable({
                 </span>
                 <span
                   className="text-right font-mono text-sm font-medium"
-                  style={{ color: entry.type === "income" ? "#0c9e57" : "var(--color-ink)" }}
+                  style={{ color: entry.type === "income" ? "var(--color-positive)" : "var(--color-ink)" }}
                 >
                   {entry.type === "income" ? "+" : "−"}
                   {formatCurrency(entry.amount)}
@@ -142,11 +154,11 @@ export function EntryTable({
                     onClick={() => onEdit(entry)}
                     className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
                   >
-                    Edit
+                    {t.common.edit}
                   </button>
-                  <DeleteButton id={entry.id} />
+                  <DeleteButton id={entry.id} t={t} />
                   {entry.groupId && seriesCount > 1 && (
-                    <DeleteSeriesButton groupId={entry.groupId} count={seriesCount} />
+                    <DeleteSeriesButton groupId={entry.groupId} count={seriesCount} t={t} />
                   )}
                 </div>
               </div>

@@ -20,14 +20,67 @@
   --color-muted: #5b6472;
   --color-muted-2: #6b7280;
 
-  --color-meadow: #0c9e57;
-  --color-emerald: #10b96a;
-  --color-green-tint: rgba(12, 158, 87, 0.1);
+  /* Money semantics — deliberately NOT themeable. Green means income/gain and
+     red means expense/loss everywhere in the app, and that pairing has to keep
+     working whatever brand color is chosen (a blue "positive" against a red
+     "negative" reads as two arbitrary colors, not as good vs. bad). */
+  --color-positive: #0c9e57;
+  --color-positive-light: #10b96a;
+  --color-positive-tint: rgba(12, 158, 87, 0.12);
+  --color-positive-glow: #0c9e5755;
   --color-rust: #dc3545;
   --color-rust-tint: rgba(220, 53, 69, 0.08);
   --color-ink: #111827;
 
   --shadow-card: 0 2px 24px -4px rgba(17, 24, 39, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* Brand accent — the owner picks this in Settings. Only the two base values
+     are defined per theme below; everything derived from them (tints, glows,
+     button shadows) is computed once, further down, so adding a sixth color
+     means adding two lines and nothing else. Default green matches the V1.4
+     Figma palette, i.e. what the app looked like before this was selectable. */
+  --color-brand: #0c9e57;
+  --color-brand-deep: #0a7a43;
+  --brand-rgb: 12 158 87;
+}
+
+/* Each theme sets only the three base values. `data-accent` lands on <html>
+   from the server (see layout.tsx), so the right palette is in the very first
+   painted frame — no flash of green before a client effect swaps it. */
+:root[data-accent="blue"] {
+  --color-brand: #2563eb;
+  --color-brand-deep: #1d4ed8;
+  --brand-rgb: 37 99 235;
+}
+
+:root[data-accent="violet"] {
+  --color-brand: #7c3aed;
+  --color-brand-deep: #5b21b6;
+  --brand-rgb: 124 58 237;
+}
+
+:root[data-accent="teal"] {
+  --color-brand: #0d9488;
+  --color-brand-deep: #0f766e;
+  --brand-rgb: 13 148 136;
+}
+
+:root[data-accent="amber"] {
+  --color-brand: #b45309;
+  --color-brand-deep: #92400e;
+  --brand-rgb: 180 83 9;
+}
+
+/* Derived from whichever --brand-rgb won above. Custom properties resolve at
+   use time, not where they're declared, so these pick up the themed value
+   even though they're declared once on the same element. */
+:root {
+  --color-brand-tint: rgb(var(--brand-rgb) / 0.1);
+  --color-brand-tint-strong: rgb(var(--brand-rgb) / 0.12);
+  --shadow-brand: 0 4px 16px rgb(var(--brand-rgb) / 0.28);
+  --shadow-brand-logo: 0 8px 18px -8px rgb(var(--brand-rgb) / 0.6);
+  --shadow-brand-panel: 0 16px 34px -20px rgb(var(--brand-rgb) / 0.7);
+  --gradient-brand: linear-gradient(135deg, var(--color-brand), var(--color-brand-deep));
 }
 
 @theme inline {

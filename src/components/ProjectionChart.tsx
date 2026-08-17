@@ -3,12 +3,14 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatCurrencyAxis } from "@/lib/format";
 import type { ProjectionPoint } from "@/lib/investments";
+import { useT } from "@/components/LanguageProvider";
 
 export function ProjectionChart({ data }: { data: ProjectionPoint[] }) {
+  const { t } = useT();
   if (data.length === 0) {
     return (
       <p className="flex h-56 items-center justify-center text-[13px] text-[var(--color-muted-2)]">
-        Add a holding to see a projection.
+        {t.investments.projectionEmpty}
       </p>
     );
   }
@@ -46,7 +48,7 @@ export function ProjectionChart({ data }: { data: ProjectionPoint[] }) {
           <Line
             type="monotone"
             dataKey="value"
-            name="Projected value"
+            name={t.charts.projected}
             stroke="#3d6b9e"
             strokeWidth={2.5}
             dot={{ r: 3, fill: "#3d6b9e" }}

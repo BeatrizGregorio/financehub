@@ -7,6 +7,7 @@ import { cycleKey, formatCurrency } from "@/lib/format";
 import { Modal } from "@/components/Modal";
 import { EntryForm, type EditableEntry } from "./EntryForm";
 import { EntryTable } from "./EntryTable";
+import { useT } from "@/components/LanguageProvider";
 
 type CategoryOption = { id: string; name: string };
 type TypeFilter = "all" | "income" | "expense";
@@ -24,12 +25,16 @@ export function EntriesClient({
   paymentMethods: CategoryOption[];
   cycleStartDay: number;
 }) {
+  const { t, lang } = useT();
   const [editing, setEditing] = useState<EditableEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [month, setMonth] = useState("all");
   const [type, setType] = useState<TypeFilter>("all");
 
-  const months = useMemo(() => availableMonths(entries, cycleStartDay), [entries, cycleStartDay]);
+  const months = useMemo(
+    () => availableMonths(entries, cycleStartDay, lang),
+    [entries, cycleStartDay, lang],
+  );
 
   const groupCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -48,7 +53,8 @@ export function EntriesClient({
   }, [entries, month, type, cycleStartDay]);
 
   const net = filtered.reduce((sum, e) => sum + (e.type === "income" ? e.amount : -e.amount), 0);
-  const scopeLabel = month === "all" ? "all time" : months.find((m) => m.key === month)?.label ?? month;
+  const scopeLabel =
+    month === "all" ? t.entries.allTime : months.find((m) => m.key === month)?.label ?? month;
 
   function startEdit(entry: EditableEntry) {
     setEditing(entry);
@@ -64,10 +70,10 @@ export function EntriesClient({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-extrabold tracking-tight sm:text-[34px]">Entries</h1>
+          <h1 className="text-[28px] font-extrabold tracking-tight sm:text-[34px]">{t.entries.title}</h1>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} · {scopeLabel} · net{" "}
-            <span style={{ color: net >= 0 ? "#0c9e57" : "#dc3545" }} className="font-semibold">
+            {t.entries.countSuffix(filtered.length)} · {scopeLabel} · {t.entries.net}{" "}
+            <span style={{ color: net >= 0 ? "var(--color-positive)" : "#dc3545" }} className="font-semibold">
               {net >= 0 ? "+" : "−"}
               {formatCurrency(Math.abs(net))}
             </span>
@@ -79,15 +85,15 @@ export function EntriesClient({
             setEditing(null);
             setShowForm((v) => !v);
           }}
-          className="flex items-center gap-2 rounded-xl px-5 py-3 text-[13.5px] font-semibold text-white shadow-[0_4px_16px_rgba(12,158,87,0.28)] transition hover:brightness-105 active:scale-95"
-          style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+          className="flex items-center gap-2 rounded-xl px-5 py-3 text-[13.5px] font-semibold text-white shadow-[var(--shadow-brand)] transition hover:brightness-105 active:scale-95"
+          style={{ background: "var(--gradient-brand)" }}
         >
-          <Plus size={16} /> Add entry
+          <Plus size={16} /> {t.entries.addEntry}
         </button>
       </div>
 
       {showForm && (
-        <Modal title={editing ? "Edit entry" : "Add entry"} onClose={closeForm}>
+        <Modal title={editing ? t.entries.editEntry : t.entries.addEntry} onClose={closeForm}>
           <EntryForm
             key={editing?.id ?? "new"}
             entry={editing ?? undefined}
@@ -101,23 +107,32 @@ export function EntriesClient({
 
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="flex gap-1 rounded-full border border-black/[0.06] bg-[var(--color-card)] p-1 backdrop-blur-xl">
-          {(["all", "income", "expense"] as const).map((t) => {
-            const active = type === t;
+          {(["all", "income", "expense"] as const).map((filter) => {
+            const active = type === filter;
             const activeBg =
-              t === "income" ? "rgba(12,158,87,0.12)" : t === "expense" ? "rgba(220,53,69,0.1)" : "rgba(0,0,0,0.08)";
-            const activeColor = t === "income" ? "#0c9e57" : t === "expense" ? "#dc3545" : "var(--color-ink)";
+              filter === "income"
+                ? "var(--color-positive-tint)"
+                : filter === "expense"
+                  ? "rgba(220,53,69,0.1)"
+                  : "rgba(0,0,0,0.08)";
+            const activeColor =
+              filter === "income"
+                ? "var(--color-positive)"
+                : filter === "expense"
+                  ? "#dc3545"
+                  : "var(--color-ink)";
             return (
               <button
-                key={t}
+                key={filter}
                 type="button"
-                onClick={() => setType(t)}
+                onClick={() => setType(filter)}
                 className="rounded-full px-[17px] py-2 text-[13px] font-semibold capitalize transition"
                 style={{
                   background: active ? activeBg : "transparent",
                   color: active ? activeColor : "var(--color-muted)",
                 }}
               >
-                {t}
+                {t.entries[filter]}
               </button>
             );
           })}
@@ -128,12 +143,12 @@ export function EntriesClient({
             <Calendar size={15} />
           </div>
           <select
-            aria-label="Filter entries by month"
+            aria-label={t.entries.filterByMonth}
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-[38px] pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"
           >
-            <option value="all">All time</option>
+            <option value="all">{t.entries.allTime}</option>
             {months.map((m) => (
               <option key={m.key} value={m.key}>
                 {m.label}

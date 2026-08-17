@@ -1,3 +1,5 @@
+import { DEFAULT_LANGUAGE, localeOf, type Language } from "@/lib/i18n";
+
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -19,14 +21,30 @@ export function formatCurrencyAxis(amount: number): string {
   return currencyAxisFormatter.format(amount);
 }
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
+// Date formatters follow the UI language (V1.23); currency deliberately does
+// not — see the note on formatCurrency above and in i18n.ts. Cached per locale
+// because constructing an Intl formatter is comparatively expensive and these
+// run once per table row / chart tick.
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
 
-export function formatDate(date: Date): string {
-  return dateFormatter.format(date);
+function dateFormatter(lang: Language): Intl.DateTimeFormat {
+  const locale = localeOf(lang);
+  let f = dateFormatters.get(locale);
+  if (!f) {
+    // pt-BR's "short" style renders "15 de jun. de 2027" — correct, but far
+    // too long for a 90px table column. Brazilians write dates numerically
+    // anyway, so pt gets dd/MM/yyyy and English keeps "Jun 15, 2027".
+    f =
+      lang === "pt"
+        ? new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", year: "numeric" })
+        : new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" });
+    dateFormatters.set(locale, f);
+  }
+  return f;
+}
+
+export function formatDate(date: Date, lang: Language = DEFAULT_LANGUAGE): string {
+  return dateFormatter(lang).format(date);
 }
 
 export function toDateInputValue(date: Date): string {
@@ -36,19 +54,30 @@ export function toDateInputValue(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// en-US to match formatDate/monthLabel — only formatCurrency uses pt-BR, since
-// the owner asked for BRL currency, not a Portuguese-language UI.
-const shortDateFormatter = new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short" });
+const shortDateFormatters = new Map<string, Intl.DateTimeFormat>();
 
-export function formatShortDate(date: Date): string {
-  return shortDateFormatter.format(date);
+export function formatShortDate(date: Date, lang: Language = DEFAULT_LANGUAGE): string {
+  const locale = localeOf(lang);
+  let f = shortDateFormatters.get(locale);
+  if (!f) {
+    // Same reasoning as formatDate: "15 de jun." on a chart axis is unusable.
+    f =
+      lang === "pt"
+        ? new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit" })
+        : new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" });
+    shortDateFormatters.set(locale, f);
+  }
+  return f.format(date);
 }
 
-function monthLabel(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    year: "numeric",
-  }).format(date);
+function monthLabel(date: Date, lang: Language): string {
+  // Composed from the parts rather than asking Intl for month+year together:
+  // pt-BR would otherwise produce "ago. de 2026", which is three times the
+  // width of "Aug 2026" and wraps every chart axis. This gives "ago 2026".
+  const month = new Intl.DateTimeFormat(localeOf(lang), { month: "short" })
+    .format(date)
+    .replace(/\.$/, "");
+  return `${month} ${date.getFullYear()}`;
 }
 
 // ─── Budget cycles ──────────────────────────────────────────────────────────
@@ -107,9 +136,9 @@ export function currentCycleKey(startDay: number = CYCLE_START_DAY): string {
 }
 
 /** "Aug 2026" for the cycle key "2026-08". Takes a key, never a raw date. */
-export function cycleLabel(key: string): string {
+export function cycleLabel(key: string, lang: Language = DEFAULT_LANGUAGE): string {
   const [year, month] = key.split("-").map(Number);
-  return monthLabel(new Date(year, month - 1, 1));
+  return monthLabel(new Date(year, month - 1, 1), lang);
 }
 
 /** Shift a cycle key by N cycles (negative = earlier). */
@@ -138,9 +167,13 @@ export function cycleEndDate(key: string, startDay: number = CYCLE_START_DAY): D
 }
 
 /** "10 Aug – 9 Sep" — the cycle's span, for explaining the setting in the UI. */
-export function cycleRangeLabel(key: string, startDay: number = CYCLE_START_DAY): string {
+export function cycleRangeLabel(
+  key: string,
+  startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
+): string {
   const { start } = cycleRange(key, startDay);
-  return `${formatShortDate(start)} – ${formatShortDate(cycleEndDate(key, startDay))}`;
+  return `${formatShortDate(start, lang)} – ${formatShortDate(cycleEndDate(key, startDay), lang)}`;
 }
 
 export function addMonthsClamped(date: Date, months: number): Date {

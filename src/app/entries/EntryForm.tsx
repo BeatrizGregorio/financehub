@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { createEntry, updateEntry, type ActionState } from "./actions";
 import { toDateInputValue } from "@/lib/format";
+import { useT } from "@/components/LanguageProvider";
 
 export type EditableEntry = {
   id: string;
@@ -33,8 +34,8 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
     <button
       type="submit"
       disabled={pending}
-      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_4px_16px_rgba(12,158,87,0.28)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
-      style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[var(--shadow-brand)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
+      style={{ background: "var(--gradient-brand)" }}
     >
       {pending ? pendingLabel : label}
     </button>
@@ -54,6 +55,7 @@ export function EntryForm({
   incomeCategories: CategoryOption[];
   paymentMethods: CategoryOption[];
 }) {
+  const { t } = useT();
   const isEditing = Boolean(entry);
   const formId = useId();
   const [type, setType] = useState<"income" | "expense">(
@@ -78,6 +80,7 @@ export function EntryForm({
   }, [state]);
 
   const categories = type === "income" ? incomeCategories : expenseCategories;
+  const typeWord = type === "income" ? t.entries.typeIncome : t.entries.typeExpense;
 
   return (
     <form
@@ -87,39 +90,39 @@ export function EntryForm({
       className="grid gap-4 sm:grid-cols-2"
     >
       <div className="flex gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel)] p-1 sm:col-span-2">
-        {(["expense", "income"] as const).map((t) => (
+        {(["expense", "income"] as const).map((option) => (
           <label
-            key={t}
+            key={option}
             className={`flex-1 cursor-pointer rounded-full px-4 py-2 text-center text-[13px] font-semibold capitalize transition ${
-              type === t ? "bg-[var(--color-ink)] text-white" : "text-[var(--color-muted)]"
+              type === option ? "bg-[var(--color-ink)] text-white" : "text-[var(--color-muted)]"
             }`}
           >
             <input
               type="radio"
               name="type"
-              value={t}
-              checked={type === t}
-              onChange={() => setType(t)}
+              value={option}
+              checked={type === option}
+              onChange={() => setType(option)}
               className="sr-only"
             />
-            {t}
+            {option === "income" ? t.entries.typeIncome : t.entries.typeExpense}
           </label>
         ))}
       </div>
 
       {categories.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)] sm:col-span-2">
-          You don&apos;t have any {type} categories yet.{" "}
-          <Link href="/settings" className="font-semibold text-[var(--color-meadow)]">
-            Add one in Settings
+          {t.entries.noCategoriesFor(typeWord)}{" "}
+          <Link href="/settings" className="font-semibold text-[var(--color-brand)]">
+            {t.entries.addOneInSettings}
           </Link>{" "}
-          before logging {type === "income" ? "income" : "an expense"}.
+          {t.entries.beforeLogging(type === "income" ? t.entries.incomeWord : t.entries.expenseWord)}
         </p>
       ) : (
         <>
       <div>
         <label htmlFor={`${formId}-name`} className={LABEL}>
-          Name
+          {t.common.name}
         </label>
         <input
           id={`${formId}-name`}
@@ -128,14 +131,14 @@ export function EntryForm({
           maxLength={80}
           required
           defaultValue={entry?.name}
-          placeholder="e.g. Trader Joe's"
+          placeholder={t.entries.namePlaceholder}
           className={INPUT}
         />
       </div>
 
       <div>
         <label htmlFor={`${formId}-date`} className={LABEL}>
-          Date
+          {t.common.date}
         </label>
         <input
           id={`${formId}-date`}
@@ -149,7 +152,7 @@ export function EntryForm({
 
       <div>
         <label htmlFor={`${formId}-note`} className={LABEL}>
-          Notes (optional)
+          {t.entries.notes}
         </label>
         <input
           id={`${formId}-note`}
@@ -157,14 +160,14 @@ export function EntryForm({
           type="text"
           maxLength={200}
           defaultValue={entry?.note ?? ""}
-          placeholder="e.g. bought for team lunch"
+          placeholder={t.entries.notesPlaceholder}
           className={INPUT}
         />
       </div>
 
       <div>
         <label htmlFor={`${formId}-category`} className={LABEL}>
-          Category
+          {t.common.category}
         </label>
         <select
           id={`${formId}-category`}
@@ -184,7 +187,7 @@ export function EntryForm({
 
       <div className={type === "expense" || !isEditing ? "" : "sm:col-span-2"}>
         <label htmlFor={`${formId}-amount`} className={LABEL}>
-          Value
+          {t.common.value}
         </label>
         <input
           id={`${formId}-amount`}
@@ -202,7 +205,7 @@ export function EntryForm({
       {type === "expense" && (
         <div>
           <label htmlFor={`${formId}-method`} className={LABEL}>
-            Payment method (optional)
+            {t.entries.paymentMethod}
           </label>
           <select
             id={`${formId}-method`}
@@ -210,7 +213,7 @@ export function EntryForm({
             defaultValue={entry?.method ?? ""}
             className={INPUT}
           >
-            <option value="">None</option>
+            <option value="">{t.common.none}</option>
             {paymentMethods.map((m) => (
               <option key={m.id} value={m.name}>
                 {m.name}
@@ -222,7 +225,7 @@ export function EntryForm({
 
       {!isEditing && (
         <div className={type === "expense" ? "sm:col-span-2" : "sm:col-start-2"}>
-          <label className={LABEL}>Repetition (optional)</label>
+          <label className={LABEL}>{t.entries.repetition}</label>
           <div className="grid gap-3 sm:grid-cols-2">
             <select
               name="seriesType"
@@ -230,8 +233,8 @@ export function EntryForm({
               onChange={(e) => setSeriesType(e.target.value as "none" | "fixed")}
               className={INPUT}
             >
-              <option value="none">One time</option>
-              <option value="fixed">Repeats monthly (12 months)</option>
+              <option value="none">{t.entries.oneTime}</option>
+              <option value="fixed">{t.entries.repeatsMonthly}</option>
             </select>
 
             {type === "expense" && seriesType === "none" && (
@@ -241,14 +244,14 @@ export function EntryForm({
                 min="1"
                 max="36"
                 defaultValue={1}
-                placeholder="Installments"
+                placeholder={t.entries.installments}
                 className={INPUT}
               />
             )}
           </div>
           {type === "expense" && seriesType === "none" && (
             <p className="mt-1.5 text-xs text-[var(--color-muted-2)]">
-              Installments splits the amount evenly across that many months.
+              {t.entries.installmentsHint}
             </p>
           )}
         </div>
@@ -258,15 +261,15 @@ export function EntryForm({
 
       <div className="flex items-center gap-4 sm:col-span-2">
         <SubmitButton
-          label={isEditing ? "Save changes" : "Add entry"}
-          pendingLabel={isEditing ? "Saving…" : "Adding…"}
+          label={isEditing ? t.common.saveChanges : t.entries.addEntry}
+          pendingLabel={isEditing ? t.common.saving : t.common.adding}
         />
         <button
           type="button"
           onClick={onDone}
           className="text-sm font-semibold text-[var(--color-muted)] hover:text-[var(--color-ink)]"
         >
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
         </>

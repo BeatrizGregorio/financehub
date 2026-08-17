@@ -5,13 +5,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, ListOrdered, TrendingUp, Settings, ChartPie } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
+import { useT } from "@/components/LanguageProvider";
 
+// Labels come from the dictionary at render time, so the array holds the key
+// rather than the text.
 const LINKS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/entries", label: "Entries", icon: ListOrdered },
-  { href: "/investments", label: "Investments", icon: TrendingUp },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+  { href: "/", key: "dashboard", icon: LayoutDashboard },
+  { href: "/entries", key: "entries", icon: ListOrdered },
+  { href: "/investments", key: "investments", icon: TrendingUp },
+  { href: "/settings", key: "settings", icon: Settings },
+] as const;
 
 export function Nav({
   income,
@@ -23,6 +26,7 @@ export function Nav({
   monthLabel: string;
 }) {
   const pathname = usePathname();
+  const { t } = useT();
   const [collapsed, setCollapsed] = useState(false);
 
   // Start collapsed on narrow viewports (phone/small-window widths) — the
@@ -47,9 +51,9 @@ export function Nav({
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-[0_8px_18px_-8px_rgba(12,158,87,0.6)] transition-transform duration-150 hover:scale-105 active:scale-95"
-          style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+          title={collapsed ? t.nav.expandSidebar : t.nav.collapseSidebar}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-[var(--shadow-brand-logo)] transition-transform duration-150 hover:scale-105 active:scale-95"
+          style={{ background: "var(--gradient-brand)" }}
         >
           <ChartPie size={18} />
         </button>
@@ -61,8 +65,9 @@ export function Nav({
       </div>
 
       <nav className="flex flex-1 flex-col gap-1">
-        {LINKS.map(({ href, label, icon: Icon }) => {
+        {LINKS.map(({ href, key, icon: Icon }) => {
           const active = pathname === href;
+          const label = t.nav[key];
           return (
             <Link
               key={href}
@@ -73,8 +78,8 @@ export function Nav({
                 gap: collapsed ? 0 : 12,
                 padding: collapsed ? "10px 0" : "10px 12px",
                 justifyContent: collapsed ? "center" : "flex-start",
-                background: active ? "rgba(12,158,87,0.1)" : "transparent",
-                color: active ? "#0c9e57" : "#6b7280",
+                background: active ? "var(--color-brand-tint)" : "transparent",
+                color: active ? "var(--color-brand)" : "#6b7280",
                 fontWeight: active ? 600 : 500,
               }}
             >
@@ -88,17 +93,17 @@ export function Nav({
       {!collapsed ? (
         <div className="rounded-xl border border-black/[0.06] bg-black/[0.03] px-3 py-3">
           <p className="mb-1 font-mono text-[10.5px] tracking-wide text-[var(--color-muted-2)] uppercase">
-            Current month
+            {t.nav.currentMonth}
           </p>
           <p className="text-sm font-semibold text-[var(--color-ink)]">{monthLabel}</p>
           <div className="mt-2 flex gap-3">
             <div>
-              <p className="font-mono text-[9.5px] text-[var(--color-muted-2)]">IN</p>
-              <p className="text-xs font-semibold text-[#0c9e57]">{formatCurrency(income)}</p>
+              <p className="font-mono text-[9.5px] text-[var(--color-muted-2)]">{t.nav.in}</p>
+              <p className="text-xs font-semibold text-[var(--color-positive)]">{formatCurrency(income)}</p>
             </div>
             <div className="w-px bg-black/10" />
             <div>
-              <p className="font-mono text-[9.5px] text-[var(--color-muted-2)]">OUT</p>
+              <p className="font-mono text-[9.5px] text-[var(--color-muted-2)]">{t.nav.out}</p>
               <p className="text-xs font-semibold text-[#dc3545]">{formatCurrency(expense)}</p>
             </div>
           </div>
@@ -107,8 +112,8 @@ export function Nav({
         <div className="flex flex-col items-center gap-1 pb-1">
           <div
             className="h-2 w-2 rounded-full"
-            style={{ background: "#0c9e57" }}
-            title={`${monthLabel} — Net ${formatCurrency(income - expense)}`}
+            style={{ background: "var(--color-brand)" }}
+            title={`${monthLabel} — ${t.nav.net} ${formatCurrency(income - expense)}`}
           />
         </div>
       )}

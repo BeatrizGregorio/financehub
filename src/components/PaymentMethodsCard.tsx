@@ -3,24 +3,31 @@ import { ArrowRight } from "lucide-react";
 import { methodIconName } from "@/lib/categories";
 import { CARD } from "@/lib/ui";
 import { Icon } from "./CategoryIcon";
+import type { Dict } from "@/lib/i18n";
 
 const TILE_COLORS = ["#0c9e57", "#3b82f6", "#a855f7", "#f59e0b"];
 
-export function PaymentMethodsCard({ methods }: { methods: { id: string; name: string }[] }) {
+export function PaymentMethodsCard({
+  methods,
+  t,
+}: {
+  methods: { id: string; name: string }[];
+  t: Dict;
+}) {
   const tiles = methods.slice(0, 4);
 
   return (
     <div className={`${CARD} flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:gap-5`}>
       <div className="min-w-0 flex-1">
-        <h3 className="mb-1.5 text-[17px] font-extrabold tracking-tight">Payment methods</h3>
+        <h3 className="mb-1.5 text-[17px] font-extrabold tracking-tight">{t.dashboard.paymentMethods}</h3>
         <p className="mb-3 text-[12.5px] leading-snug text-[var(--color-muted)]">
-          Track which card or account each expense is paid from.
+          {t.dashboard.paymentMethodsBlurb}
         </p>
         <Link
           href="/settings"
-          className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--color-meadow)]"
+          className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--color-brand)]"
         >
-          Manage methods <ArrowRight size={14} />
+          {t.dashboard.manageMethods} <ArrowRight size={14} />
         </Link>
       </div>
       {tiles.length > 0 && (

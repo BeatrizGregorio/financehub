@@ -19,19 +19,24 @@ import {
   showsSpreadField,
   showsRateField,
   rateFieldLabel,
+  typeLabel,
+  indexadorLabel,
   type InvestmentTypeValue,
 } from "@/lib/investmentTypes";
 import type { Holding } from "./InvestmentsClient";
+import { useT } from "@/components/LanguageProvider";
+import type { Dict } from "@/lib/i18n";
 
 const INPUT =
   "w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-white";
 const LABEL = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[var(--color-muted-2)]";
 const SECTION_LABEL = "mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase";
 
-function positionLabels(type: InvestmentTypeValue) {
-  if (type === "fundo") return { quantity: "Number of shares", price: "Price per share at purchase" };
-  if (type === "renda-fixa") return { quantity: "Number of units", price: "Unit price at purchase" };
-  return { quantity: "Quantity", price: "Average purchase price" };
+function positionLabels(type: InvestmentTypeValue, t: Dict) {
+  const q = t.investments.quantityLabels;
+  if (type === "fundo") return { quantity: q.fundoQuantity, price: q.fundoPrice };
+  if (type === "renda-fixa") return { quantity: q.rendaFixaQuantity, price: q.rendaFixaPrice };
+  return { quantity: q.otherQuantity, price: q.otherPrice };
 }
 
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
@@ -40,8 +45,8 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
     <button
       type="submit"
       disabled={pending}
-      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[0_4px_16px_rgba(12,158,87,0.28)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
-      style={{ background: "linear-gradient(135deg, #0c9e57, #0a7a43)" }}
+      className="rounded-xl px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-[var(--shadow-brand)] transition hover:brightness-105 active:scale-95 disabled:opacity-50"
+      style={{ background: "var(--gradient-brand)" }}
     >
       {pending ? pendingLabel : label}
     </button>
@@ -49,6 +54,7 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 }
 
 export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: () => void }) {
+  const { t } = useT();
   const isEditing = Boolean(holding);
   const formId = useId();
 
@@ -69,7 +75,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
   const [amountTouched, setAmountTouched] = useState(false);
 
   const subtypes = subtypesForType(type);
-  const labels = positionLabels(type);
+  const labels = positionLabels(type, t);
 
   function recalcAmount(nextQuantity: string, nextPurchaseRef: string) {
     if (amountTouched) return;
@@ -101,7 +107,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
     >
       <div className="sm:col-span-2">
         <label htmlFor={`${formId}-name`} className={LABEL}>
-          Name
+          {t.common.name}
         </label>
         <input
           id={`${formId}-name`}
@@ -110,14 +116,14 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
           maxLength={80}
           required
           defaultValue={holding?.name}
-          placeholder="e.g. CDB Nubank 12 months"
+          placeholder={t.investments.holdingNamePlaceholder}
           className={INPUT}
         />
       </div>
 
       <div>
         <label htmlFor={`${formId}-type`} className={LABEL}>
-          Type
+          {t.common.type}
         </label>
         <select
           id={`${formId}-type`}
@@ -131,9 +137,9 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
           }}
           className={INPUT}
         >
-          {INVESTMENT_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
+          {INVESTMENT_TYPES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {typeLabel(option.value, t)}
             </option>
           ))}
         </select>
@@ -141,7 +147,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div>
         <label htmlFor={`${formId}-startDate`} className={LABEL}>
-          Start date
+          {t.investments.startDate}
         </label>
         <input
           id={`${formId}-startDate`}
@@ -156,7 +162,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {subtypes.length > 0 && (
         <div>
           <label htmlFor={`${formId}-subtype`} className={LABEL}>
-            Subtype
+            {t.investments.subtype}
           </label>
           <select
             id={`${formId}-subtype`}
@@ -168,7 +174,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
           >
             {subtypes.map((s) => (
               <option key={s.value} value={s.value}>
-                {s.label}
+                {t.subtypes[s.value] ?? s.value}
               </option>
             ))}
           </select>
@@ -178,7 +184,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsSymbol(type) && (
         <div>
           <label htmlFor={`${formId}-symbol`} className={LABEL}>
-            Ticker / símbolo
+            {t.investments.ticker}
           </label>
           <input
             id={`${formId}-symbol`}
@@ -186,7 +192,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
             type="text"
             maxLength={20}
             defaultValue={holding?.symbol ?? ""}
-            placeholder={type === "cripto" ? "e.g. bitcoin" : "e.g. PETR4"}
+            placeholder={type === "cripto" ? "ex.: bitcoin" : "ex.: PETR4"}
             className={INPUT}
           />
         </div>
@@ -195,7 +201,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsMaturityDate(type) && (
         <div>
           <label htmlFor={`${formId}-maturityDate`} className={LABEL}>
-            Maturity date (optional)
+            {t.investments.maturityDate}
           </label>
           <input
             id={`${formId}-maturityDate`}
@@ -209,11 +215,11 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       {showsRateFields(type) && (
         <div className="rounded-xl bg-[var(--color-inset-2)] p-3.5 sm:col-span-2">
-          <p className={SECTION_LABEL}>Return</p>
+          <p className={SECTION_LABEL}>{t.investments.yieldSection}</p>
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
             <div className="w-full sm:w-auto sm:flex-1">
               <label htmlFor={`${formId}-indexador`} className={LABEL}>
-                Index
+                {t.investments.index}
               </label>
               <select
                 id={`${formId}-indexador`}
@@ -225,7 +231,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
               >
                 {INDEXADOR_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {o.label}
+                    {indexadorLabel(o.value, t)}
                   </option>
                 ))}
               </select>
@@ -234,7 +240,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
             {showsRateField(indexador) && (
               <div className="w-full sm:w-auto sm:flex-1">
                 <label htmlFor={`${formId}-annualRate`} className={LABEL}>
-                  {rateFieldLabel(indexador)}
+                  {rateFieldLabel(indexador, t)}
                 </label>
                 <input
                   id={`${formId}-annualRate`}
@@ -251,7 +257,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
             {showsSpreadField(indexador) && (
               <div className="w-full sm:w-auto sm:flex-1">
                 <label htmlFor={`${formId}-spread`} className={LABEL}>
-                  Spread (% p.a.)
+                  {t.investments.spread}
                 </label>
                 <input
                   id={`${formId}-spread`}
@@ -268,7 +274,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
             {showsPerfFee(type) && (
               <div className="w-full sm:w-auto sm:flex-1">
                 <label htmlFor={`${formId}-perfFee`} className={LABEL}>
-                  Performance (%)
+                  {t.investments.performanceFee}
                 </label>
                 <input
                   id={`${formId}-perfFee`}
@@ -289,7 +295,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsAdminFee(type) && (
         <div>
           <label htmlFor={`${formId}-adminFee`} className={LABEL}>
-            Management fee (% p.a., optional)
+            {t.investments.adminFee}
           </label>
           <input
             id={`${formId}-adminFee`}
@@ -349,7 +355,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div>
         <label htmlFor={`${formId}-amountInvested`} className={LABEL}>
-          Amount invested (R$)
+          {t.investments.amountInvested}
         </label>
         <input
           id={`${formId}-amountInvested`}
@@ -371,7 +377,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsExpectedReturn(type) && (
         <div>
           <label htmlFor={`${formId}-expectedReturn`} className={LABEL}>
-            Expected return (% p.a.)
+            {t.investments.expectedReturn}
           </label>
           <input
             id={`${formId}-expectedReturn`}
@@ -388,7 +394,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
       {showsCorretagem(type) && (
         <div>
           <label htmlFor={`${formId}-corretagem`} className={LABEL}>
-            Estimated brokerage fee (R$, optional)
+            {t.investments.brokerage}
           </label>
           <input
             id={`${formId}-corretagem`}
@@ -405,7 +411,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div>
         <label htmlFor={`${formId}-institution`} className={LABEL}>
-          Institution (optional)
+          {t.investments.institution}
         </label>
         <input
           id={`${formId}-institution`}
@@ -413,14 +419,14 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
           type="text"
           maxLength={80}
           defaultValue={holding?.institution ?? ""}
-          placeholder="e.g. XP, Nubank"
+          placeholder={t.investments.institutionPlaceholder}
           className={INPUT}
         />
       </div>
 
       <div className="sm:col-span-2">
         <label htmlFor={`${formId}-notes`} className={LABEL}>
-          Notes (optional)
+          {t.investments.notes}
         </label>
         <input
           id={`${formId}-notes`}
@@ -428,7 +434,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
           type="text"
           maxLength={200}
           defaultValue={holding?.notes ?? ""}
-          placeholder="e.g. long-term hold"
+          placeholder={t.investments.notesPlaceholder}
           className={INPUT}
         />
       </div>
@@ -437,15 +443,15 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
 
       <div className="flex items-center gap-4 sm:col-span-2">
         <SubmitButton
-          label={isEditing ? "Save changes" : "Add holding"}
-          pendingLabel={isEditing ? "Saving…" : "Adding…"}
+          label={isEditing ? t.common.saveChanges : t.investments.addHolding}
+          pendingLabel={isEditing ? t.common.saving : t.common.adding}
         />
         <button
           type="button"
           onClick={onDone}
           className="text-sm font-semibold text-[var(--color-muted)] hover:text-[var(--color-ink)]"
         >
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
     </form>

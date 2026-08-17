@@ -1,4 +1,5 @@
 import { CYCLE_START_DAY, addCycles, currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
+import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
 
 export type EntryLike = {
   amount: number;
@@ -10,6 +11,7 @@ export type EntryLike = {
 export function availableMonths(
   entries: EntryLike[],
   startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
 ): { key: string; label: string }[] {
   const keys = new Set<string>();
   for (const e of entries) {
@@ -17,7 +19,7 @@ export function availableMonths(
   }
   return Array.from(keys)
     .sort((a, b) => (a < b ? 1 : -1))
-    .map((key) => ({ key, label: cycleLabel(key) }));
+    .map((key) => ({ key, label: cycleLabel(key, lang) }));
 }
 
 export function categoryBreakdown(
@@ -65,6 +67,7 @@ export function monthlySeries(
   entries: EntryLike[],
   monthsBack = 6,
   startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
 ) {
   const current = currentCycleKey(startDay);
   const keys: string[] = [];
@@ -84,7 +87,7 @@ export function monthlySeries(
     const totalsForKey = totals.get(key)!;
     return {
       key,
-      label: cycleLabel(key),
+      label: cycleLabel(key, lang),
       income: totalsForKey.income,
       expense: totalsForKey.expense,
       net: totalsForKey.income - totalsForKey.expense,

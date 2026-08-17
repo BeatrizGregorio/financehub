@@ -4,8 +4,10 @@ import { useActionState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { Download, Upload, RotateCcw } from "lucide-react";
 import { importBackup, resetDefaults, type ActionState } from "./actions";
+import { useT } from "@/components/LanguageProvider";
+import type { Dict } from "@/lib/i18n";
 
-function ImportButton({ onClick }: { onClick: () => void }) {
+function ImportButton({ onClick, t }: { onClick: () => void; t: Dict }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -14,37 +16,38 @@ function ImportButton({ onClick }: { onClick: () => void }) {
       disabled={pending}
       className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/15 px-3 py-3 text-[13.5px] font-semibold text-white transition hover:bg-white/25 disabled:opacity-50"
     >
-      <Upload size={16} /> {pending ? "Importing…" : "Import"}
+      <Upload size={16} /> {pending ? t.common.importing : t.settings.import}
     </button>
   );
 }
 
 export function BackupPanel() {
   const initialState: ActionState = {};
+  const { t } = useT();
   const [state, formAction] = useActionState(importBackup, initialState);
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
-    <div className="rounded-[22px] bg-gradient-to-br from-[#0c9e57] to-[#0a7a43] p-[22px] text-white shadow-[0_16px_34px_-20px_rgba(12,158,87,0.7)]">
-      <h2 className="mb-1 text-base font-extrabold tracking-tight">Backup &amp; restore</h2>
+    <div className="rounded-[22px] bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-deep)] p-[22px] text-white shadow-[var(--shadow-brand-panel)]">
+      <h2 className="mb-1 text-base font-extrabold tracking-tight">{t.settings.backupRestore}</h2>
       <p className="mb-4 text-[12.5px] text-white/70">
-        Your data lives locally. Export a JSON copy or restore from one.
+        {t.settings.backupBlurb}
       </p>
 
       <div className="mb-3 flex gap-2.5">
         <a
           href="/api/backup"
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-[13.5px] font-bold text-[#0c9e57] transition hover:opacity-90"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-[13.5px] font-bold text-[var(--color-brand)] transition hover:opacity-90"
         >
-          <Download size={16} /> Export
+          <Download size={16} /> {t.settings.export}
         </a>
 
         <form
           ref={formRef}
           action={formAction}
           onSubmit={(e) => {
-            if (!confirm("Importing will replace all current data with the backup file. Continue?")) {
+            if (!confirm(t.settings.confirmImport)) {
               e.preventDefault();
             }
           }}
@@ -54,13 +57,13 @@ export function BackupPanel() {
             ref={fileRef}
             type="file"
             name="file"
-            aria-label="Backup file to import"
+            aria-label={t.settings.backupFileLabel}
             accept="application/json"
             required
             className="hidden"
             onChange={() => formRef.current?.requestSubmit()}
           />
-          <ImportButton onClick={() => fileRef.current?.click()} />
+          <ImportButton onClick={() => fileRef.current?.click()} t={t} />
         </form>
       </div>
       {state.error && <p className="mb-3 text-sm text-white">{state.error}</p>}
@@ -68,7 +71,7 @@ export function BackupPanel() {
       <form
         action={resetDefaults}
         onSubmit={(e) => {
-          if (!confirm("Restore default categories and payment methods? Custom ones will be removed.")) {
+          if (!confirm(t.settings.confirmRestoreDefaults)) {
             e.preventDefault();
           }
         }}
@@ -77,7 +80,7 @@ export function BackupPanel() {
           type="submit"
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/25 bg-transparent py-[11px] text-[12.5px] font-medium text-white/75 transition hover:text-white"
         >
-          <RotateCcw size={15} /> Restore default categories
+          <RotateCcw size={15} /> {t.settings.restoreDefaults}
         </button>
       </form>
     </div>
