@@ -852,6 +852,73 @@ behind an Expense/Income toggle. Verified at 1280px and 375px (no
 horizontal overflow, sections collapse to one column) and in both
 languages. `tsc --noEmit` / `npm run lint` clean.
 
+V1.25 (offline license keys + 14-day trial) added 2026-08-17, the first piece
+of work aimed at *selling* the app rather than using it.
+
+**A key is an Ed25519 signature over `"<normalized email>|financehub-1"`,
+base32-encoded.** The app embeds only the public key (`PUBLIC_KEY_PEM` in
+`src/lib/license.ts`); the private key lives in `license-signing-key.pem`,
+which is gitignored by the pre-existing `*.pem` rule and written mode 0600.
+`scripts/make-license.js` is the seller side (`keygen` / `sign <email>` /
+`check <email> <key>`) and is never shipped to customers.
+
+**Asymmetric rather than HMAC, deliberately.** An HMAC scheme gives short
+pretty keys (`XXXX-XXXX-XXXX`) but the secret has to ship inside the app, so
+anyone who unpacks the `.exe` can mint unlimited keys. With Ed25519 the worst
+an attacker learns by reading our code is the public key. The cost is a
+~104-character key, which is why the gate uses a **textarea** and
+`normalizeKey()` strips case, dashes and whitespace — a buyer pasting from an
+email client must not be able to get it wrong. `PRODUCT_ID` is inside the
+signed message so a future paid 2.0 can require newly-issued keys.
+
+**Zero new dependencies** — Node's built-in `crypto` does Ed25519
+(`crypto.sign(null, …)` / `crypto.verify(null, …)`), which matters given this
+project's "keep the dependency list small" rule.
+
+**`getLicenseStatus()` re-verifies the signature on every call** rather than
+trusting an `activated` boolean. This is the difference between a real check
+and a decorative one: confirmed by hand-writing
+`email='pirate@example.com', activatedAt=now` straight into SQLite and
+watching the app stay gated. If you ever cache this, keep the re-verification.
+
+**Trial:** `TRIAL_DAYS = 14` in `data.ts`; **set it to 0 for a hard gate**.
+The clock runs from `License.firstRunAt`, which the migration seeds with
+`CURRENT_TIMESTAMP` — so an existing install gets a fresh 14 days on update
+rather than being instantly expired, which would lock the owner out of data
+she already had.
+
+**Two things stay open when the trial expires, on purpose:**
+- `/api/backup` is a Route Handler and therefore *not* behind the layout gate,
+  and the gate screen links to it ("Export my data"). A lapsed trial must
+  never hold someone's own numbers hostage to a sale.
+- Nothing is deleted or hidden; activating later brings the app back exactly
+  as it was, which is also what the gate copy promises.
+
+**`License` is excluded from backup export/import** (see the note in
+`importBackup`). Including it would make "send me your backup file" a way to
+hand someone a paid copy, and wiping it on import would deactivate the app
+every time a backup was restored.
+
+The gate replaces `{children}` in `layout.tsx` but keeps the sidebar, so an
+expired copy still looks like the app rather than an error page. A
+`LicenseCard` in Settings → Data shows the current state read-only — there's
+deliberately no "deactivate" button, since on a one-file local app that could
+only ever lock the owner out.
+
+Verified: 13 assertions against the compiled crypto (correct key accepted;
+wrong email, truncated, single-character-tampered, random 64-byte and garbage
+keys all rejected; base32 round-trips), all four routes gated when expired,
+export still working while gated with no key present in the file, a forged key
+rejected through the real form, and activation succeeding with a **lowercase**
+key and a space-padded mixed-case email. `tsc --noEmit`, `npm run lint` and
+`next build` all clean.
+
+**Still missing before this can actually be sold** (none of it is code in this
+repo): code signing on both platforms — an unsigned paid download hits
+SmartScreen/Gatekeeper warnings, which is the single biggest trust problem —
+`mac.arch` is unset so only arm64 Macs are covered, there is no auto-update
+channel, and there are no EULA/privacy/refund documents.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

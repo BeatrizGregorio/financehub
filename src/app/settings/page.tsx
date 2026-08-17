@@ -4,6 +4,7 @@ import {
   getCategories,
   getCycleStartDay,
   getLanguage,
+  getLicenseStatus,
   getPaymentMethods,
 } from "@/lib/data";
 import { CategoryManager } from "./CategoryManager";
@@ -13,6 +14,7 @@ import { BackupPanel } from "./BackupPanel";
 import { CycleSettingsCard } from "./CycleSettingsCard";
 import { AccentColorCard } from "./AccentColorCard";
 import { LanguageCard } from "./LanguageCard";
+import { LicenseCard } from "./LicenseCard";
 import { dict } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +48,7 @@ function Section({
 }
 
 export default async function SettingsPage() {
-  const [{ expense, income }, methods, budgets, cycleStartDay, accentColor, lang] =
+  const [{ expense, income }, methods, budgets, cycleStartDay, accentColor, lang, license] =
     await Promise.all([
       getCategories(),
       getPaymentMethods(),
@@ -54,6 +56,7 @@ export default async function SettingsPage() {
       getCycleStartDay(),
       getAccentColor(),
       getLanguage(),
+      getLicenseStatus(),
     ]);
   const t = dict(lang);
 
@@ -94,9 +97,8 @@ export default async function SettingsPage() {
       </Section>
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>
-        <div className="md:col-span-2">
-          <BackupPanel />
-        </div>
+        <BackupPanel />
+        <LicenseCard license={license} />
       </Section>
     </div>
   );
