@@ -66,9 +66,17 @@ export async function getInvestmentGoal() {
 
 /**
  * How many days the app is fully usable before a license is required.
- * Set to 0 for a hard gate (activation required on first launch).
+ *
+ * **0 = hard gate**: a key is required on first launch, which is the current
+ * model (one-time payment, buyer receives the installer and a key). Raise this
+ * to offer a try-before-you-buy period — the trial state, its banner and the
+ * countdown copy are all still wired up, so it is genuinely a one-constant
+ * change, not a rewrite.
+ *
+ * The trial clock runs from `License.firstRunAt`, so raising this later gives
+ * existing installs the remainder of the new window rather than nothing.
  */
-export const TRIAL_DAYS = 14;
+export const TRIAL_DAYS = 0;
 
 export type LicenseStatus =
   | { state: "licensed"; email: string }
@@ -97,4 +105,20 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
   const daysElapsed = Math.floor((Date.now() - row.firstRunAt.getTime()) / 86_400_000);
   const daysLeft = TRIAL_DAYS - daysElapsed;
   return daysLeft > 0 ? { state: "trial", daysLeft } : { state: "expired" };
+}
+
+/**
+ * Whether there is anything worth exporting.
+ *
+ * The activation gate offers an "export my data" escape hatch, which is
+ * essential for someone whose licence lapsed but meaningless — and confusing —
+ * on a brand-new install that has no data yet. Only queried when the gate is
+ * actually being shown.
+ */
+export async function hasAnyData(): Promise<boolean> {
+  const [entries, investments] = await Promise.all([
+    prisma.entry.count(),
+    prisma.investment.count(),
+  ]);
+  return entries + investments > 0;
 }

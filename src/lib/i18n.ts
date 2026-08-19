@@ -331,9 +331,9 @@ const en = {
     trialBanner: (days: number) =>
       `Trial — ${days} day${days === 1 ? "" : "s"} left. Everything works; activate whenever you're ready.`,
     activate: "Activate",
-    gateTitle: "Your trial has ended",
+    gateTitle: "Activate FinanceHub",
     gateBody:
-      "Enter the email and license key from your purchase to keep using FinanceHub. Your data is untouched and waiting.",
+      "Enter the email you bought with and the license key from your purchase email. Everything then runs offline on this computer — no account, no sign-in.",
     email: "Email used to buy",
     key: "License key",
     keyPlaceholder: "Paste the key from your purchase email",
@@ -699,9 +699,9 @@ const pt: Dict = {
     trialBanner: (days: number) =>
       `Teste — ${days} dia${days === 1 ? "" : "s"} restante${days === 1 ? "" : "s"}. Tudo funciona; ative quando quiser.`,
     activate: "Ativar",
-    gateTitle: "Seu período de teste terminou",
+    gateTitle: "Ativar o FinanceHub",
     gateBody:
-      "Digite o e-mail e a chave de licença da sua compra para continuar usando o FinanceHub. Seus dados estão intactos, esperando por você.",
+      "Digite o e-mail usado na compra e a chave de licença que veio no e-mail. Depois disso tudo funciona offline neste computador — sem conta, sem login.",
     email: "E-mail usado na compra",
     key: "Chave de licença",
     keyPlaceholder: "Cole a chave que veio no e-mail da compra",

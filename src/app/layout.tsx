@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, DM_Mono } from "next/font/google";
 import { Nav } from "@/components/Nav";
 import { prisma } from "@/lib/db";
-import { getAccentColor, getCycleStartDay, getLanguage, getLicenseStatus } from "@/lib/data";
+import {
+  getAccentColor,
+  getCycleStartDay,
+  getLanguage,
+  getLicenseStatus,
+  hasAnyData,
+} from "@/lib/data";
 import { LicenseGate } from "@/components/LicenseGate";
 import { TrialBanner } from "@/components/TrialBanner";
 import { LanguageProvider } from "@/components/LanguageProvider";
@@ -35,6 +41,8 @@ export default async function RootLayout({
   const accentColor = await getAccentColor();
   const language = await getLanguage();
   const license = await getLicenseStatus();
+  // Only asked when the gate will actually render — see hasAnyData().
+  const showExport = license.state === "expired" ? await hasAnyData() : false;
   const currentCycle = currentCycleKey(cycleStartDay);
   const { start, endExclusive } = cycleRange(currentCycle, cycleStartDay);
   const monthEntries = await prisma.entry.findMany({
@@ -84,7 +92,7 @@ export default async function RootLayout({
                     an expired copy still looks like the app the buyer paid for
                     rather than an error screen. */}
                 {license.state === "expired" ? (
-                  <LicenseGate />
+                  <LicenseGate showExport={showExport} />
                 ) : (
                   <div className="mx-auto max-w-[1400px] px-6 py-6 sm:px-8 sm:py-8">
                     {license.state === "trial" && <TrialBanner daysLeft={license.daysLeft} />}

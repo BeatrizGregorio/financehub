@@ -33,7 +33,7 @@ function ActivateButton() {
   );
 }
 
-export function LicenseGate() {
+export function LicenseGate({ showExport }: { showExport: boolean }) {
   const { t } = useT();
   const [state, formAction] = useActionState<ActionState, FormData>(activateLicense, {});
 
@@ -97,15 +97,18 @@ export function LicenseGate() {
         </div>
       </form>
 
-      <div className="mt-6 flex flex-col items-center gap-1.5">
-        <a
-          href="/api/backup"
-          className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-brand)]"
-        >
-          <Download size={14} /> {t.license.exportFirst}
-        </a>
-        <p className="text-[11.5px] text-[var(--color-muted-2)]">{t.license.exportHint}</p>
-      </div>
+      {/* Hidden on a fresh install, where there is nothing to export yet. */}
+      {showExport && (
+        <div className="mt-6 flex flex-col items-center gap-1.5">
+          <a
+            href="/api/backup"
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-brand)]"
+          >
+            <Download size={14} /> {t.license.exportFirst}
+          </a>
+          <p className="text-[11.5px] text-[var(--color-muted-2)]">{t.license.exportHint}</p>
+        </div>
+      )}
     </div>
   );
 }
