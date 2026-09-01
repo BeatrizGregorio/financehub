@@ -61,7 +61,7 @@ export default async function DashboardPage() {
     prisma.entry.findMany(),
     getBudgets(),
     getPaymentMethods(),
-    prisma.investment.findMany({ include: { prices: true, coupons: true } }),
+    prisma.investment.findMany({ include: { prices: true, coupons: true, transactions: true } }),
     getReferenceRates(),
     getCycleStartDay(),
     getLanguage(),

@@ -47,6 +47,7 @@ export type Holding = {
   notes: string | null;
   prices: { id: string; date: Date; price: number }[];
   coupons: { id: string; date: Date; amount: number }[];
+  transactions: { id: string; date: Date; kind: string; amount: number; quantity: number | null }[];
 };
 
 function SummaryPill({

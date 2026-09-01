@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { deletePricePoint, updatePricePoint, type ActionState } from "./actions";
 import { CouponSection } from "./CouponSection";
+import { TransactionSection } from "./TransactionSection";
 import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
 import { typeLabel, subtypeLabel, showsRateFields } from "@/lib/investmentTypes";
 import { currentValue, monthlyValue, taxBreakdown, type ReferenceRatesLike } from "@/lib/investments";
@@ -279,6 +280,9 @@ export function HoldingDetail({
 
       {showsRateFields(holding.type) && <CouponSection holding={holding} />}
 
+      {/* Applies to every type: renda fixa gets topped up too, and that is the
+          case where attributing money to the original startDate is wrong. */}
+      <TransactionSection holding={holding} />
     </div>
   );
 }

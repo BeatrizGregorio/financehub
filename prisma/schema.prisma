@@ -70,6 +70,7 @@ model Investment {
   notes          String?
   prices         PricePoint[]
   coupons        CouponPayment[]
+  transactions   InvestmentTransaction[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
@@ -91,6 +92,26 @@ model CouponPayment {
   investmentId String
   date         DateTime
   amount       Float
+  createdAt    DateTime   @default(now())
+}
+/// A dated buy or sell against a holding.
+///
+/// Optional by design: a holding with no transactions keeps behaving exactly as
+/// it did before this model existed, valued from amountInvested/quantity and
+/// startDate. Once transactions exist they take over, because they carry the one
+/// thing those fields cannot - *when* each contribution happened.
+model InvestmentTransaction {
+  id           String     @id @default(cuid())
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  investmentId String
+  date         DateTime
+  /// "buy" | "sell". SQLite has no enums in Prisma, same as Entry.type.
+  kind         String
+  /// Cash moved, always positive; direction comes from kind.
+  amount       Float
+  /// Units bought or sold, for holdings priced per unit. Null for renda fixa.
+  quantity     Float?
+  notes        String?
   createdAt    DateTime   @default(now())
 }
 

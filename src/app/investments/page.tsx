@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function InvestmentsPage() {
   const [holdings, rates, cycleStartDay, goal, entries] = await Promise.all([
     prisma.investment.findMany({
-      include: { prices: true, coupons: true },
+      include: { prices: true, coupons: true, transactions: true },
       orderBy: { name: "asc" },
     }),
     getReferenceRates(),

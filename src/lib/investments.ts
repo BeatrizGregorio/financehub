@@ -11,6 +11,12 @@ import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
 
 export type PricePointLike = { date: Date; price: number };
 export type CouponPaymentLike = { date: Date; amount: number };
+export type TransactionLike = {
+  date: Date;
+  kind: string;
+  amount: number;
+  quantity?: number | null;
+};
 
 export type InvestmentLike = {
   id: string;
@@ -32,6 +38,9 @@ export type InvestmentLike = {
   corretagem: number | null;
   prices: PricePointLike[];
   coupons: CouponPaymentLike[];
+  // Optional so every existing caller and fixture still type-checks; a holding
+  // with no transactions is valued exactly as it was before they existed.
+  transactions?: TransactionLike[];
 };
 
 export type ReferenceRatesLike = { cdi: number; selic: number; ipca: number };
@@ -78,11 +87,66 @@ export function getEffectiveRate(inv: InvestmentLike, rates: ReferenceRatesLike)
   return Math.max(0, (inv.expectedReturn ?? 0) - adminFee);
 }
 
+/** Signed cash direction: a buy adds, a sell removes. */
+function txSign(kind: string): number {
+  return kind === "sell" ? -1 : 1;
+}
+
+/** Transactions on or before a date, oldest first. */
+function txThrough(inv: InvestmentLike, asOfDate: Date): TransactionLike[] {
+  const key = dateKey(asOfDate);
+  return (inv.transactions ?? [])
+    .filter((tx) => dateKey(tx.date) <= key)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/**
+ * Net capital put in as of a date.
+ *
+ * Falls back to the stored amountInvested when a holding has no transactions,
+ * which is every holding created before this existed. Once transactions are
+ * recorded they are the truth, because they say *when* each contribution
+ * happened — the thing a single amountInvested field structurally cannot.
+ */
+export function investedAt(inv: InvestmentLike, asOfDate: Date = new Date()): number {
+  const txs = txThrough(inv, asOfDate);
+  if (txs.length === 0) return inv.amountInvested;
+  return txs.reduce((sum, tx) => sum + txSign(tx.kind) * tx.amount, 0);
+}
+
+/**
+ * Units held as of a date, for holdings priced per unit.
+ *
+ * This is the gap the roadmap called out: Investment.quantity only ever knew
+ * what is held *now*, so a historical chart silently assumed today's position
+ * had always been held. With transactions the past is real.
+ */
+export function quantityAt(inv: InvestmentLike, asOfDate: Date = new Date()): number {
+  const txs = txThrough(inv, asOfDate);
+  if (txs.length === 0 || txs.every((tx) => tx.quantity == null)) return inv.quantity ?? 0;
+  return txs.reduce((sum, tx) => sum + txSign(tx.kind) * (tx.quantity ?? 0), 0);
+}
+
 /** Compound accrual from amountInvested, using the effective rate, as of a given date. */
 export function accrualValue(inv: InvestmentLike, rates: ReferenceRatesLike, asOfDate: Date): number {
+  const rate = getEffectiveRate(inv, rates);
+  const txs = txThrough(inv, asOfDate);
+
+  // With transactions recorded, each one compounds from its own date rather
+  // than pretending the whole balance was there since startDate. That is the
+  // correctness fix this model exists for: topping up in month 9 should not
+  // earn nine months of interest. Reduces exactly to the old behaviour for a
+  // single buy dated startDate.
+  if (txs.length > 0) {
+    return txs.reduce((sum, tx) => {
+      const days = daysBetween(tx.date, asOfDate);
+      const grown = days <= 0 ? tx.amount : tx.amount * Math.pow(1 + rate / 100, days / 365);
+      return sum + txSign(tx.kind) * grown;
+    }, 0);
+  }
+
   const days = daysBetween(inv.startDate, asOfDate);
   if (days <= 0) return inv.amountInvested;
-  const rate = getEffectiveRate(inv, rates);
   return inv.amountInvested * Math.pow(1 + rate / 100, days / 365);
 }
 
@@ -179,10 +243,12 @@ export function valueAtDate(inv: InvestmentLike, rates: ReferenceRatesLike, asOf
   const manual = latestPriceOnOrBefore(inv, asOfDate);
 
   if (manual) {
-    return mode === "unit" ? (inv.quantity ?? 0) * manual.price : manual.price;
+    // quantityAt() rather than inv.quantity: on a historical date the position
+    // may have been smaller (or not held at all).
+    return mode === "unit" ? quantityAt(inv, asOfDate) * manual.price : manual.price;
   }
 
-  if (fallback === "amountInvested") return inv.amountInvested;
+  if (fallback === "amountInvested") return investedAt(inv, asOfDate);
   return accrualValue(inv, rates, asOfDate) - totalCoupons(inv, asOfDate);
 }
 
@@ -217,7 +283,8 @@ export function taxBreakdown(
   // that cash already left the holding — add it back here so gain/loss
   // reflects total return (price/accrual movement + income received), not
   // just what's still sitting in the holding.
-  const grossGain = value + totalCoupons(inv, asOfDate) - inv.amountInvested;
+  const invested = investedAt(inv, asOfDate);
+  const grossGain = value + totalCoupons(inv, asOfDate) - invested;
   const holdingDays = Math.max(0, daysBetween(inv.startDate, asOfDate));
 
   const iRate = iofRateFor(holdingDays);
@@ -237,7 +304,7 @@ export function taxBreakdown(
     irRate: irR,
     ir,
     netGain,
-    netValue: inv.amountInvested + netGain,
+    netValue: invested + netGain,
   };
 }
 
@@ -245,9 +312,9 @@ export function gainLoss(
   inv: InvestmentLike,
   rates: ReferenceRatesLike,
 ): { gain: number; returnPct: number; tax: TaxBreakdown } | null {
-  if (inv.amountInvested <= 0) return null;
+  if (investedAt(inv) <= 0) return null;
   const tax = taxBreakdown(inv, rates);
-  return { gain: tax.grossGain, returnPct: tax.grossGain / inv.amountInvested, tax };
+  return { gain: tax.grossGain, returnPct: tax.grossGain / investedAt(inv), tax };
 }
 
 export type AllocationSlice = { type: string; value: number };
@@ -292,7 +359,7 @@ export function portfolioSummary(investments: InvestmentLike[], rates: Reference
   const matured = investments.filter((inv) => isMatured(inv));
 
   const totalValue = active.reduce((sum, inv) => sum + currentValue(inv, rates), 0);
-  const totalInvested = active.reduce((sum, inv) => sum + inv.amountInvested, 0);
+  const totalInvested = active.reduce((sum, inv) => sum + investedAt(inv), 0);
   const totalCouponsReceived = active.reduce((sum, inv) => sum + totalCoupons(inv), 0);
   // Coupons already left the holding (see valueAtDate), so add them back here
   // for the same reason taxBreakdown() does — gain/loss should reflect total

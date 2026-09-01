@@ -316,6 +316,13 @@ type BackupCouponPayment = {
   amount: number;
 };
 
+type BackupTransaction = {
+  date: string;
+  kind: string;
+  amount: number;
+  quantity?: number | null;
+};
+
 type BackupInvestment = {
   name: string;
   type?: string;
@@ -337,6 +344,7 @@ type BackupInvestment = {
   notes?: string | null;
   prices?: BackupPricePoint[];
   coupons?: BackupCouponPayment[];
+  transactions?: BackupTransaction[];
 };
 
 type Backup = {
@@ -384,6 +392,7 @@ export async function importBackup(
   // rely on it here either.
   await prisma.pricePoint.deleteMany();
   await prisma.couponPayment.deleteMany();
+  await prisma.investmentTransaction.deleteMany();
   await prisma.investment.deleteMany();
 
   if (backup.categories?.length) {
@@ -451,6 +460,16 @@ export async function importBackup(
         notes: inv.notes ?? null,
         prices: inv.prices?.length
           ? { create: inv.prices.map((p) => ({ date: new Date(p.date), price: p.price })) }
+          : undefined,
+        transactions: inv.transactions?.length
+          ? {
+              create: inv.transactions.map((tx) => ({
+                date: new Date(tx.date),
+                kind: tx.kind === "sell" ? "sell" : "buy",
+                amount: tx.amount,
+                quantity: tx.quantity ?? null,
+              })),
+            }
           : undefined,
         coupons: inv.coupons?.length
           ? { create: inv.coupons.map((c) => ({ date: new Date(c.date), amount: c.amount })) }

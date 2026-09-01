@@ -272,6 +272,18 @@ const en = {
       `Accrual estimates use CDI ${cdi} · SELIC ${selic} · IPCA ${ipca} p.a.`,
     ratesUpdated: (date: string) => `Reference rates last updated ${date}.`,
     ratesNeverUpdated: "These reference rates have never been updated — treat accrual figures as rough.",
+    transactions: "Buys and sells",
+    transactionsEmptyHint:
+      "Optional. Record one and this holding is valued from these dated flows instead of its single start date — which is what makes a later top-up count from the day it happened.",
+    transactionsActiveHint:
+      "This holding is valued from these dated flows rather than its start date and stored amount.",
+    noTransactions: "No buys or sells recorded.",
+    netInvested: "Net invested",
+    units: "units",
+    kind: "Type",
+    buy: "Buy",
+    sell: "Sell",
+    deleteTransaction: "Delete transaction",
     maturedBanner: (n: number) =>
       n === 1 ? "Your investment is finalized — you have " : `${n} investments are finalized — you have `,
     toReinvest: "to reinvest!",
@@ -691,6 +703,18 @@ const pt: Dict = {
     ratesUpdated: (date: string) => `Taxas de referência atualizadas em ${date}.`,
     ratesNeverUpdated:
       "Estas taxas de referência nunca foram atualizadas — trate os valores por rendimento como aproximados.",
+    transactions: "Compras e vendas",
+    transactionsEmptyHint:
+      "Opcional. Registre uma e este ativo passa a ser calculado por estes fluxos datados em vez da data de início — é isso que faz um aporte posterior contar a partir do dia em que aconteceu.",
+    transactionsActiveHint:
+      "Este ativo é calculado por estes fluxos datados, e não pela data de início e valor guardado.",
+    noTransactions: "Nenhuma compra ou venda registrada.",
+    netInvested: "Investido líquido",
+    units: "cotas",
+    kind: "Tipo",
+    buy: "Compra",
+    sell: "Venda",
+    deleteTransaction: "Excluir transação",
     maturedBanner: (n: number) =>
       n === 1
         ? "Seu investimento foi finalizado — você tem "
