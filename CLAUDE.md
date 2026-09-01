@@ -972,6 +972,104 @@ the *Windows* `.pem` (per (1)), and `license-signing-key.pem` must be backed
 up first — it is unrecoverable, and losing it means another rotation, which
 would break every key already sold.
 
+V1.27 (roadmap execution — ten items) added 2026-09-01, from a written roadmap
+that was itself derived by auditing the code. Each item was committed
+separately; the order below is the priority order they were done in.
+
+**1. Reference rates announce their staleness.** V1.9 removed the rates editor
+but `getReferenceRates()` still drives every accrual figure, and the only
+remaining write path is backup import — so they can only go stale, silently.
+New `isAccrualValued()` in `investments.ts` mirrors `valueAtDate()`'s branching
+(**if that function's branch order changes, this one must change with it**) so
+the UI can say which figures depend on the rates. A note under the summary
+pills shows the rates in force and when they were last updated, in the warning
+colour when never. Shown only when a holding actually accrues.
+
+**2. Category rename + orphan detection.** `renameCategory()` rewrites the
+category, its entries and its budget in one transaction — previously renaming
+meant delete-and-re-add, which silently orphaned entries (the V1.9 "budgets
+read R$ 0" bug). `Budget.category` is unique, so a budget already under the
+target name keeps its row and the old one is dropped rather than the rename
+failing. `getOrphanCategories()` + `OrphanCategoriesCard` surface entries and
+budgets pointing at categories that no longer exist; the card renders **only**
+when something is wrong. Nothing is repaired automatically — only the owner
+knows whether an orphan is a typo or a retired category.
+`CategoryChip` closes its rename form by being **keyed on the category name**
+in the parent, so a success remounts it closed and a failure keeps it open with
+its error. That sidesteps set-state-in-effect rather than working around it —
+worth copying for similar cases.
+
+**3. Entries search + server-side pagination.** The page used to
+`findMany()` every entry and filter in the browser. Filtering, paging and
+totals now happen in Prisma, with filters in the **query string** (they have to
+be readable server-side; the URL also gives a working back button). Month
+filtering reuses `cycleRange()`, the same range the sidebar IN/OUT query uses —
+verified the five month options partition 120 seeded entries exactly. Net comes
+from a `groupBy` over the whole filtered set, not the page. `groupCounts` became
+a plain object because **Maps do not survive the server/client boundary**.
+Search is ASCII-case-insensitive only (SQLite `LIKE`); `mode: "insensitive"` is
+Postgres-only, so "cafe" finds "Cafe" but not "Café". Documented at the call site.
+
+**4. CSV import** (`lib/csv.ts`, `CsvImportCard`). Hand-rolled, no papaparse.
+The hard part is amounts: "1.234" is 1234 in pt-BR and 1.234 in en-US, so
+**whichever of "." and "," appears last is the decimal separator**, and with one
+separator exactly three digits after it reads as thousands. Dates use
+`new Date(y, m-1, d)`; impossible dates like 31/02 are rejected, not rolled
+forward. Unparseable rows are **skipped and counted**, never imported as zeroes.
+Parsing happens in the browser so the mapping and a preview are visible before
+anything is written. Additive — no dedupe, because statements have no stable
+row id.
+
+**5. Upcoming card.** The V1.2 handoff wanted this and it was rightly refused
+when the mock filled it with invented bills. Recurring entries now generate
+twelve future-dated rows, so `upcomingEntries()` answers it from **real data**.
+Compares on calendar day: today is "now", not upcoming.
+
+**6. Net worth over time.** `netWorthOverTime()` puts cash and holdings on the
+same monthly checkpoints. **The cash figure is cumulative logged entries, not a
+bank balance** — the card says so, and that wording is load-bearing; relabelling
+it "balance" without solving opening balances would make it quietly wrong.
+
+**7. Buy/sell transaction log** — the long-deferred P2. New
+`InvestmentTransaction` model. **A fallback, not a replacement**: a holding with
+no transactions is valued exactly as before, so nothing existing changed.
+Once transactions exist they take over, because they carry the date
+`amountInvested`/`quantity` structurally cannot. `accrualValue()` now compounds
+each transaction from its own date (a top-up in month 9 no longer earns nine
+months of interest); `quantityAt()` gives the position actually held on a past
+date; `goal.ts` builds XIRR flows from real dated transactions, fixing the
+limitation V1.16 documented. Backup carries them, still `version: 3`.
+
+**8 + 9. Dark theme and the V1.17 contrast decision**, done together because
+both live in the token layer and dark mode turns every literal colour into a
+bug. **66 literals across 21 files** became tokens first (`#dc3545` in 20+
+places, chart tick `#6b7280` in 9 files, `focus:bg-white`, the Recharts tooltip
+white, the Modal card, the sidebar glass). Then three **text-only** accent
+tokens (`--color-brand-text`, `--color-positive-text`, `--color-rust-text`) so
+small text clears AA while fills, buttons, chart strokes and large figures keep
+the identity colour — that is the V1.17 call, made narrowly. The red
+`#c92a3a` was picked by measurement as the closest hue to `#dc3545` clearing
+4.5:1. The dark block redefines **only tokens**, never component styles;
+verified mechanically that all 31 tokens set in it have a light definition
+outside it. It sits *between* the base and derived `:root` blocks, and the
+derived `--color-brand-tint` still resolves to the dark `--brand-rgb` — because
+custom properties resolve at **use** time, the same mechanism V1.22 relies on.
+
+**10. Goal block collapse persists** via `AppSettings.goalCardOpen`, exactly the
+fix V1.21's own note specified. Read server-side so the first frame is right;
+the write is fire-and-forget and deliberately does not revalidate. **The
+sidebar's collapse is still per-visit on purpose** — it starts collapsed on
+narrow viewports, so persisting it would fight that.
+
+Two tooling notes that cost time and will again: the
+`PrismaClientValidationError` after adding a model is the documented V1.5
+gotcha (**restart `npm run dev` after `prisma generate`**), and measuring the
+net-worth chart hit both known Browser-pane artifacts in one session —
+`window.innerWidth === 0` (recovered with a **fresh tab**, not a resize) and
+zero chart surfaces until a screenshot forced a paint.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
