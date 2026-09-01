@@ -9,7 +9,7 @@ export async function GET() {
       prisma.category.findMany(),
       prisma.budget.findMany(),
       prisma.paymentMethod.findMany(),
-      prisma.investment.findMany({ include: { prices: true, coupons: true } }),
+      prisma.investment.findMany({ include: { prices: true, coupons: true, transactions: true } }),
       getReferenceRates(),
       getCycleStartDay(),
       getAccentColor(),
@@ -45,6 +45,14 @@ export async function GET() {
       notes: inv.notes,
       prices: inv.prices.map((p) => ({ date: p.date, price: p.price })),
       coupons: inv.coupons.map((c) => ({ date: c.date, amount: c.amount })),
+      // Additive, like coupons in V1.10: still version 3, and a backup written
+      // before transactions existed simply restores with none.
+      transactions: inv.transactions.map((tx) => ({
+        date: tx.date,
+        kind: tx.kind,
+        amount: tx.amount,
+        quantity: tx.quantity,
+      })),
     })),
     referenceRates: { cdi: rates.cdi, selic: rates.selic, ipca: rates.ipca },
     // Additive since V1.15 (accentColor since V1.22) — still `version: 3`,

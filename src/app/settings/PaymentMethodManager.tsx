@@ -57,7 +57,7 @@ export function PaymentMethodManager({
           maxLength={40}
           aria-label={t.settings.newMethodName}
           placeholder={t.settings.newMethodPlaceholder}
-          className="flex-1 rounded-full bg-[var(--color-inset)] px-4 py-2.5 text-[13px] outline-none focus:bg-white focus:ring-1 focus:ring-[var(--color-ink)]"
+          className="flex-1 rounded-full bg-[var(--color-inset)] px-4 py-2.5 text-[13px] outline-none focus:bg-[var(--color-surface-raised)] focus:ring-1 focus:ring-[var(--color-ink)]"
         />
         <button
           type="submit"
@@ -67,7 +67,7 @@ export function PaymentMethodManager({
           {t.common.add}
         </button>
       </form>
-      {state.error && <p className="mt-2 text-sm text-[#dc3545]">{state.error}</p>}
+      {state.error && <p className="mt-2 text-sm text-[var(--color-rust-text)]">{state.error}</p>}
     </div>
   );
 }

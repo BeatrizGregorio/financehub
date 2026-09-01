@@ -34,7 +34,7 @@ function DeleteButton({ id, t }: { id: string; t: Dict }) {
         type="submit"
         // 24px minimum hit area (was 16px of bare text); the negative margin
         // keeps the row height unchanged. Same pattern as EntryTable.
-        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
+        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
       >
         {t.common.delete}
       </button>
@@ -105,7 +105,7 @@ export function HoldingsTable({
                   </button>
                   {matured ? (
                     <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-[var(--color-positive)]/12 px-1.5 py-px font-mono text-[9.5px] font-bold tracking-wide text-[var(--color-positive)] uppercase">
+                      <span className="rounded-full bg-[var(--color-positive)]/12 px-1.5 py-px font-mono text-[9.5px] font-bold tracking-wide text-[var(--color-positive-text)] uppercase">
                         {t.investments.matured}
                       </span>
                       {holding.institution && (
@@ -150,7 +150,7 @@ export function HoldingsTable({
                 </span>
                 <span
                   className="text-right font-mono text-[13px] font-medium"
-                  style={{ color: gl ? (gl.gain >= 0 ? "var(--color-positive)" : "#dc3545") : "var(--color-muted-2)" }}
+                  style={{ color: gl ? (gl.gain >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)") : "var(--color-muted-2)" }}
                 >
                   {gl
                     ? `${gl.gain >= 0 ? "+" : "−"}${formatCurrency(Math.abs(gl.gain))} (${(gl.returnPct * 100).toFixed(1)}%)`
@@ -171,7 +171,7 @@ export function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => onAddCoupon(holding)}
-                      className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-brand)]"
+                      className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-brand-text)]"
                     >
                       {t.investments.addCoupon}
                     </button>

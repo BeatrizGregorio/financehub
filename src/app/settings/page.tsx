@@ -6,6 +6,7 @@ import {
   getLanguage,
   getLicenseStatus,
   LICENSING_ENABLED,
+  getOrphanCategories,
   getPaymentMethods,
 } from "@/lib/data";
 import { CategoryManager } from "./CategoryManager";
@@ -16,6 +17,8 @@ import { CycleSettingsCard } from "./CycleSettingsCard";
 import { AccentColorCard } from "./AccentColorCard";
 import { LanguageCard } from "./LanguageCard";
 import { LicenseCard } from "./LicenseCard";
+import { OrphanCategoriesCard } from "./OrphanCategoriesCard";
+import { CsvImportCard } from "./CsvImportCard";
 import { dict } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +52,7 @@ function Section({
 }
 
 export default async function SettingsPage() {
-  const [{ expense, income }, methods, budgets, cycleStartDay, accentColor, lang, license] =
+  const [{ expense, income }, methods, budgets, cycleStartDay, accentColor, lang, license, orphans] =
     await Promise.all([
       getCategories(),
       getPaymentMethods(),
@@ -58,6 +61,7 @@ export default async function SettingsPage() {
       getAccentColor(),
       getLanguage(),
       getLicenseStatus(),
+      getOrphanCategories(),
     ]);
   const t = dict(lang);
 
@@ -85,6 +89,8 @@ export default async function SettingsPage() {
         />
         <BudgetEditor categories={expense} budgets={budgets} />
         <PaymentMethodManager methods={methods} />
+        {/* Renders nothing unless something is actually orphaned. */}
+        <OrphanCategoriesCard report={orphans} />
       </Section>
 
       <Section title={t.settings.sectionPreferences} blurb={t.settings.sectionPreferencesBlurb}>
@@ -99,6 +105,11 @@ export default async function SettingsPage() {
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>
         <BackupPanel />
+        <CsvImportCard
+          expenseCategories={expense}
+          incomeCategories={income}
+          methods={methods}
+        />
         {/* Nothing useful to say about a licence when licensing is switched
             off — see LICENSING_ENABLED in lib/data.ts. */}
         {LICENSING_ENABLED && <LicenseCard license={license} />}

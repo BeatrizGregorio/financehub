@@ -14,13 +14,15 @@ import { currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
 import { BudgetsCard } from "@/components/BudgetsCard";
 import { RecentEntriesCard } from "@/components/RecentEntriesCard";
+import { UpcomingCard } from "@/components/UpcomingCard";
 import { SpendingByCategoryCard } from "@/components/SpendingByCategoryCard";
 import { PaymentMethodsCard } from "@/components/PaymentMethodsCard";
 import { IncomeVsExpenseChart } from "@/components/IncomeVsExpenseChart";
 import { MonthlyTrendChart } from "@/components/MonthlyTrendChart";
 import { AllocationCard } from "@/components/AllocationCard";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
-import { allocationByType, monthlyPortfolioValue } from "@/lib/investments";
+import { allocationByType, monthlyPortfolioValue, netWorthOverTime } from "@/lib/investments";
+import { NetWorthCard } from "@/components/NetWorthCard";
 import { CARD } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +46,7 @@ function StatPill({
       <p className="mb-1 text-2xl leading-none font-extrabold text-[var(--color-ink)]">{value}</p>
       <div
         className="flex items-center gap-1 font-mono text-xs"
-        style={{ color: positive === undefined ? "#6b7280" : positive ? "var(--color-positive)" : "#dc3545" }}
+        style={{ color: positive === undefined ? "var(--color-muted-2)" : positive ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
       >
         {positive === true && <ArrowUpRight size={12} />}
         {positive === false && <ArrowDownRight size={12} />}
@@ -59,7 +61,7 @@ export default async function DashboardPage() {
     prisma.entry.findMany(),
     getBudgets(),
     getPaymentMethods(),
-    prisma.investment.findMany({ include: { prices: true, coupons: true } }),
+    prisma.investment.findMany({ include: { prices: true, coupons: true, transactions: true } }),
     getReferenceRates(),
     getCycleStartDay(),
     getLanguage(),
@@ -106,6 +108,8 @@ export default async function DashboardPage() {
 
   const allocation = allocationByType(investments, rates);
   const portfolioSeries = monthlyPortfolioValue(investments, rates, 12, cycleStartDay, lang);
+  // The two halves of the app on one timeline - see netWorthOverTime().
+  const netWorth = netWorthOverTime(entries, investments, rates, 12, cycleStartDay, lang);
 
   return (
     <div className="flex flex-col gap-5">
@@ -152,6 +156,8 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5">
           <BudgetsCard entries={entries} budgets={budgets} cycleStartDay={cycleStartDay} t={t} />
+          {/* Real future-dated entries only - see upcomingEntries(). */}
+          <UpcomingCard entries={entries} t={t} lang={lang} />
           <RecentEntriesCard entries={entries} t={t} />
         </div>
 
@@ -173,6 +179,7 @@ export default async function DashboardPage() {
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthOverMonthNet}</h2>
             <MonthlyTrendChart data={series} />
           </div>
+          <NetWorthCard data={netWorth} t={t} />
           <PaymentMethodsCard methods={methods} t={t} />
           <div className={`${CARD} p-5`}>
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthlyValue}</h2>

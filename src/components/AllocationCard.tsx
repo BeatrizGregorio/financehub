@@ -12,7 +12,7 @@ export function AllocationCard({ data, t }: { data: AllocationSlice[]; t: Dict }
         <span className="text-[17px] font-extrabold tracking-tight">{t.dashboard.allocation}</span>
         <Link
           href="/investments"
-          className="inline-flex items-center gap-1 text-xs font-bold text-[var(--color-brand)]"
+          className="inline-flex items-center gap-1 text-xs font-bold text-[var(--color-brand-text)]"
         >
           {t.nav.investments} <ArrowRight size={12} />
         </Link>

@@ -25,7 +25,7 @@ export function PaymentMethodsCard({
         </p>
         <Link
           href="/settings"
-          className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--color-brand)]"
+          className="inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--color-brand-text)]"
         >
           {t.dashboard.manageMethods} <ArrowRight size={14} />
         </Link>

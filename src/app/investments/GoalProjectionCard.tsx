@@ -5,6 +5,7 @@ import { CalendarClock, ChevronDown, Pencil, Target, TrendingUp, Wallet } from "
 import { Modal } from "@/components/Modal";
 import { GoalProjectionChart } from "@/components/GoalProjectionChart";
 import { GoalForm, type GoalLike } from "./GoalForm";
+import { updateGoalCardOpen } from "./actions";
 import { CARD } from "@/lib/ui";
 import { formatCurrency } from "@/lib/format";
 import { localeOf } from "@/lib/i18n";
@@ -58,21 +59,31 @@ export function GoalProjectionCard({
   holdings,
   currentValue,
   emergencyReserveTarget,
+  initialOpen,
 }: {
   goal: GoalLike | null;
   holdings: Holding[];
   currentValue: number;
   emergencyReserveTarget: number | null;
+  initialOpen: boolean;
 }) {
   const { t } = useT();
   const [editing, setEditing] = useState(false);
   // Lets "use as the projection rate" preview the real return without saving.
   const [rateOverride, setRateOverride] = useState<number | null>(null);
-  // Collapse is per-visit only — deliberately not persisted. Reading
-  // localStorage during the first render would disagree with the server-
-  // rendered HTML, and this app's lint config rules out the
-  // setState-in-an-effect way around that.
-  const [open, setOpen] = useState(true);
+  // Persisted on AppSettings, seeded from the server so the first painted
+  // frame is already right. V1.21 left this per-visit because localStorage
+  // read during the first render disagrees with the server-rendered HTML and
+  // the workaround is a setState-in-effect, which this project lints against;
+  // a column sidesteps both. The write is fire-and-forget — the toggle must
+  // feel instant, and the stored value only has to be right by the next load.
+  const [open, setOpen] = useState(initialOpen);
+
+  function toggleOpen() {
+    const next = !open;
+    setOpen(next);
+    void updateGoalCardOpen(next);
+  }
 
   const collapsedProgress =
     goal && goal.targetAmount > 0 ? currentValue / goal.targetAmount : null;
@@ -112,10 +123,10 @@ export function GoalProjectionCard({
           <h2 className="text-[17px] font-extrabold tracking-tight">
             <button
               type="button"
-              onClick={() => setOpen((o) => !o)}
+              onClick={toggleOpen}
               aria-expanded={open}
               aria-controls={BODY_ID}
-              className="-my-1 -ml-1 flex items-center gap-1.5 rounded px-1 py-1 text-left hover:text-[var(--color-brand)]"
+              className="-my-1 -ml-1 flex items-center gap-1.5 rounded px-1 py-1 text-left hover:text-[var(--color-brand-text)]"
             >
               {t.goal.title}
               <ChevronDown
@@ -178,7 +189,7 @@ export function GoalProjectionCard({
               <button
                 type="button"
                 onClick={() => setRateOverride(realReturn)}
-                className="rounded-full bg-white/70 px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-ink)] transition hover:brightness-95"
+                className="rounded-full bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-ink)] transition hover:brightness-95"
               >
                 {t.goal.useAsRate}
               </button>
@@ -279,7 +290,7 @@ function GoalBody({
       <div className="mb-4">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div className="flex items-center gap-2">
-            <Target size={15} className="shrink-0 text-[var(--color-brand)]" />
+            <Target size={15} className="shrink-0 text-[var(--color-brand-text)]" />
             <span className="text-[14.5px] font-bold text-[var(--color-ink)]">{goal.name}</span>
           </div>
           <span className="font-mono text-[12px] text-[var(--color-muted-2)]">

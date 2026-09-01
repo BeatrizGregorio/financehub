@@ -70,6 +70,7 @@ model Investment {
   notes          String?
   prices         PricePoint[]
   coupons        CouponPayment[]
+  transactions   InvestmentTransaction[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
@@ -91,6 +92,26 @@ model CouponPayment {
   investmentId String
   date         DateTime
   amount       Float
+  createdAt    DateTime   @default(now())
+}
+/// A dated buy or sell against a holding.
+///
+/// Optional by design: a holding with no transactions keeps behaving exactly as
+/// it did before this model existed, valued from amountInvested/quantity and
+/// startDate. Once transactions exist they take over, because they carry the one
+/// thing those fields cannot - *when* each contribution happened.
+model InvestmentTransaction {
+  id           String     @id @default(cuid())
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+  investmentId String
+  date         DateTime
+  /// "buy" | "sell". SQLite has no enums in Prisma, same as Entry.type.
+  kind         String
+  /// Cash moved, always positive; direction comes from kind.
+  amount       Float
+  /// Units bought or sold, for holdings priced per unit. Null for renda fixa.
+  quantity     Float?
+  notes        String?
   createdAt    DateTime   @default(now())
 }
 
@@ -117,6 +138,12 @@ model AppSettings {
   // owner's data (category names, entry names, payment methods) is never
   // translated, and currency stays pt-BR formatted since it's always BRL.
   language      String   @default("en")
+  // Whether the Investments "Goal & projection" block is expanded. V1.21 kept
+  // this per-visit because reading localStorage during the first render
+  // disagrees with the server-rendered HTML, and the usual escape hatch is a
+  // setState-in-effect, which this project lints against. A column is the
+  // honest fix: the server knows the answer before it renders.
+  goalCardOpen  Boolean  @default(true)
   updatedAt     DateTime @updatedAt
 }
 

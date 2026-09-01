@@ -44,7 +44,7 @@ export function Nav({
 
   return (
     <aside
-      className="flex h-full shrink-0 flex-col gap-2 overflow-hidden border-r border-black/[0.07] bg-white/65 py-6 backdrop-blur-2xl transition-[width,padding] duration-300"
+      className="flex h-full shrink-0 flex-col gap-2 overflow-hidden border-r border-black/[0.07] bg-[var(--color-nav)] py-6 backdrop-blur-2xl transition-[width,padding] duration-300"
       style={{ width: collapsed ? 72 : 240, paddingLeft: collapsed ? 12 : 16, paddingRight: collapsed ? 12 : 16 }}
     >
       <div className={`mb-6 flex items-center ${collapsed ? "justify-center px-0" : "gap-2.5 px-2"}`}>
@@ -79,7 +79,7 @@ export function Nav({
                 padding: collapsed ? "10px 0" : "10px 12px",
                 justifyContent: collapsed ? "center" : "flex-start",
                 background: active ? "var(--color-brand-tint)" : "transparent",
-                color: active ? "var(--color-brand)" : "#6b7280",
+                color: active ? "var(--color-brand-text)" : "var(--color-muted-2)",
                 fontWeight: active ? 600 : 500,
               }}
             >
@@ -99,12 +99,12 @@ export function Nav({
           <div className="mt-2 flex gap-3">
             <div>
               <p className="font-mono text-[9.5px] text-[var(--color-muted-2)]">{t.nav.in}</p>
-              <p className="text-xs font-semibold text-[var(--color-positive)]">{formatCurrency(income)}</p>
+              <p className="text-xs font-semibold text-[var(--color-positive-text)]">{formatCurrency(income)}</p>
             </div>
             <div className="w-px bg-black/10" />
             <div>
               <p className="font-mono text-[9.5px] text-[var(--color-muted-2)]">{t.nav.out}</p>
-              <p className="text-xs font-semibold text-[#dc3545]">{formatCurrency(expense)}</p>
+              <p className="text-xs font-semibold text-[var(--color-rust-text)]">{formatCurrency(expense)}</p>
             </div>
           </div>
         </div>

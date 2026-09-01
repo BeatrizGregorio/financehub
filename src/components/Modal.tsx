@@ -52,7 +52,7 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-[22px] border border-black/[0.07] bg-white p-6 shadow-[var(--shadow-card)]"
+        className="w-full max-w-xl rounded-[22px] border border-black/[0.07] bg-[var(--color-modal)] p-6 shadow-[var(--shadow-card)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

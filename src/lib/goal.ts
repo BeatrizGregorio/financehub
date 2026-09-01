@@ -80,19 +80,38 @@ export function xirr(flows: CashFlow[]): number | null {
 
 // ─── Adapting the app's data to those formulas ──────────────────────────────
 //
-// This app has no dated contribution log (the buy/sell transaction log is
-// deliberately deferred — see the P2 note in CLAUDE.md). What it does have is
-// one dated purchase per holding: `startDate` + `amountInvested`. That's a
-// real dated cash outflow, so it drives both the XIRR flows and the recent
-// contribution average.
+// Holdings that have recorded buy/sell transactions use them directly: each is
+// a genuine dated cash flow, which is exactly what XIRR needs.
 //
-// The known limitation, surfaced in the UI rather than hidden: topping up an
-// existing holding raises `amountInvested` without recording a new date, so
-// that money is attributed to the holding's original startDate. XIRR will read
-// slightly low for a holding that's been added to over time.
+// Holdings without transactions fall back to the single dated purchase this app
+// has always had — `startDate` + `amountInvested`. That fallback carries the
+// old limitation: topping one up raises `amountInvested` without recording a
+// date, so the money is attributed to the original startDate and XIRR reads
+// slightly low. Recording the top-up as a transaction is now the fix, rather
+// than the limitation being unavoidable.
 
-export type ContributionLike = { amountInvested: number; startDate: Date };
+export type TransactionLike = { date: Date; kind: string; amount: number };
+export type ContributionLike = {
+  amountInvested: number;
+  startDate: Date;
+  transactions?: TransactionLike[];
+};
 export type CouponLike = { date: Date; amount: number };
+
+/**
+ * A holding's contributions as dated flows: real transactions when recorded,
+ * otherwise the single startDate purchase. Sells are positive — that cash came
+ * back out — which is the same treatment coupons get.
+ */
+function contributionFlows(h: ContributionLike): CashFlow[] {
+  const txs = h.transactions ?? [];
+  if (txs.length > 0) {
+    return txs
+      .filter((tx) => tx.amount > 0)
+      .map((tx) => ({ date: tx.date, amount: tx.kind === "sell" ? tx.amount : -tx.amount }));
+  }
+  return h.amountInvested > 0 ? [{ date: h.startDate, amount: -h.amountInvested }] : [];
+}
 
 /**
  * Flows for xirr(): each holding's purchase as a negative flow on its
@@ -107,7 +126,7 @@ export function buildCashFlows(
   const flows: CashFlow[] = [];
 
   for (const h of holdings) {
-    if (h.amountInvested > 0) flows.push({ date: h.startDate, amount: -h.amountInvested });
+    flows.push(...contributionFlows(h));
     for (const c of h.coupons) flows.push({ date: c.date, amount: c.amount });
   }
 
@@ -131,8 +150,14 @@ export function averageMonthlyContribution(
 ): number {
   const cutoff = new Date(today);
   cutoff.setMonth(cutoff.getMonth() - months);
-  const recent = holdings.filter((h) => h.startDate >= cutoff);
-  const total = recent.reduce((sum, h) => sum + h.amountInvested, 0);
+  // Uses the same dated flows as XIRR, so a top-up recorded as a transaction
+  // counts in the month it happened rather than the month the holding opened.
+  const total = holdings.reduce((sum, h) => {
+    for (const f of contributionFlows(h)) {
+      if (f.amount < 0 && f.date >= cutoff) sum += -f.amount;
+    }
+    return sum;
+  }, 0);
   return months > 0 ? total / months : 0;
 }
 

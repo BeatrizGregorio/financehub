@@ -87,7 +87,7 @@ export function LicenseGate({ showExport }: { showExport: boolean }) {
         </div>
 
         {state.error && (
-          <p className="text-[12.5px] text-[var(--color-rust)]">
+          <p className="text-[12.5px] text-[var(--color-rust-text)]">
             {state.error === "missing" ? t.license.missing : t.license.invalid}
           </p>
         )}
@@ -102,7 +102,7 @@ export function LicenseGate({ showExport }: { showExport: boolean }) {
         <div className="mt-6 flex flex-col items-center gap-1.5">
           <a
             href="/api/backup"
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-brand)]"
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-brand-text)]"
           >
             <Download size={14} /> {t.license.exportFirst}
           </a>

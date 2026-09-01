@@ -56,7 +56,7 @@ export function LanguageCard({ language }: { language: Language }) {
                   className="flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-[13.5px] font-semibold transition"
                   style={{
                     background: active ? "var(--color-brand-tint)" : "var(--color-inset)",
-                    color: active ? "var(--color-brand)" : "var(--color-muted)",
+                    color: active ? "var(--color-brand-text)" : "var(--color-muted)",
                     boxShadow: active ? "inset 0 0 0 1.5px var(--color-brand)" : "none",
                   }}
                 >
@@ -68,7 +68,7 @@ export function LanguageCard({ language }: { language: Language }) {
           })}
         </div>
 
-        {state.error && <p className="mt-2.5 text-[12.5px] text-[var(--color-rust)]">{state.error}</p>}
+        {state.error && <p className="mt-2.5 text-[12.5px] text-[var(--color-rust-text)]">{state.error}</p>}
 
         <SaveButton changed={selected !== language} />
       </form>

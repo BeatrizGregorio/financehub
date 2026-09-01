@@ -38,7 +38,7 @@ export function BackupPanel() {
       <div className="mb-3 flex gap-2.5">
         <a
           href="/api/backup"
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-[13.5px] font-bold text-[var(--color-brand)] transition hover:opacity-90"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-[13.5px] font-bold text-[var(--color-brand-text)] transition hover:opacity-90"
         >
           <Download size={16} /> {t.settings.export}
         </a>

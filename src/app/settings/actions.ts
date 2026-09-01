@@ -116,6 +116,138 @@ export async function removeCategory(id: string) {
   revalidateAll();
 }
 
+/**
+ * Rename a category and carry its entries and budget along with it.
+ *
+ * Without this, renaming means deleting and re-adding, which silently orphans
+ * every entry filed under the old name — the V1.9 "budgets all read R$ 0" bug.
+ * Entries and budgets reference categories by name with no foreign key, so the
+ * rewrite has to be explicit; it runs in one transaction so a half-renamed
+ * state can't survive a failure partway through.
+ */
+export async function renameCategory(
+  id: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const newName = String(formData.get("name") ?? "").trim();
+  if (!newName) return { error: "Enter a category name." };
+
+  const category = await prisma.category.findUnique({ where: { id } });
+  if (!category) return { error: "That category no longer exists." };
+  if (category.name === newName) return {};
+
+  const clash = await prisma.category.findFirst({
+    where: { name: newName, type: category.type },
+  });
+  if (clash) return { error: `"${newName}" already exists.` };
+
+  const oldName = category.name;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.category.update({ where: { id }, data: { name: newName } });
+    await tx.entry.updateMany({
+      where: { category: oldName, type: category.type },
+      data: { category: newName },
+    });
+
+    // Budget.category is unique, so a budget already sitting under the new
+    // name would collide. Keep that one and drop the old row rather than
+    // failing the rename — the target's limit is the more recent intent.
+    if (category.type === "expense") {
+      const target = await tx.budget.findUnique({ where: { category: newName } });
+      if (target) {
+        await tx.budget.deleteMany({ where: { category: oldName } });
+      } else {
+        await tx.budget.updateMany({
+          where: { category: oldName },
+          data: { category: newName },
+        });
+      }
+    }
+  });
+
+  revalidateAll();
+  return {};
+}
+
+/** Recreate a category that entries still reference — see getOrphanCategories(). */
+export async function adoptOrphanCategory(name: string, type: string) {
+  if (type !== "income" && type !== "expense") return;
+  const existing = await prisma.category.findFirst({ where: { name, type } });
+  if (!existing) await prisma.category.create({ data: { name, type } });
+  revalidateAll();
+}
+
+/** Drop a budget whose category no longer exists, so it can never fill. */
+export async function removeOrphanBudget(category: string) {
+  await prisma.budget.deleteMany({ where: { category } });
+  revalidateAll();
+}
+
+/** Enough for years of statements; a guard against a mis-mapped giant file. */
+const MAX_CSV_ROWS = 5000;
+
+export type CsvImportRow = {
+  date: Date;
+  name: string;
+  amount: number;
+  type: "income" | "expense";
+};
+
+/**
+ * Create entries from a parsed CSV.
+ *
+ * The parsing and column mapping happen in the browser (see lib/csv.ts) so the
+ * owner can see a preview and fix the mapping before anything is written. This
+ * action receives already-mapped rows and does the one thing the browser can't.
+ *
+ * Unlike importBackup, this is **additive** — it never wipes existing data.
+ * Importing a statement twice will duplicate its entries; there's no dedupe,
+ * because a statement has no stable per-row id and two genuinely identical
+ * charges on the same day are perfectly possible.
+ */
+export async function importCsvEntries(payload: {
+  rows: CsvImportRow[];
+  expenseCategory: string;
+  incomeCategory: string;
+  method: string | null;
+}): Promise<{ imported: number; error?: string }> {
+  const { rows, expenseCategory, incomeCategory, method } = payload;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { imported: 0, error: "Nothing to import." };
+  }
+  if (rows.length > MAX_CSV_ROWS) {
+    return { imported: 0, error: `That file has more than ${MAX_CSV_ROWS} rows.` };
+  }
+
+  // Entry.category is required, and a CSV almost never carries one, so the
+  // owner picks a default per direction. Verify they still exist rather than
+  // writing entries that would immediately show up as orphans.
+  const needsExpense = rows.some((r) => r.type === "expense");
+  const needsIncome = rows.some((r) => r.type === "income");
+  if (needsExpense && !expenseCategory) return { imported: 0, error: "Choose an expense category." };
+  if (needsIncome && !incomeCategory) return { imported: 0, error: "Choose an income category." };
+
+  const now = new Date();
+  await prisma.entry.createMany({
+    data: rows.map((r) => ({
+      name: r.name,
+      amount: Math.abs(r.amount),
+      date: new Date(r.date),
+      type: r.type,
+      category: r.type === "expense" ? expenseCategory : incomeCategory,
+      method: r.type === "expense" ? method : null,
+      createdAt: now,
+      updatedAt: now,
+    })),
+  });
+
+  revalidateAll();
+  return { imported: rows.length };
+}
+
 export async function addPaymentMethod(
   _prevState: ActionState,
   formData: FormData,
@@ -184,6 +316,13 @@ type BackupCouponPayment = {
   amount: number;
 };
 
+type BackupTransaction = {
+  date: string;
+  kind: string;
+  amount: number;
+  quantity?: number | null;
+};
+
 type BackupInvestment = {
   name: string;
   type?: string;
@@ -205,6 +344,7 @@ type BackupInvestment = {
   notes?: string | null;
   prices?: BackupPricePoint[];
   coupons?: BackupCouponPayment[];
+  transactions?: BackupTransaction[];
 };
 
 type Backup = {
@@ -252,6 +392,7 @@ export async function importBackup(
   // rely on it here either.
   await prisma.pricePoint.deleteMany();
   await prisma.couponPayment.deleteMany();
+  await prisma.investmentTransaction.deleteMany();
   await prisma.investment.deleteMany();
 
   if (backup.categories?.length) {
@@ -319,6 +460,16 @@ export async function importBackup(
         notes: inv.notes ?? null,
         prices: inv.prices?.length
           ? { create: inv.prices.map((p) => ({ date: new Date(p.date), price: p.price })) }
+          : undefined,
+        transactions: inv.transactions?.length
+          ? {
+              create: inv.transactions.map((tx) => ({
+                date: new Date(tx.date),
+                kind: tx.kind === "sell" ? "sell" : "buy",
+                amount: tx.amount,
+                quantity: tx.quantity ?? null,
+              })),
+            }
           : undefined,
         coupons: inv.coupons?.length
           ? { create: inv.coupons.map((c) => ({ date: new Date(c.date), amount: c.amount })) }

@@ -14,6 +14,7 @@ import type { GoalLike } from "./GoalForm";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
 import {
   currentValue,
+  isAccrualValued,
   isMatured,
   monthlyPortfolioValue,
   portfolioSummary,
@@ -46,6 +47,7 @@ export type Holding = {
   notes: string | null;
   prices: { id: string; date: Date; price: number }[];
   coupons: { id: string; date: Date; amount: number }[];
+  transactions: { id: string; date: Date; kind: string; amount: number; quantity: number | null }[];
 };
 
 function SummaryPill({
@@ -66,14 +68,14 @@ function SummaryPill({
       </p>
       <p
         className="text-2xl leading-none font-extrabold"
-        style={{ color: positive === undefined ? "var(--color-ink)" : positive ? "var(--color-positive)" : "#dc3545" }}
+        style={{ color: positive === undefined ? "var(--color-ink)" : positive ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
       >
         {value}
       </p>
       {sub && (
         <p
           className="mt-1 font-mono text-xs"
-          style={{ color: positive === undefined ? "var(--color-muted-2)" : positive ? "var(--color-positive)" : "#dc3545" }}
+          style={{ color: positive === undefined ? "var(--color-muted-2)" : positive ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
         >
           {sub}
         </p>
@@ -85,15 +87,22 @@ function SummaryPill({
 export function InvestmentsClient({
   holdings,
   rates,
+  ratesUpdatedAt,
   cycleStartDay,
   goal,
   emergencyReserveTarget,
+  goalCardOpen,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
+  // Passed separately rather than widening ReferenceRatesLike, which is the
+  // shape the pure maths in lib/investments.ts takes — the timestamp is a
+  // presentation concern and has no business in the valuation functions.
+  ratesUpdatedAt: Date | null;
   cycleStartDay: number;
   goal: GoalLike | null;
   emergencyReserveTarget: number | null;
+  goalCardOpen: boolean;
 }) {
   const { t, lang } = useT();
   const [editing, setEditing] = useState<Holding | null>(null);
@@ -104,6 +113,9 @@ export function InvestmentsClient({
 
   const summary = portfolioSummary(holdings, rates);
   const maturedHoldings = holdings.filter((h) => isMatured(h));
+  // Only worth mentioning the reference rates when something actually depends
+  // on them — a portfolio of stocks with manual prices doesn't use them at all.
+  const hasAccrualHoldings = holdings.some((h) => !isMatured(h) && isAccrualValued(h));
   const projection = projectPortfolioValue(holdings, rates, t.charts);
   const monthly = monthlyPortfolioValue(holdings, rates, 12, cycleStartDay, lang);
   // Derive from the live `holdings` prop (not a frozen snapshot) so editing or
@@ -158,7 +170,7 @@ export function InvestmentsClient({
       {maturedHoldings.length > 0 && (
         <div className="flex flex-col gap-2 rounded-[18px] border border-[var(--color-positive)]/25 bg-[var(--color-positive)]/[0.07] px-5 py-4">
           <div className="flex items-start gap-2.5">
-            <PartyPopper size={17} className="mt-px shrink-0 text-[var(--color-positive)]" />
+            <PartyPopper size={17} className="mt-px shrink-0 text-[var(--color-positive-text)]" />
             <p className="text-[13.5px] leading-snug text-[var(--color-ink)]">
               {t.investments.maturedBanner(maturedHoldings.length)}
               <span className="font-mono font-bold">{formatCurrency(summary.maturedValue)}</span>{" "}
@@ -201,6 +213,27 @@ export function InvestmentsClient({
         )}
       </div>
 
+      {/* The CDI/SELIC/IPCA rates drive every accrual figure on this page but
+          have no editor (removed in V1.9), so they can only go stale. Saying
+          so is the difference between an estimate and a number that looks
+          firmer than it is. */}
+      {hasAccrualHoldings && (
+        <p className="-mt-2 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[12px] text-[var(--color-muted)]">
+          <span>
+            {t.investments.ratesNote(
+              `${rates.cdi.toFixed(2)}%`,
+              `${rates.selic.toFixed(2)}%`,
+              `${rates.ipca.toFixed(2)}%`,
+            )}
+          </span>
+          <span className={ratesUpdatedAt ? undefined : "text-[var(--color-rust-text)]"}>
+            {ratesUpdatedAt
+              ? t.investments.ratesUpdated(formatDate(ratesUpdatedAt, lang))
+              : t.investments.ratesNeverUpdated}
+          </span>
+        </p>
+      )}
+
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div className={`${CARD} p-5`}>
           <div className="mb-1 flex items-center justify-between">
@@ -232,6 +265,7 @@ export function InvestmentsClient({
         holdings={holdings}
         currentValue={summary.totalValue}
         emergencyReserveTarget={emergencyReserveTarget}
+        initialOpen={goalCardOpen}
       />
 
       {showForm && (

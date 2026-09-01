@@ -135,6 +135,7 @@ export async function deleteHolding(id: string) {
   await prisma.$transaction([
     prisma.pricePoint.deleteMany({ where: { investmentId: id } }),
     prisma.couponPayment.deleteMany({ where: { investmentId: id } }),
+    prisma.investmentTransaction.deleteMany({ where: { investmentId: id } }),
     prisma.investment.delete({ where: { id } }),
   ]);
   revalidateAll();
@@ -276,4 +277,66 @@ export async function saveInvestmentGoal(
 
   revalidateAll();
   return {};
+}
+
+/**
+ * Record a dated buy or sell.
+ *
+ * Adding the first transaction to a holding changes how it is valued: from that
+ * point the transactions are the source of truth for capital in and units held,
+ * instead of the stored amountInvested/quantity. That is the point of recording
+ * them — they carry the date, which those fields cannot.
+ */
+export async function addTransaction(
+  investmentId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const date = parseLocalDate(formData.get("date"));
+  if (!date) return { error: "Pick a valid date." };
+
+  const kind = String(formData.get("kind") ?? "buy");
+  if (kind !== "buy" && kind !== "sell") return { error: "Choose buy or sell." };
+
+  const amountRaw = formData.get("amount");
+  const amount = Number(amountRaw);
+  if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
+    return { error: "Enter an amount greater than 0." };
+  }
+
+  // Optional: only holdings priced per unit have a meaningful quantity.
+  const quantityRaw = formData.get("quantity");
+  let quantity: number | null = null;
+  if (quantityRaw !== null && String(quantityRaw).trim() !== "") {
+    const q = Number(quantityRaw);
+    if (Number.isNaN(q) || q <= 0) return { error: "Enter a quantity greater than 0." };
+    quantity = q;
+  }
+
+  await prisma.investmentTransaction.create({
+    data: { investmentId, date, kind, amount, quantity },
+  });
+
+  revalidateAll();
+  return {};
+}
+
+/**
+ * Remember whether the goal block is expanded.
+ *
+ * Deliberately does not revalidate: the client already moved, and re-rendering
+ * the page underneath a purely visual toggle would be a jarring flash for no
+ * gain. The stored value only has to be right by the next page load.
+ */
+export async function updateGoalCardOpen(open: boolean) {
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", goalCardOpen: open },
+    update: { goalCardOpen: open },
+  });
+}
+
+export async function deleteTransaction(id: string) {
+  await prisma.investmentTransaction.delete({ where: { id } });
+  revalidateAll();
 }

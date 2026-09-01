@@ -28,7 +28,7 @@ import { useT } from "@/components/LanguageProvider";
 import type { Dict } from "@/lib/i18n";
 
 const INPUT =
-  "w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-white";
+  "w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-[var(--color-surface-raised)]";
 const LABEL = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[var(--color-muted-2)]";
 const SECTION_LABEL = "mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted)] uppercase";
 
@@ -439,7 +439,7 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
         />
       </div>
 
-      {state.error && <p className="text-sm text-[#dc3545] sm:col-span-2">{state.error}</p>}
+      {state.error && <p className="text-sm text-[var(--color-rust-text)] sm:col-span-2">{state.error}</p>}
 
       <div className="flex items-center gap-4 sm:col-span-2">
         <SubmitButton

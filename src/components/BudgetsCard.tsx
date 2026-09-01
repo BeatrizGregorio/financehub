@@ -42,7 +42,7 @@ export function BudgetsCard({
       {rows.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">
           {t.dashboard.noBudgets}{" "}
-          <Link href="/settings" className="font-semibold text-[var(--color-brand)]">
+          <Link href="/settings" className="font-semibold text-[var(--color-brand-text)]">
             {t.dashboard.setOneInSettings}
           </Link>
         </p>
@@ -64,7 +64,7 @@ export function BudgetsCard({
                     <span className="truncate text-[13.5px] font-bold">{b.category}</span>
                     <span
                       className="shrink-0 font-mono text-[11.5px] whitespace-nowrap"
-                      style={{ color: rowOver ? "#dc3545" : "#6b7280" }}
+                      style={{ color: rowOver ? "var(--color-rust-text)" : "var(--color-muted-2)" }}
                     >
                       {formatCurrency(b.spent)} / {formatCurrency(b.limit)}
                     </span>
@@ -74,8 +74,8 @@ export function BudgetsCard({
                       className="h-full rounded-full transition-all duration-500"
                       style={{
                         width: `${pct}%`,
-                        backgroundColor: rowOver ? "#dc3545" : "var(--color-positive)",
-                        boxShadow: `0 0 6px ${rowOver ? "#dc354555" : "var(--color-positive-glow)"}`,
+                        backgroundColor: rowOver ? "var(--color-rust)" : "var(--color-positive)",
+                        boxShadow: `0 0 6px ${rowOver ? "var(--color-rust-glow)" : "var(--color-positive-glow)"}`,
                       }}
                     />
                   </div>
@@ -93,14 +93,14 @@ export function BudgetsCard({
               className="flex h-5 w-5 items-center justify-center rounded-full"
               style={{
                 backgroundColor: over ? "rgba(220,53,69,0.12)" : "var(--color-positive-tint)",
-                color: over ? "#dc3545" : "var(--color-positive)",
+                color: over ? "var(--color-rust-text)" : "var(--color-positive-text)",
               }}
             >
               {over ? <TriangleAlert size={12} /> : <Sparkles size={12} />}
             </span>
             <span
               className="text-xs font-bold"
-              style={{ color: over ? "#dc3545" : "var(--color-positive)" }}
+              style={{ color: over ? "var(--color-rust-text)" : "var(--color-positive-text)" }}
             >
               {over ? t.dashboard.overBudget : t.dashboard.nicePace}
             </span>
