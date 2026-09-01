@@ -932,6 +932,46 @@ SmartScreen/Gatekeeper warnings, which is the single biggest trust problem —
 `mac.arch` is unset so only arm64 Macs are covered, there is no auto-update
 channel, and there are no EULA/privacy/refund documents.
 
+V1.26 (licensing switched off) added 2026-09-01. Two things happened in one
+session, in this order:
+
+**(1) The signing key was rotated.** The owner wanted to run the app on her
+Windows machine, which was a fresh clone — no `node_modules`, no
+`financehub.db`, and critically no `license-signing-key.pem`, since the
+`*.pem` gitignore rule means the private key never travels with the repo. The
+original key was generated on the Mac and stayed there. Rather than copy the
+secret across machines, `keygen` was re-run on Windows and the new public key
+pasted into `PUBLIC_KEY_PEM`. **The live signing key now lives on the Windows
+machine; the Mac copy is dead** and will only produce keys the app rejects.
+Safe to rotate because nothing had been issued under the old key — licensing
+shipped in V1.25 (2026-08-17), after the only externally-distributed build
+(the Windows `.exe` sent to a friend, 2026-08-05).
+
+**(2) Licensing was then turned off entirely** — the owner decided she did not
+want a key requirement at all. Done with a **switch, not a deletion**:
+`LICENSING_ENABLED` in `data.ts`, currently `false`. `getLicenseStatus()`
+short-circuits on it and returns `{ state: "licensed" }` **before touching the
+database**, so the gate never renders, no trial clock runs, and the app works
+even on an install whose `License` row was never created. `LicenseCard` is
+hidden from Settings → Data behind the same flag, since a "Licensed to" line
+with an empty email is worse than no card at all.
+
+Deliberately kept, all of it: `LicenseGate`, `TrialBanner`, `LicenseCard`,
+`license.ts`, `/license/actions.ts`, the `License` model, the `t.license`
+dictionary entries, and `scripts/make-license.js`. **This is configuration,
+not dead code — do not strip it on a tidy-up pass**, exactly as the V1.25 note
+says about the trial machinery. Flipping `LICENSING_ENABLED` back to `true`
+restores the paid build with no other edit.
+
+The flag is annotated `: boolean` rather than being left to infer the literal
+`false`, so TypeScript does not narrow every licensing branch to unreachable
+code and the constant can be flipped without a cascade of type errors.
+
+**If licensing is ever turned back on**, the owner key must be re-issued from
+the *Windows* `.pem` (per (1)), and `license-signing-key.pem` must be backed
+up first — it is unrecoverable, and losing it means another rotation, which
+would break every key already sold.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

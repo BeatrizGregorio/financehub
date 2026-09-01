@@ -38,7 +38,7 @@ export const PRODUCT_ID = "financehub-1";
  * already issued, so only do it if the private key leaks.
  */
 const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAgsFu2QaOwcqyoaz+QCMN7gXrHadxFgdzrgzcZcT/Ek4=
+MCowBQYDK2VwAyEADp0EPmwfln+YPEUIRhfvS/ghFA03Bkyc9VzZvEIYPjA=
 -----END PUBLIC KEY-----`;
 
 /** RFC 4648 base32, uppercase, no padding — avoids 0/O and 1/I confusion. */

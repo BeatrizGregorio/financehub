@@ -5,6 +5,7 @@ import {
   getCycleStartDay,
   getLanguage,
   getLicenseStatus,
+  LICENSING_ENABLED,
   getPaymentMethods,
 } from "@/lib/data";
 import { CategoryManager } from "./CategoryManager";
@@ -98,7 +99,9 @@ export default async function SettingsPage() {
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>
         <BackupPanel />
-        <LicenseCard license={license} />
+        {/* Nothing useful to say about a licence when licensing is switched
+            off — see LICENSING_ENABLED in lib/data.ts. */}
+        {LICENSING_ENABLED && <LicenseCard license={license} />}
       </Section>
     </div>
   );
