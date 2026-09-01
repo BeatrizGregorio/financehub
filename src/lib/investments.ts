@@ -147,6 +147,25 @@ export function isMatured(inv: InvestmentLike, asOfDate: Date = new Date()): boo
   return dateKey(asOfDate) >= dateKey(inv.maturityDate);
 }
 
+/**
+ * Whether this holding's value comes from rate accrual rather than a price
+ * someone typed in.
+ *
+ * Mirrors valueAtDate()'s branching deliberately — if that function's order
+ * changes, this one has to change with it. It exists so the UI can say which
+ * figures depend on the CDI/SELIC/IPCA reference rates, which are maintained
+ * by hand and have no editor: a number derived from a stale rate should say so
+ * rather than presenting itself as firm.
+ */
+export function isAccrualValued(inv: InvestmentLike, asOfDate: Date = new Date()): boolean {
+  const { fallback } = valuation(inv.type, inv.subtype);
+  if (inv.maturityDate && dateKey(asOfDate) > dateKey(inv.maturityDate)) {
+    asOfDate = inv.maturityDate;
+  }
+  if (latestPriceOnOrBefore(inv, asOfDate)) return false;
+  return fallback !== "amountInvested";
+}
+
 export function valueAtDate(inv: InvestmentLike, rates: ReferenceRatesLike, asOfDate: Date): number {
   const { mode, fallback } = valuation(inv.type, inv.subtype);
   // A matured holding stops earning, so its value freezes at the redemption

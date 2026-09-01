@@ -221,6 +221,10 @@ const en = {
     finalValue: "final value",
     accrualEstimate: "accrual estimate",
     manualOn: (date: string) => `manual · ${date}`,
+    ratesNote: (cdi: string, selic: string, ipca: string) =>
+      `Accrual estimates use CDI ${cdi} · SELIC ${selic} · IPCA ${ipca} p.a.`,
+    ratesUpdated: (date: string) => `Reference rates last updated ${date}.`,
+    ratesNeverUpdated: "These reference rates have never been updated — treat accrual figures as rough.",
     maturedBanner: (n: number) =>
       n === 1 ? "Your investment is finalized — you have " : `${n} investments are finalized — you have `,
     toReinvest: "to reinvest!",
@@ -588,6 +592,11 @@ const pt: Dict = {
     finalValue: "valor final",
     accrualEstimate: "estimativa por rendimento",
     manualOn: (date: string) => `manual · ${date}`,
+    ratesNote: (cdi: string, selic: string, ipca: string) =>
+      `Estimativas por rendimento usam CDI ${cdi} · SELIC ${selic} · IPCA ${ipca} a.a.`,
+    ratesUpdated: (date: string) => `Taxas de referência atualizadas em ${date}.`,
+    ratesNeverUpdated:
+      "Estas taxas de referência nunca foram atualizadas — trate os valores por rendimento como aproximados.",
     maturedBanner: (n: number) =>
       n === 1
         ? "Seu investimento foi finalizado — você tem "

@@ -27,6 +27,7 @@ export default async function InvestmentsPage() {
     <InvestmentsClient
       holdings={holdings}
       rates={rates}
+      ratesUpdatedAt={rates.updatedAt}
       cycleStartDay={cycleStartDay}
       goal={goal}
       emergencyReserveTarget={emergencyReserveTarget}
