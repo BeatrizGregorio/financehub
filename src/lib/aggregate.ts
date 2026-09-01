@@ -94,3 +94,36 @@ export function monthlySeries(
     };
   });
 }
+
+export type UpcomingEntry = EntryLike & {
+  id: string;
+  name: string;
+  note: string | null;
+  method: string | null;
+};
+
+/**
+ * Entries dated after today and within the next `days`.
+ *
+ * The V1.2 design handoff asked for an "Upcoming bills" card and it was
+ * deliberately left unbuilt, because the mock filled it with invented
+ * obligations ("Netflix due Aug 03") that no feature backed. Nothing about that
+ * judgement has changed — but the data has: recurring entries generate twelve
+ * future-dated rows sharing a groupId, so a genuine answer to "what is coming"
+ * is now a query over real entries rather than a fabrication.
+ *
+ * Compares on calendar day, not timestamp, so something dated today is already
+ * "now" rather than upcoming, and something dated later today still counts as
+ * tomorrow's business would.
+ */
+export function upcomingEntries<T extends UpcomingEntry>(
+  entries: T[],
+  days = 30,
+  now: Date = new Date(),
+): T[] {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days + 1);
+  return entries
+    .filter((e) => e.date >= start && e.date < end)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}

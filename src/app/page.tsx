@@ -14,6 +14,7 @@ import { currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
 import { BudgetsCard } from "@/components/BudgetsCard";
 import { RecentEntriesCard } from "@/components/RecentEntriesCard";
+import { UpcomingCard } from "@/components/UpcomingCard";
 import { SpendingByCategoryCard } from "@/components/SpendingByCategoryCard";
 import { PaymentMethodsCard } from "@/components/PaymentMethodsCard";
 import { IncomeVsExpenseChart } from "@/components/IncomeVsExpenseChart";
@@ -152,6 +153,8 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5">
           <BudgetsCard entries={entries} budgets={budgets} cycleStartDay={cycleStartDay} t={t} />
+          {/* Real future-dated entries only - see upcomingEntries(). */}
+          <UpcomingCard entries={entries} t={t} lang={lang} />
           <RecentEntriesCard entries={entries} t={t} />
         </div>
 

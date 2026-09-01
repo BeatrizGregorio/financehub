@@ -111,6 +111,11 @@ const en = {
     paymentMethods: "Payment methods",
     paymentMethodsBlurb: "Track which card or account each expense is paid from.",
     manageMethods: "Manage methods",
+    upcoming: "Upcoming",
+    nextDays: (n: number) => `next ${n} days`,
+    nothingScheduled: "Nothing scheduled in the next 30 days.",
+    andMore: (n: number) => `and ${n} more`,
+    scheduledNet: "Scheduled net",
   },
   entries: {
     title: "Entries",
@@ -519,6 +524,11 @@ const pt: Dict = {
     paymentMethods: "Formas de pagamento",
     paymentMethodsBlurb: "Acompanhe com qual cartão ou conta cada despesa é paga.",
     manageMethods: "Gerenciar formas",
+    upcoming: "A vencer",
+    nextDays: (n: number) => `próximos ${n} dias`,
+    nothingScheduled: "Nada programado nos próximos 30 dias.",
+    andMore: (n: number) => `e mais ${n}`,
+    scheduledNet: "Saldo programado",
   },
   entries: {
     title: "Lançamentos",
