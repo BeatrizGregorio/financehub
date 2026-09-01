@@ -46,9 +46,9 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
             defaultValue={amount}
             autoFocus
             aria-label={t.investments.couponAmountFor(formatDate(date, lang))}
-            className="w-24 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1 text-right font-mono text-[12.5px] outline-none focus:border-[var(--color-ink)]"
+            className="w-24 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-right font-mono text-[12.5px] outline-none focus:border-[var(--color-ink)]"
           />
-          <button type="submit" className="text-xs font-semibold text-[var(--color-brand)]">
+          <button type="submit" className="text-xs font-semibold text-[var(--color-brand-text)]">
             {t.common.save}
           </button>
           <button
@@ -67,7 +67,7 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
     <div className="flex items-center justify-between py-1.5">
       <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
       <div className="flex items-center gap-3">
-        <span className="font-mono text-[12.5px] font-medium text-[var(--color-positive)]">
+        <span className="font-mono text-[12.5px] font-medium text-[var(--color-positive-text)]">
           +{formatCurrency(amount)}
         </span>
         <button
@@ -85,7 +85,7 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
         >
           <button
             type="submit"
-            className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
+            className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
           >
             {t.common.delete}
           </button>
@@ -123,7 +123,7 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
           type="date"
           required
           defaultValue={toDateInputValue(new Date())}
-          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5 text-[12.5px] outline-none focus:border-[var(--color-ink)] focus:bg-white"
+          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5 text-[12.5px] outline-none focus:border-[var(--color-ink)] focus:bg-[var(--color-surface-raised)]"
         />
       </div>
       <div>
@@ -141,7 +141,7 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
           min="0.01"
           required
           placeholder="0.00"
-          className="w-28 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5 text-[12.5px] outline-none focus:border-[var(--color-ink)] focus:bg-white"
+          className="w-28 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5 text-[12.5px] outline-none focus:border-[var(--color-ink)] focus:bg-[var(--color-surface-raised)]"
         />
       </div>
       <button
@@ -152,7 +152,7 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
         {t.investments.addCoupon}
       </button>
       {state.error && (
-        <p className="w-full text-[12px] text-[var(--color-rust)]">{state.error}</p>
+        <p className="w-full text-[12px] text-[var(--color-rust-text)]">{state.error}</p>
       )}
     </form>
   );
@@ -170,7 +170,7 @@ export function CouponSection({ holding }: { holding: Holding }) {
           {t.investments.couponPayments}
         </p>
         {couponsReceived > 0 && (
-          <p className="font-mono text-[11.5px] font-medium text-[var(--color-positive)]">
+          <p className="font-mono text-[11.5px] font-medium text-[var(--color-positive-text)]">
             {formatCurrency(couponsReceived)} {t.investments.totalReceived}
           </p>
         )}

@@ -42,6 +42,29 @@
   --color-brand: #0c9e57;
   --color-brand-deep: #0a7a43;
   --brand-rgb: 12 158 87;
+
+  /* Surfaces that used to be literal white. Named by role so the dark theme
+     can redefine them without every call site needing to know. */
+  --color-surface-raised: #ffffff;
+  --color-modal: #ffffff;
+  --color-nav: rgba(255, 255, 255, 0.65);
+  --color-tooltip-bg: rgba(255, 255, 255, 0.96);
+  --color-scrim: rgba(0, 0, 0, 0.15);
+  --color-rust-glow: rgba(220, 53, 69, 0.33);
+  --color-scrollbar: rgba(0, 0, 0, 0.15);
+
+  /* Text-only variants of the two accent colours.
+
+     The V1.17 audit measured the brand/positive green at 3.36:1 on a card:
+     fine for large text, under AA for body text, and left as the owner's call.
+     This is that call. Fills, buttons, chart strokes and large figures keep the
+     identity colour; small text takes a darker variant. The identity survives
+     and the numbers become legible, instead of the palette changing wholesale. */
+  --color-brand-text: var(--color-brand-deep);
+  --color-positive-text: #07713e;
+  /* Closest red to #dc3545 that still clears 4.5:1 on a card (5.23:1), so the
+     hue barely shifts while small text becomes legible. */
+  --color-rust-text: #c92a3a;
 }
 
 /* Each theme sets only the three base values. `data-accent` lands on <html>
@@ -69,6 +92,88 @@
   --color-brand: #b45309;
   --color-brand-deep: #92400e;
   --brand-rgb: 180 83 9;
+}
+
+
+/* ── Dark theme ────────────────────────────────────────────────────────────
+   The app was light-only from V1.4, because the Figma reference had no dark
+   variant. Only tokens are redefined here; no component styles live in this
+   block, so nothing can be defined for one theme and missing in the other.
+
+   Guarded with :root:not([data-theme="light"]) so an explicit light choice can
+   still win over a dark OS. There is no in-app theme toggle today, but the
+   guard costs nothing and means adding one is a UI change only.
+
+   Greens and reds are lifted for the dark ground: #0c9e57 on #0d1117 is a muddy
+   2.6:1, where #34d98b clears 8:1. Money semantics are unchanged — green is
+   still gain, red still loss — only the luminance moves. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0d1117;
+    --foreground: #e6edf5;
+
+    --color-panel: rgba(255, 255, 255, 0.05);
+    --color-card: rgba(255, 255, 255, 0.055);
+    --color-border: rgba(255, 255, 255, 0.11);
+    --color-inset: rgba(255, 255, 255, 0.06);
+    --color-inset-2: rgba(255, 255, 255, 0.045);
+    --color-track: rgba(255, 255, 255, 0.13);
+
+    --color-muted: #9aa6b6;
+    --color-muted-2: #7f8b9c;
+    --color-ink: #e6edf5;
+
+    --color-positive: #34d98b;
+    --color-positive-light: #4ce39b;
+    --color-positive-tint: rgba(52, 217, 139, 0.16);
+    --color-positive-glow: rgba(52, 217, 139, 0.4);
+    --color-positive-text: #4ce39b;
+    --color-rust: #f4707d;
+    --color-rust-text: #f4707d;
+    --color-rust-tint: rgba(244, 112, 125, 0.16);
+    --color-rust-glow: rgba(244, 112, 125, 0.4);
+
+    --color-surface-raised: #1b2430;
+    --color-modal: #161d27;
+    --color-nav: rgba(22, 29, 39, 0.75);
+    --color-tooltip-bg: rgba(22, 29, 39, 0.97);
+    --color-scrim: rgba(0, 0, 0, 0.5);
+    --color-scrollbar: rgba(255, 255, 255, 0.18);
+
+    --shadow-card: 0 2px 24px -4px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+    /* brand-text points at the *lighter* step here, the opposite of light
+       mode, because contrast runs the other way on a dark ground. */
+    --color-brand: #22c77e;
+    --color-brand-deep: #16a768;
+    --brand-rgb: 34 199 126;
+    --color-brand-text: #4ce39b;
+  }
+
+  :root:not([data-theme="light"])[data-accent="blue"] {
+    --color-brand: #60a5fa;
+    --color-brand-deep: #3b82f6;
+    --brand-rgb: 96 165 250;
+    --color-brand-text: #93c5fd;
+  }
+  :root:not([data-theme="light"])[data-accent="violet"] {
+    --color-brand: #a78bfa;
+    --color-brand-deep: #8b5cf6;
+    --brand-rgb: 167 139 250;
+    --color-brand-text: #c4b5fd;
+  }
+  :root:not([data-theme="light"])[data-accent="teal"] {
+    --color-brand: #2dd4bf;
+    --color-brand-deep: #14b8a6;
+    --brand-rgb: 45 212 191;
+    --color-brand-text: #5eead4;
+  }
+  :root:not([data-theme="light"])[data-accent="amber"] {
+    --color-brand: #fbbf24;
+    --color-brand-deep: #f59e0b;
+    --brand-rgb: 251 191 36;
+    --color-brand-text: #fcd34d;
+  }
 }
 
 /* Derived from whichever --brand-rgb won above. Custom properties resolve at
@@ -105,7 +210,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--color-scrollbar);
   border-radius: 4px;
 }
 

@@ -68,14 +68,14 @@ function SummaryPill({
       </p>
       <p
         className="text-2xl leading-none font-extrabold"
-        style={{ color: positive === undefined ? "var(--color-ink)" : positive ? "var(--color-positive)" : "#dc3545" }}
+        style={{ color: positive === undefined ? "var(--color-ink)" : positive ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
       >
         {value}
       </p>
       {sub && (
         <p
           className="mt-1 font-mono text-xs"
-          style={{ color: positive === undefined ? "var(--color-muted-2)" : positive ? "var(--color-positive)" : "#dc3545" }}
+          style={{ color: positive === undefined ? "var(--color-muted-2)" : positive ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
         >
           {sub}
         </p>
@@ -168,7 +168,7 @@ export function InvestmentsClient({
       {maturedHoldings.length > 0 && (
         <div className="flex flex-col gap-2 rounded-[18px] border border-[var(--color-positive)]/25 bg-[var(--color-positive)]/[0.07] px-5 py-4">
           <div className="flex items-start gap-2.5">
-            <PartyPopper size={17} className="mt-px shrink-0 text-[var(--color-positive)]" />
+            <PartyPopper size={17} className="mt-px shrink-0 text-[var(--color-positive-text)]" />
             <p className="text-[13.5px] leading-snug text-[var(--color-ink)]">
               {t.investments.maturedBanner(maturedHoldings.length)}
               <span className="font-mono font-bold">{formatCurrency(summary.maturedValue)}</span>{" "}
@@ -224,7 +224,7 @@ export function InvestmentsClient({
               `${rates.ipca.toFixed(2)}%`,
             )}
           </span>
-          <span className={ratesUpdatedAt ? undefined : "text-[var(--color-rust)]"}>
+          <span className={ratesUpdatedAt ? undefined : "text-[var(--color-rust-text)]"}>
             {ratesUpdatedAt
               ? t.investments.ratesUpdated(formatDate(ratesUpdatedAt, lang))
               : t.investments.ratesNeverUpdated}

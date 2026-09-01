@@ -22,7 +22,7 @@ export function RecentEntriesCard({ entries, t }: { entries: RecentEntry[]; t: D
     <div className={`${CARD} p-[18px]`}>
       <div className="mb-3.5 flex items-center justify-between">
         <span className="text-[17px] font-extrabold tracking-tight">{t.dashboard.recent}</span>
-        <span className="rounded-full bg-[var(--color-brand-tint)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-brand)]">
+        <span className="rounded-full bg-[var(--color-brand-tint)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--color-brand-text)]">
           {entries.length}
         </span>
       </div>
@@ -48,7 +48,7 @@ export function RecentEntriesCard({ entries, t }: { entries: RecentEntry[]; t: D
               </div>
               <span
                 className="font-mono text-[12.5px] font-medium"
-                style={{ color: t.type === "income" ? "var(--color-positive)" : "var(--color-ink)" }}
+                style={{ color: t.type === "income" ? "var(--color-positive-text)" : "var(--color-ink)" }}
               >
                 {t.type === "income" ? "+" : "−"}
                 {formatCurrency(t.amount)}

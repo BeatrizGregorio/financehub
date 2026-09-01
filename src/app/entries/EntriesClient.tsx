@@ -98,7 +98,7 @@ export function EntriesClient({
           <p className="mt-2 text-sm text-[var(--color-muted)]">
             {t.entries.countSuffix(total)} · {scopeLabel} · {t.entries.net}{" "}
             <span
-              style={{ color: net >= 0 ? "var(--color-positive)" : "var(--color-rust)" }}
+              style={{ color: net >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
               className="font-semibold"
             >
               {net >= 0 ? "+" : "−"}

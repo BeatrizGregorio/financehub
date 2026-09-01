@@ -37,7 +37,7 @@ function CategoryChip({ category }: { category: { id: string; name: string } }) 
           defaultValue={category.name}
           autoFocus
           aria-label={t.settings.newNameFor(category.name)}
-          className="w-[130px] rounded-full bg-[var(--color-inset)] px-3.5 py-[7px] text-[13px] outline-none focus:bg-white focus:ring-1 focus:ring-[var(--color-ink)]"
+          className="w-[130px] rounded-full bg-[var(--color-inset)] px-3.5 py-[7px] text-[13px] outline-none focus:bg-[var(--color-surface-raised)] focus:ring-1 focus:ring-[var(--color-ink)]"
         />
         <button
           type="submit"
@@ -54,7 +54,7 @@ function CategoryChip({ category }: { category: { id: string; name: string } }) 
           {t.common.cancel}
         </button>
         {state.error && (
-          <span className="text-[12px] text-[var(--color-rust)]">{state.error}</span>
+          <span className="text-[12px] text-[var(--color-rust-text)]">{state.error}</span>
         )}
       </form>
     );
@@ -136,7 +136,7 @@ export function CategoryManager({
           // cards on the page, `title` also disambiguates expense vs income.
           aria-label={`New ${type} category name`}
           placeholder={t.settings.newCategory}
-          className="flex-1 rounded-full bg-[var(--color-inset)] px-4 py-2.5 text-[13px] outline-none focus:bg-white focus:ring-1 focus:ring-[var(--color-ink)]"
+          className="flex-1 rounded-full bg-[var(--color-inset)] px-4 py-2.5 text-[13px] outline-none focus:bg-[var(--color-surface-raised)] focus:ring-1 focus:ring-[var(--color-ink)]"
         />
         <button
           type="submit"
@@ -146,7 +146,7 @@ export function CategoryManager({
           {t.common.add}
         </button>
       </form>
-      {state.error && <p className="mt-2 text-sm text-[#dc3545]">{state.error}</p>}
+      {state.error && <p className="mt-2 text-sm text-[var(--color-rust-text)]">{state.error}</p>}
     </div>
   );
 }

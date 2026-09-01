@@ -46,7 +46,7 @@ function StatPill({
       <p className="mb-1 text-2xl leading-none font-extrabold text-[var(--color-ink)]">{value}</p>
       <div
         className="flex items-center gap-1 font-mono text-xs"
-        style={{ color: positive === undefined ? "#6b7280" : positive ? "var(--color-positive)" : "#dc3545" }}
+        style={{ color: positive === undefined ? "var(--color-muted-2)" : positive ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
       >
         {positive === true && <ArrowUpRight size={12} />}
         {positive === false && <ArrowDownRight size={12} />}

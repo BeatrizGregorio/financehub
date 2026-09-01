@@ -52,9 +52,9 @@ function PriceRow({
             required
             defaultValue={price}
             autoFocus
-            className="w-24 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1 text-right font-mono text-[12.5px] outline-none focus:border-[var(--color-ink)]"
+            className="w-24 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1 text-right font-mono text-[12.5px] outline-none focus:border-[var(--color-ink)]"
           />
-          <button type="submit" className="text-xs font-semibold text-[var(--color-brand)]">
+          <button type="submit" className="text-xs font-semibold text-[var(--color-brand-text)]">
             {t.common.save}
           </button>
           <button
@@ -91,7 +91,7 @@ function PriceRow({
         >
           <button
             type="submit"
-            className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
+            className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
           >
             {t.common.delete}
           </button>
@@ -144,7 +144,7 @@ export function HoldingDetail({
           <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.grossGain}</p>
           <p
             className="font-mono text-sm font-semibold"
-            style={{ color: tax.grossGain >= 0 ? "var(--color-positive)" : "#dc3545" }}
+            style={{ color: tax.grossGain >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
           >
             {tax.grossGain >= 0 ? "+" : "−"}
             {formatCurrency(Math.abs(tax.grossGain))}
@@ -154,7 +154,7 @@ export function HoldingDetail({
           <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.netGain}</p>
           <p
             className="font-mono text-sm font-semibold"
-            style={{ color: tax.netGain >= 0 ? "var(--color-positive)" : "#dc3545" }}
+            style={{ color: tax.netGain >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
           >
             {tax.netGain >= 0 ? "+" : "−"}
             {formatCurrency(Math.abs(tax.netGain))}
@@ -186,7 +186,7 @@ export function HoldingDetail({
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-track)" />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
+                tick={{ fontSize: 10.5, fill: "var(--color-muted-2)", fontFamily: "var(--font-dm-mono)" }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -197,9 +197,9 @@ export function HoldingDetail({
                   borderRadius: 12,
                   fontSize: 13,
                   fontFamily: "var(--font-jakarta)",
-                  background: "rgba(255,255,255,0.96)",
+                  background: "var(--color-tooltip-bg)",
                   backdropFilter: "blur(16px)",
-                  border: "1px solid rgba(0,0,0,0.08)",
+                  border: "1px solid var(--color-border)",
                   boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
                 }}
               />
@@ -229,7 +229,7 @@ export function HoldingDetail({
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-track)" />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 10.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
+                  tick={{ fontSize: 10.5, fill: "var(--color-muted-2)", fontFamily: "var(--font-dm-mono)" }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -240,9 +240,9 @@ export function HoldingDetail({
                     borderRadius: 12,
                     fontSize: 13,
                     fontFamily: "var(--font-jakarta)",
-                    background: "rgba(255,255,255,0.96)",
+                    background: "var(--color-tooltip-bg)",
                     backdropFilter: "blur(16px)",
-                    border: "1px solid rgba(0,0,0,0.08)",
+                    border: "1px solid var(--color-border)",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
                   }}
                 />

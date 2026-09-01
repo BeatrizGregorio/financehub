@@ -18,12 +18,12 @@ export function MonthlyTrendChart({
           <XAxis
             dataKey="label"
             tickFormatter={(v: string) => v.split(" ")[0]}
-            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "var(--color-muted-2)", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11.5, fill: "#6b7280", fontFamily: "var(--font-dm-mono)" }}
+            tick={{ fontSize: 11.5, fill: "var(--color-muted-2)", fontFamily: "var(--font-dm-mono)" }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) => formatCurrencyAxis(v)}
@@ -35,9 +35,9 @@ export function MonthlyTrendChart({
               borderRadius: 12,
               fontSize: 13,
               fontFamily: "var(--font-jakarta)",
-              background: "rgba(255,255,255,0.96)",
+              background: "var(--color-tooltip-bg)",
               backdropFilter: "blur(16px)",
-              border: "1px solid rgba(0,0,0,0.08)",
+              border: "1px solid var(--color-border)",
               boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
             }}
           />

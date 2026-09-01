@@ -57,7 +57,7 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
           type="date"
           required
           defaultValue={toDateInputValue(new Date())}
-          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-white sm:w-56"
+          className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-[var(--color-surface-raised)] sm:w-56"
         />
       </div>
 
@@ -84,7 +84,7 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
                 step="0.01"
                 min="0"
                 placeholder="0.00"
-                className="w-28 rounded-lg border border-[var(--color-border)] bg-white px-2.5 py-1.5 text-right font-mono text-[13px] outline-none focus:border-[var(--color-ink)]"
+                className="w-28 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2.5 py-1.5 text-right font-mono text-[13px] outline-none focus:border-[var(--color-ink)]"
               />
             </div>
           );
@@ -94,7 +94,7 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
         )}
       </div>
 
-      {state.error && <p className="text-sm text-[#dc3545]">{state.error}</p>}
+      {state.error && <p className="text-sm text-[var(--color-rust-text)]">{state.error}</p>}
 
       <div className="flex items-center gap-4">
         <SubmitButton />

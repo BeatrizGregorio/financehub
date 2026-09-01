@@ -167,7 +167,7 @@ export function GoalForm({
         </p>
       </div>
 
-      {state.error && <p className="text-[12.5px] text-[var(--color-rust)]">{state.error}</p>}
+      {state.error && <p className="text-[12.5px] text-[var(--color-rust-text)]">{state.error}</p>}
 
       <div className="mt-1 flex justify-end">
         <SaveButton onSubmit={() => setSubmitCount((c) => c + 1)} />

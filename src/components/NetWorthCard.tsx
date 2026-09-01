@@ -21,7 +21,7 @@ export function NetWorthCard({ data, t }: { data: NetWorthPoint[]; t: Dict }) {
         {latest && (
           <span
             className="shrink-0 font-mono text-[15px] font-bold whitespace-nowrap tabular-nums"
-            style={{ color: latest.total >= 0 ? "var(--color-ink)" : "var(--color-rust)" }}
+            style={{ color: latest.total >= 0 ? "var(--color-ink)" : "var(--color-rust-text)" }}
           >
             {formatCurrency(latest.total)}
           </span>

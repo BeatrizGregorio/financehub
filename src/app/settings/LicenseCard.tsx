@@ -28,9 +28,9 @@ export function LicenseCard({ license }: { license: LicenseStatus }) {
         }}
       >
         {licensed ? (
-          <BadgeCheck size={16} className="shrink-0 text-[var(--color-positive)]" />
+          <BadgeCheck size={16} className="shrink-0 text-[var(--color-positive-text)]" />
         ) : (
-          <Clock size={16} className="shrink-0 text-[var(--color-brand)]" />
+          <Clock size={16} className="shrink-0 text-[var(--color-brand-text)]" />
         )}
         <p className="text-[13px] font-semibold text-[var(--color-ink)]">
           {license.state === "licensed"

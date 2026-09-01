@@ -89,7 +89,7 @@ export function CsvImportCard({
   return (
     <div className={`${CARD} p-[22px] md:col-span-2`}>
       <div className="mb-1 flex items-center gap-2">
-        <FileSpreadsheet size={16} className="shrink-0 text-[var(--color-brand)]" />
+        <FileSpreadsheet size={16} className="shrink-0 text-[var(--color-brand-text)]" />
         <h2 className="text-base font-extrabold tracking-tight">{t.settings.csvTitle}</h2>
       </div>
       <p className="mb-3.5 text-[12.5px] text-[var(--color-muted-2)]">{t.settings.csvBlurb}</p>
@@ -244,8 +244,8 @@ export function CsvImportCard({
         </div>
       )}
 
-      {result && <p className="mt-3 text-[13px] text-[var(--color-positive)]">{result}</p>}
-      {error && <p className="mt-3 text-[13px] text-[var(--color-rust)]">{error}</p>}
+      {result && <p className="mt-3 text-[13px] text-[var(--color-positive-text)]">{result}</p>}
+      {error && <p className="mt-3 text-[13px] text-[var(--color-rust-text)]">{error}</p>}
     </div>
   );
 }

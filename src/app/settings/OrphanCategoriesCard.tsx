@@ -27,7 +27,7 @@ export function OrphanCategoriesCard({ report }: { report: OrphanReport }) {
   return (
     <div className={`${CARD} p-[22px] md:col-span-2`}>
       <div className="mb-1 flex items-center gap-2">
-        <AlertTriangle size={16} className="shrink-0 text-[var(--color-rust)]" />
+        <AlertTriangle size={16} className="shrink-0 text-[var(--color-rust-text)]" />
         <h2 className="text-base font-extrabold tracking-tight">{t.settings.orphanTitle}</h2>
       </div>
       <p className="mb-3.5 text-[12.5px] text-[var(--color-muted-2)]">{t.settings.orphanBlurb}</p>
@@ -64,7 +64,7 @@ export function OrphanCategoriesCard({ report }: { report: OrphanReport }) {
             <form action={removeOrphanBudget.bind(null, name)} className="shrink-0">
               <button
                 type="submit"
-                className="rounded-full bg-[var(--color-inset)] px-3.5 py-1.5 text-[12.5px] font-semibold text-[var(--color-rust)] ring-1 ring-[var(--color-border)] transition hover:bg-[var(--color-track)]"
+                className="rounded-full bg-[var(--color-inset)] px-3.5 py-1.5 text-[12.5px] font-semibold text-[var(--color-rust-text)] ring-1 ring-[var(--color-border)] transition hover:bg-[var(--color-track)]"
               >
                 {t.settings.orphanRemoveBudget}
               </button>

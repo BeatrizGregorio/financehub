@@ -25,7 +25,7 @@ export type EditableEntry = {
 type CategoryOption = { id: string; name: string };
 
 const INPUT =
-  "w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-white";
+  "w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-[var(--color-surface-raised)]";
 const LABEL = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[var(--color-muted-2)]";
 
 function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: string }) {
@@ -113,7 +113,7 @@ export function EntryForm({
       {categories.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)] sm:col-span-2">
           {t.entries.noCategoriesFor(typeWord)}{" "}
-          <Link href="/settings" className="font-semibold text-[var(--color-brand)]">
+          <Link href="/settings" className="font-semibold text-[var(--color-brand-text)]">
             {t.entries.addOneInSettings}
           </Link>{" "}
           {t.entries.beforeLogging(type === "income" ? t.entries.incomeWord : t.entries.expenseWord)}
@@ -257,7 +257,7 @@ export function EntryForm({
         </div>
       )}
 
-      {state.error && <p className="text-sm text-[#dc3545] sm:col-span-2">{state.error}</p>}
+      {state.error && <p className="text-sm text-[var(--color-rust-text)] sm:col-span-2">{state.error}</p>}
 
       <div className="flex items-center gap-4 sm:col-span-2">
         <SubmitButton

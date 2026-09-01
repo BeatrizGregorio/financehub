@@ -24,7 +24,7 @@ function DeleteButton({ id, t }: { id: string; t: Dict }) {
         // px/py enlarge the hit area to the 24px WCAG minimum (the bare text
         // was 16px tall); the matching negative margin keeps the row's
         // visual height unchanged.
-        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
+        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
       >
         {t.common.delete}
       </button>
@@ -55,7 +55,7 @@ function DeleteSeriesButton({
         // px/py enlarge the hit area to the 24px WCAG minimum (the bare text
         // was 16px tall); the matching negative margin keeps the row's
         // visual height unchanged.
-        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[#dc3545]"
+        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
       >
         {t.entries.series}
       </button>
@@ -145,7 +145,7 @@ export function EntryTable({
                 </span>
                 <span
                   className="text-right font-mono text-sm font-medium"
-                  style={{ color: entry.type === "income" ? "var(--color-positive)" : "var(--color-ink)" }}
+                  style={{ color: entry.type === "income" ? "var(--color-positive-text)" : "var(--color-ink)" }}
                 >
                   {entry.type === "income" ? "+" : "−"}
                   {formatCurrency(entry.amount)}

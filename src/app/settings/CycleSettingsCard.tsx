@@ -84,7 +84,7 @@ export function CycleSettingsCard({ cycleStartDay }: { cycleStartDay: number }) 
           </p>
         </div>
 
-        {state.error && <p className="mt-2.5 text-[12.5px] text-[var(--color-rust)]">{state.error}</p>}
+        {state.error && <p className="mt-2.5 text-[12.5px] text-[var(--color-rust-text)]">{state.error}</p>}
 
         <SaveButton />
       </form>

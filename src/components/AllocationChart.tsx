@@ -43,9 +43,9 @@ export function AllocationChart({ data }: { data: AllocationSlice[] }) {
                 borderRadius: 12,
                 fontSize: 13,
                 fontFamily: "var(--font-jakarta)",
-                background: "rgba(255,255,255,0.96)",
+                background: "var(--color-tooltip-bg)",
                 backdropFilter: "blur(16px)",
-                border: "1px solid rgba(0,0,0,0.08)",
+                border: "1px solid var(--color-border)",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
               }}
             />

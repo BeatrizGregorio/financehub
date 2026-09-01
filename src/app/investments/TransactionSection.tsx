@@ -118,7 +118,7 @@ export function TransactionSection({ holding }: { holding: Holding }) {
           {t.common.add}
         </button>
       </form>
-      {state.error && <p className="mb-2 text-[12.5px] text-[var(--color-rust)]">{state.error}</p>}
+      {state.error && <p className="mb-2 text-[12.5px] text-[var(--color-rust-text)]">{state.error}</p>}
 
       {txs.length === 0 ? (
         <p className="text-[13px] text-[var(--color-muted-2)]">{t.investments.noTransactions}</p>
@@ -135,7 +135,7 @@ export function TransactionSection({ holding }: { holding: Holding }) {
                   className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
                   style={{
                     backgroundColor: isSell ? "var(--color-rust-tint)" : "var(--color-positive-tint)",
-                    color: isSell ? "var(--color-rust)" : "var(--color-positive)",
+                    color: isSell ? "var(--color-rust-text)" : "var(--color-positive-text)",
                   }}
                 >
                   {isSell ? <ArrowUpRight size={13} /> : <ArrowDownLeft size={13} />}
@@ -154,7 +154,7 @@ export function TransactionSection({ holding }: { holding: Holding }) {
                 )}
                 <span
                   className="shrink-0 font-mono text-[13px] font-semibold whitespace-nowrap tabular-nums"
-                  style={{ color: isSell ? "var(--color-rust)" : "var(--color-ink)" }}
+                  style={{ color: isSell ? "var(--color-rust-text)" : "var(--color-ink)" }}
                 >
                   {isSell ? "−" : "+"}
                   {formatCurrency(tx.amount)}
@@ -163,7 +163,7 @@ export function TransactionSection({ holding }: { holding: Holding }) {
                   <button
                     type="submit"
                     aria-label={t.investments.deleteTransaction}
-                    className="rounded p-1 text-[var(--color-muted-2)] transition hover:text-[var(--color-rust)]"
+                    className="rounded p-1 text-[var(--color-muted-2)] transition hover:text-[var(--color-rust-text)]"
                   >
                     <Trash2 size={13} />
                   </button>

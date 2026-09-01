@@ -115,7 +115,7 @@ export function GoalProjectionCard({
               onClick={() => setOpen((o) => !o)}
               aria-expanded={open}
               aria-controls={BODY_ID}
-              className="-my-1 -ml-1 flex items-center gap-1.5 rounded px-1 py-1 text-left hover:text-[var(--color-brand)]"
+              className="-my-1 -ml-1 flex items-center gap-1.5 rounded px-1 py-1 text-left hover:text-[var(--color-brand-text)]"
             >
               {t.goal.title}
               <ChevronDown
@@ -178,7 +178,7 @@ export function GoalProjectionCard({
               <button
                 type="button"
                 onClick={() => setRateOverride(realReturn)}
-                className="rounded-full bg-white/70 px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-ink)] transition hover:brightness-95"
+                className="rounded-full bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-ink)] transition hover:brightness-95"
               >
                 {t.goal.useAsRate}
               </button>
@@ -279,7 +279,7 @@ function GoalBody({
       <div className="mb-4">
         <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div className="flex items-center gap-2">
-            <Target size={15} className="shrink-0 text-[var(--color-brand)]" />
+            <Target size={15} className="shrink-0 text-[var(--color-brand-text)]" />
             <span className="text-[14.5px] font-bold text-[var(--color-ink)]">{goal.name}</span>
           </div>
           <span className="font-mono text-[12px] text-[var(--color-muted-2)]">

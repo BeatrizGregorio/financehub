@@ -39,10 +39,10 @@ export function UpcomingCard({
     <div className={`${CARD} p-[18px]`}>
       <div className="mb-3.5 flex items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-[17px] font-extrabold tracking-tight">
-          <CalendarClock size={16} className="shrink-0 text-[var(--color-brand)]" />
+          <CalendarClock size={16} className="shrink-0 text-[var(--color-brand-text)]" />
           {t.dashboard.upcoming}
         </span>
-        <span className="shrink-0 rounded-full bg-[var(--color-brand-tint)] px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap text-[var(--color-brand)]">
+        <span className="shrink-0 rounded-full bg-[var(--color-brand-tint)] px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap text-[var(--color-brand-text)]">
           {t.dashboard.nextDays(WINDOW_DAYS)}
         </span>
       </div>
@@ -72,7 +72,7 @@ export function UpcomingCard({
                 <span
                   className="shrink-0 font-mono text-[12.5px] font-medium whitespace-nowrap"
                   style={{
-                    color: e.type === "income" ? "var(--color-positive)" : "var(--color-ink)",
+                    color: e.type === "income" ? "var(--color-positive-text)" : "var(--color-ink)",
                   }}
                 >
                   {e.type === "income" ? "+" : "−"}
@@ -90,7 +90,7 @@ export function UpcomingCard({
             </span>
             <span
               className="shrink-0 font-mono text-[13px] font-bold whitespace-nowrap tabular-nums"
-              style={{ color: total >= 0 ? "var(--color-positive)" : "var(--color-rust)" }}
+              style={{ color: total >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
             >
               {total >= 0 ? "+" : "−"}
               {formatCurrency(Math.abs(total))}
