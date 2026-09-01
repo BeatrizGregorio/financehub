@@ -91,6 +91,7 @@ export function InvestmentsClient({
   cycleStartDay,
   goal,
   emergencyReserveTarget,
+  goalCardOpen,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
@@ -101,6 +102,7 @@ export function InvestmentsClient({
   cycleStartDay: number;
   goal: GoalLike | null;
   emergencyReserveTarget: number | null;
+  goalCardOpen: boolean;
 }) {
   const { t, lang } = useT();
   const [editing, setEditing] = useState<Holding | null>(null);
@@ -263,6 +265,7 @@ export function InvestmentsClient({
         holdings={holdings}
         currentValue={summary.totalValue}
         emergencyReserveTarget={emergencyReserveTarget}
+        initialOpen={goalCardOpen}
       />
 
       {showForm && (

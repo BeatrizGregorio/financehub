@@ -321,6 +321,21 @@ export async function addTransaction(
   return {};
 }
 
+/**
+ * Remember whether the goal block is expanded.
+ *
+ * Deliberately does not revalidate: the client already moved, and re-rendering
+ * the page underneath a purely visual toggle would be a jarring flash for no
+ * gain. The stored value only has to be right by the next page load.
+ */
+export async function updateGoalCardOpen(open: boolean) {
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", goalCardOpen: open },
+    update: { goalCardOpen: open },
+  });
+}
+
 export async function deleteTransaction(id: string) {
   await prisma.investmentTransaction.delete({ where: { id } });
   revalidateAll();

@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
-import { getCycleStartDay, getInvestmentGoal, getReferenceRates } from "@/lib/data";
+import { getCycleStartDay, getGoalCardOpen, getInvestmentGoal, getReferenceRates } from "@/lib/data";
 import { averageMonthlyExpenses } from "@/lib/goal";
 import { InvestmentsClient } from "./InvestmentsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function InvestmentsPage() {
-  const [holdings, rates, cycleStartDay, goal, entries] = await Promise.all([
+  const [holdings, rates, cycleStartDay, goal, entries, goalCardOpen] = await Promise.all([
     prisma.investment.findMany({
       include: { prices: true, coupons: true, transactions: true },
       orderBy: { name: "asc" },
@@ -16,6 +16,7 @@ export default async function InvestmentsPage() {
     getInvestmentGoal(),
     // Only expenses matter here, and only for the emergency-reserve preset.
     prisma.entry.findMany({ where: { type: "expense" }, select: { type: true, amount: true, date: true } }),
+    getGoalCardOpen(),
   ]);
 
   // 6 × average monthly expenses. Null when there's nothing to average, so the
@@ -31,6 +32,7 @@ export default async function InvestmentsPage() {
       cycleStartDay={cycleStartDay}
       goal={goal}
       emergencyReserveTarget={emergencyReserveTarget}
+      goalCardOpen={goalCardOpen}
     />
   );
 }

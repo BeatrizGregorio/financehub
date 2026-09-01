@@ -138,6 +138,12 @@ model AppSettings {
   // owner's data (category names, entry names, payment methods) is never
   // translated, and currency stays pt-BR formatted since it's always BRL.
   language      String   @default("en")
+  // Whether the Investments "Goal & projection" block is expanded. V1.21 kept
+  // this per-visit because reading localStorage during the first render
+  // disagrees with the server-rendered HTML, and the usual escape hatch is a
+  // setState-in-effect, which this project lints against. A column is the
+  // honest fix: the server knows the answer before it renders.
+  goalCardOpen  Boolean  @default(true)
   updatedAt     DateTime @updatedAt
 }
 
