@@ -65,13 +65,34 @@ export async function getInvestmentGoal() {
 }
 
 /**
+ * Master switch for the whole licensing feature.
+ *
+ * `false` means the app is simply open: no key required, no gate, no trial
+ * clock, and `getLicenseStatus()` short-circuits before it ever touches the
+ * database — so the app runs even on an install whose `License` row was never
+ * created. This is the current setting: FinanceHub is not gated.
+ *
+ * Everything else about licensing is deliberately left in place and dormant:
+ * the signing script, the embedded public key, the activation form, the
+ * `License` model. Flipping this back to `true` restores the paid build
+ * exactly as it was. Same reasoning that keeps TRIAL_DAYS around rather than
+ * deleting the trial code — this is configuration, not dead code, so do not
+ * strip it on a tidy-up pass.
+ */
+// Annotated `boolean` rather than letting it infer the literal `false`, so
+// TypeScript does not narrow every licensing branch below to unreachable code.
+export const LICENSING_ENABLED: boolean = false;
+
+/**
  * How many days the app is fully usable before a license is required.
  *
- * **0 = hard gate**: a key is required on first launch, which is the current
- * model (one-time payment, buyer receives the installer and a key). Raise this
- * to offer a try-before-you-buy period — the trial state, its banner and the
- * countdown copy are all still wired up, so it is genuinely a one-constant
- * change, not a rewrite.
+ * Only consulted when LICENSING_ENABLED is true; ignored entirely otherwise.
+ *
+ * **0 = hard gate**: a key is required on first launch — the paid model this
+ * was built for (one-time payment, buyer receives the installer and a key).
+ * Raise this to offer a try-before-you-buy period instead — the trial state,
+ * its banner and the countdown copy are all still wired up, so it is genuinely
+ * a one-constant change, not a rewrite.
  *
  * The trial clock runs from `License.firstRunAt`, so raising this later gives
  * existing installs the remainder of the new window rather than nothing.
@@ -92,6 +113,10 @@ export type LicenseStatus =
  * the signature check pointless.
  */
 export async function getLicenseStatus(): Promise<LicenseStatus> {
+  // Licensing turned off — return before touching the database at all, so this
+  // costs nothing per render and needs no License row to exist.
+  if (!LICENSING_ENABLED) return { state: "licensed", email: "" };
+
   const row = await prisma.license.upsert({
     where: { id: "singleton" },
     create: { id: "singleton" },
