@@ -77,7 +77,9 @@ export function EntryTable({
   onEdit,
 }: {
   entries: EditableEntry[];
-  groupCounts: Map<string, number>;
+  // A plain object rather than a Map: this crosses the server/client boundary
+  // now, and a Map does not survive React serialization.
+  groupCounts: Record<string, number>;
   onEdit: (entry: EditableEntry) => void;
 }) {
   const { t, lang } = useT();
@@ -108,7 +110,7 @@ export function EntryTable({
 
           {entries.map((entry) => {
             const badge = seriesBadge(entry, t);
-            const seriesCount = entry.groupId ? groupCounts.get(entry.groupId) ?? 0 : 0;
+            const seriesCount = entry.groupId ? groupCounts[entry.groupId] ?? 0 : 0;
             return (
               <div
                 key={entry.id}
