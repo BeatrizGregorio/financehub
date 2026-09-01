@@ -4,7 +4,19 @@
     {
       "name": "financehub-dev",
       "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-c", "source ~/.zshrc && npm run dev"],
+      "runtimeArgs": [
+        "-c",
+        "source ~/.zshrc && npm run dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "financehub-dev-win",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
     }
   ]
