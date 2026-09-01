@@ -460,3 +460,61 @@ export function projectPortfolioValue(
     return { label: horizonLabel(h, units), days: daysBetween(today, targetDate), value };
   });
 }
+
+/** Just enough of an Entry for the cash side of net worth. */
+export type CashFlowLike = { amount: number; date: Date; type: string };
+
+export type NetWorthPoint = {
+  date: string;
+  label: string;
+  cash: number;
+  investments: number;
+  total: number;
+};
+
+/**
+ * Cash position and portfolio value on one timeline, at the same monthly
+ * checkpoints the other monthly charts use.
+ *
+ * These are the app's two halves and they never met on a single screen: entries
+ * track flow, holdings track assets, and the number most people actually want is
+ * the sum.
+ *
+ * **The cash figure is cumulative logged entries, not a bank balance.** It
+ * starts from zero at the first entry ever recorded, so it only equals real
+ * cash if the owner has logged everything since opening the account. The card
+ * says so; don't relabel it as "balance" without also solving opening balances,
+ * which is a separate feature.
+ *
+ * The investments side reuses ownershipValue(), so a holding still contributes
+ * nothing before it was bought or after it matured.
+ */
+export function netWorthOverTime(
+  entries: CashFlowLike[],
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  monthsBack = 12,
+  startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
+): NetWorthPoint[] {
+  // Sorted once, then walked with a moving index, so this stays linear rather
+  // than re-scanning every entry at every checkpoint.
+  const sorted = [...entries].sort((a, b) => a.date.getTime() - b.date.getTime());
+  let i = 0;
+  let running = 0;
+
+  return monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => {
+    while (i < sorted.length && dateKey(sorted[i].date) <= dateKey(date)) {
+      running += sorted[i].type === "income" ? sorted[i].amount : -sorted[i].amount;
+      i++;
+    }
+    const invested = investments.reduce((sum, inv) => sum + ownershipValue(inv, rates, date), 0);
+    return {
+      date: dateKey(date),
+      label: cycleLabel(key, lang),
+      cash: running,
+      investments: invested,
+      total: running + invested,
+    };
+  });
+}

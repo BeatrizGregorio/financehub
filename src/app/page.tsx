@@ -21,7 +21,8 @@ import { IncomeVsExpenseChart } from "@/components/IncomeVsExpenseChart";
 import { MonthlyTrendChart } from "@/components/MonthlyTrendChart";
 import { AllocationCard } from "@/components/AllocationCard";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
-import { allocationByType, monthlyPortfolioValue } from "@/lib/investments";
+import { allocationByType, monthlyPortfolioValue, netWorthOverTime } from "@/lib/investments";
+import { NetWorthCard } from "@/components/NetWorthCard";
 import { CARD } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +108,8 @@ export default async function DashboardPage() {
 
   const allocation = allocationByType(investments, rates);
   const portfolioSeries = monthlyPortfolioValue(investments, rates, 12, cycleStartDay, lang);
+  // The two halves of the app on one timeline - see netWorthOverTime().
+  const netWorth = netWorthOverTime(entries, investments, rates, 12, cycleStartDay, lang);
 
   return (
     <div className="flex flex-col gap-5">
@@ -176,6 +179,7 @@ export default async function DashboardPage() {
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthOverMonthNet}</h2>
             <MonthlyTrendChart data={series} />
           </div>
+          <NetWorthCard data={netWorth} t={t} />
           <PaymentMethodsCard methods={methods} t={t} />
           <div className={`${CARD} p-5`}>
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthlyValue}</h2>

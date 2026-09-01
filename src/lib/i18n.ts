@@ -116,6 +116,11 @@ const en = {
     nothingScheduled: "Nothing scheduled in the next 30 days.",
     andMore: (n: number) => `and ${n} more`,
     scheduledNet: "Scheduled net",
+    netWorth: "Net worth",
+    netWorthBlurb:
+      "Cash and investments together. Cash is the running total of what you have logged, not a bank balance.",
+    cashLogged: "Cash (logged)",
+    investmentsSeries: "Investments",
   },
   entries: {
     title: "Entries",
@@ -529,6 +534,11 @@ const pt: Dict = {
     nothingScheduled: "Nada programado nos próximos 30 dias.",
     andMore: (n: number) => `e mais ${n}`,
     scheduledNet: "Saldo programado",
+    netWorth: "Patrimônio",
+    netWorthBlurb:
+      "Caixa e investimentos juntos. O caixa é o acumulado do que você lançou, não o saldo do banco.",
+    cashLogged: "Caixa (lançado)",
+    investmentsSeries: "Investimentos",
   },
   entries: {
     title: "Lançamentos",
