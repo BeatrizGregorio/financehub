@@ -163,6 +163,18 @@ const en = {
     incomeCategoriesBlurb: "Used when logging income.",
     newCategory: "New category…",
     noCategories: "No categories yet.",
+    renameCategoryLabel: (name: string) => `Rename ${name}`,
+    deleteCategoryLabel: (name: string) => `Delete ${name}`,
+    newNameFor: (name: string) => `New name for ${name}`,
+    orphanTitle: "Categories needing attention",
+    orphanBlurb:
+      "Entries and budgets refer to categories by name, so renaming or deleting one elsewhere can leave them pointing at nothing.",
+    orphanEntries: (n: number, name: string) =>
+      `${n} ${n === 1 ? "entry is" : "entries are"} filed under “${name}”, which is no longer one of your categories.`,
+    orphanAdopt: "Add it back",
+    orphanBudget: (name: string) =>
+      `A budget is set for “${name}”, which is not an expense category — it can never fill.`,
+    orphanRemoveBudget: "Remove budget",
     monthlyBudgets: "Monthly budgets",
     blankNoLimit: "Blank means no limit.",
     addExpenseCategoryFirst: "Add an expense category first.",
@@ -534,6 +546,18 @@ const pt: Dict = {
     incomeCategoriesBlurb: "Usadas ao registrar uma receita.",
     newCategory: "Nova categoria…",
     noCategories: "Nenhuma categoria ainda.",
+    renameCategoryLabel: (name: string) => `Renomear ${name}`,
+    deleteCategoryLabel: (name: string) => `Excluir ${name}`,
+    newNameFor: (name: string) => `Novo nome para ${name}`,
+    orphanTitle: "Categorias que precisam de atenção",
+    orphanBlurb:
+      "Lançamentos e orçamentos se referem às categorias pelo nome, então renomear ou excluir uma em outro lugar pode deixá-los apontando para o nada.",
+    orphanEntries: (n: number, name: string) =>
+      `${n} ${n === 1 ? "lançamento está" : "lançamentos estão"} em “${name}”, que não é mais uma das suas categorias.`,
+    orphanAdopt: "Adicionar de volta",
+    orphanBudget: (name: string) =>
+      `Há um orçamento para “${name}”, que não é uma categoria de despesa — ele nunca vai ser preenchido.`,
+    orphanRemoveBudget: "Remover orçamento",
     monthlyBudgets: "Orçamentos mensais",
     blankNoLimit: "Em branco significa sem limite.",
     addExpenseCategoryFirst: "Adicione uma categoria de despesa primeiro.",

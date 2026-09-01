@@ -116,6 +116,75 @@ export async function removeCategory(id: string) {
   revalidateAll();
 }
 
+/**
+ * Rename a category and carry its entries and budget along with it.
+ *
+ * Without this, renaming means deleting and re-adding, which silently orphans
+ * every entry filed under the old name — the V1.9 "budgets all read R$ 0" bug.
+ * Entries and budgets reference categories by name with no foreign key, so the
+ * rewrite has to be explicit; it runs in one transaction so a half-renamed
+ * state can't survive a failure partway through.
+ */
+export async function renameCategory(
+  id: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const newName = String(formData.get("name") ?? "").trim();
+  if (!newName) return { error: "Enter a category name." };
+
+  const category = await prisma.category.findUnique({ where: { id } });
+  if (!category) return { error: "That category no longer exists." };
+  if (category.name === newName) return {};
+
+  const clash = await prisma.category.findFirst({
+    where: { name: newName, type: category.type },
+  });
+  if (clash) return { error: `"${newName}" already exists.` };
+
+  const oldName = category.name;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.category.update({ where: { id }, data: { name: newName } });
+    await tx.entry.updateMany({
+      where: { category: oldName, type: category.type },
+      data: { category: newName },
+    });
+
+    // Budget.category is unique, so a budget already sitting under the new
+    // name would collide. Keep that one and drop the old row rather than
+    // failing the rename — the target's limit is the more recent intent.
+    if (category.type === "expense") {
+      const target = await tx.budget.findUnique({ where: { category: newName } });
+      if (target) {
+        await tx.budget.deleteMany({ where: { category: oldName } });
+      } else {
+        await tx.budget.updateMany({
+          where: { category: oldName },
+          data: { category: newName },
+        });
+      }
+    }
+  });
+
+  revalidateAll();
+  return {};
+}
+
+/** Recreate a category that entries still reference — see getOrphanCategories(). */
+export async function adoptOrphanCategory(name: string, type: string) {
+  if (type !== "income" && type !== "expense") return;
+  const existing = await prisma.category.findFirst({ where: { name, type } });
+  if (!existing) await prisma.category.create({ data: { name, type } });
+  revalidateAll();
+}
+
+/** Drop a budget whose category no longer exists, so it can never fill. */
+export async function removeOrphanBudget(category: string) {
+  await prisma.budget.deleteMany({ where: { category } });
+  revalidateAll();
+}
+
 export async function addPaymentMethod(
   _prevState: ActionState,
   formData: FormData,
