@@ -18,6 +18,7 @@ import { AccentColorCard } from "./AccentColorCard";
 import { LanguageCard } from "./LanguageCard";
 import { LicenseCard } from "./LicenseCard";
 import { OrphanCategoriesCard } from "./OrphanCategoriesCard";
+import { CsvImportCard } from "./CsvImportCard";
 import { dict } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +105,11 @@ export default async function SettingsPage() {
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>
         <BackupPanel />
+        <CsvImportCard
+          expenseCategories={expense}
+          incomeCategories={income}
+          methods={methods}
+        />
         {/* Nothing useful to say about a licence when licensing is switched
             off — see LICENSING_ENABLED in lib/data.ts. */}
         {LICENSING_ENABLED && <LicenseCard license={license} />}
