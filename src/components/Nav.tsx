@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ListOrdered, TrendingUp, Settings, ChartPie, Wallet, CreditCard } from "lucide-react";
+import { LayoutDashboard, ListOrdered, TrendingUp, Settings, ChartPie, Wallet, CreditCard, FileText } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { useT } from "@/components/LanguageProvider";
 
@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/accounts", key: "accounts", icon: Wallet },
   { href: "/cards", key: "cards", icon: CreditCard },
   { href: "/investments", key: "investments", icon: TrendingUp },
+  { href: "/reports", key: "reports", icon: FileText },
   { href: "/settings", key: "settings", icon: Settings },
 ] as const;
 
@@ -46,7 +47,7 @@ export function Nav({
 
   return (
     <aside
-      className="flex h-full shrink-0 flex-col gap-2 overflow-hidden border-r border-black/[0.07] bg-[var(--color-nav)] py-6 backdrop-blur-2xl transition-[width,padding] duration-300"
+      className="flex h-full shrink-0 flex-col gap-2 overflow-hidden print:hidden border-r border-black/[0.07] bg-[var(--color-nav)] py-6 backdrop-blur-2xl transition-[width,padding] duration-300"
       style={{ width: collapsed ? 72 : 240, paddingLeft: collapsed ? 12 : 16, paddingRight: collapsed ? 12 : 16 }}
     >
       <div className={`mb-6 flex items-center ${collapsed ? "justify-center px-0" : "gap-2.5 px-2"}`}>
