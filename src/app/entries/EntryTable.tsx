@@ -75,12 +75,14 @@ export function EntryTable({
   entries,
   groupCounts,
   onEdit,
+  accountName,
 }: {
   entries: EditableEntry[];
   // A plain object rather than a Map: this crosses the server/client boundary
   // now, and a Map does not survive React serialization.
   groupCounts: Record<string, number>;
   onEdit: (entry: EditableEntry) => void;
+  accountName?: (id: string | null) => string | null;
 }) {
   const { t, lang } = useT();
 
@@ -140,8 +142,13 @@ export function EntryTable({
                   />
                   {entry.category}
                 </span>
-                <span className="truncate text-[13px] text-[var(--color-muted)]">
-                  {entry.method ?? ""}
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate text-[13px] text-[var(--color-muted)]">{entry.method ?? ""}</span>
+                  {accountName?.(entry.accountId) && (
+                    <span className="truncate text-[11.5px] text-[var(--color-muted-2)]">
+                      {accountName(entry.accountId)}
+                    </span>
+                  )}
                 </span>
                 <span
                   className="text-right font-mono text-sm font-medium"

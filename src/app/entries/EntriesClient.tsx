@@ -11,7 +11,7 @@ import { useT } from "@/components/LanguageProvider";
 
 type CategoryOption = { id: string; name: string };
 type TypeFilter = "all" | "income" | "expense";
-type Filters = { q: string; month: string; type: string };
+type Filters = { q: string; month: string; type: string; account: string };
 
 /**
  * Filters live in the URL rather than in component state.
@@ -33,6 +33,7 @@ export function EntriesClient({
   expenseCategories,
   incomeCategories,
   paymentMethods,
+  accounts,
 }: {
   entries: EditableEntry[];
   months: { key: string; label: string }[];
@@ -45,8 +46,11 @@ export function EntriesClient({
   expenseCategories: CategoryOption[];
   incomeCategories: CategoryOption[];
   paymentMethods: CategoryOption[];
+  accounts: { id: string; name: string; archived: boolean }[];
 }) {
   const { t } = useT();
+  const activeAccounts = accounts.filter((a) => !a.archived);
+  const accountName = (id: string | null) => (id ? accounts.find((a) => a.id === id)?.name ?? null : null);
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -63,6 +67,7 @@ export function EntriesClient({
     if (merged.q) params.set("q", merged.q);
     if (merged.month && merged.month !== "all") params.set("month", merged.month);
     if (merged.type && merged.type !== "all") params.set("type", merged.type);
+    if (merged.account && merged.account !== "all") params.set("account", merged.account);
     // Any filter change resets to page 1 unless the caller asked for a page.
     const nextPage = "page" in next ? next.page : 1;
     if (nextPage && nextPage > 1) params.set("page", String(nextPage));
@@ -128,6 +133,7 @@ export function EntriesClient({
             expenseCategories={expenseCategories}
             incomeCategories={incomeCategories}
             paymentMethods={paymentMethods}
+            accounts={activeAccounts}
           />
         </Modal>
       )}
@@ -188,6 +194,29 @@ export function EntriesClient({
           />
         </div>
 
+        {accounts.length > 0 && (
+          <div className="relative">
+            <select
+              aria-label={t.accounts.filterByAccount}
+              value={filters.account}
+              onChange={(e) => navigate({ account: e.target.value })}
+              className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-4 pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"
+            >
+              <option value="all">{t.accounts.allAccounts}</option>
+              <option value="none">{t.accounts.notAssigned}</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink)]"
+            />
+          </div>
+        )}
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -223,7 +252,7 @@ export function EntriesClient({
       </div>
 
       <div style={{ opacity: pending ? 0.6 : 1 }} className="transition-opacity">
-        <EntryTable entries={entries} groupCounts={groupCounts} onEdit={startEdit} />
+        <EntryTable entries={entries} groupCounts={groupCounts} onEdit={startEdit} accountName={accountName} />
       </div>
 
       {total > pageSize && (

@@ -16,6 +16,7 @@ export type EditableEntry = {
   category: string;
   note: string | null;
   method: string | null;
+  accountId: string | null;
   groupId: string | null;
   seriesType: string | null;
   installmentNum: number | null;
@@ -48,12 +49,15 @@ export function EntryForm({
   expenseCategories,
   incomeCategories,
   paymentMethods,
+  accounts = [],
 }: {
   entry?: EditableEntry;
   onDone?: () => void;
   expenseCategories: CategoryOption[];
   incomeCategories: CategoryOption[];
   paymentMethods: CategoryOption[];
+  /** Active accounts. The field is hidden entirely when there are none. */
+  accounts?: CategoryOption[];
 }) {
   const { t } = useT();
   const isEditing = Boolean(entry);
@@ -80,6 +84,10 @@ export function EntryForm({
   }, [state]);
 
   const categories = type === "income" ? incomeCategories : expenseCategories;
+  // Half-width fields after Category: Value, Payment method (expenses only),
+  // Account (when accounts exist). With an odd count the last one would leave
+  // an empty cell beside it in the two-column grid, so it spans both columns.
+  const halfWidthFields = 1 + (type === "expense" ? 1 : 0) + (accounts.length > 0 ? 1 : 0);
   const typeWord = type === "income" ? t.entries.typeIncome : t.entries.typeExpense;
 
   return (
@@ -185,7 +193,7 @@ export function EntryForm({
         </select>
       </div>
 
-      <div className={type === "expense" || !isEditing ? "" : "sm:col-span-2"}>
+      <div className={halfWidthFields === 1 ? "sm:col-span-2" : ""}>
         <label htmlFor={`${formId}-amount`} className={LABEL}>
           {t.common.value}
         </label>
@@ -223,8 +231,29 @@ export function EntryForm({
         </div>
       )}
 
+      {accounts.length > 0 && (
+        <div className={halfWidthFields === 3 ? "sm:col-span-2" : ""}>
+          <label htmlFor={`${formId}-account`} className={LABEL}>
+            {t.accounts.entryAccount}
+          </label>
+          <select
+            id={`${formId}-account`}
+            name="accountId"
+            defaultValue={entry?.accountId ?? ""}
+            className={INPUT}
+          >
+            <option value="">{t.accounts.noAccount}</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {!isEditing && (
-        <div className={type === "expense" ? "sm:col-span-2" : "sm:col-start-2"}>
+        <div className="sm:col-span-2">
           <label className={LABEL}>{t.entries.repetition}</label>
           <div className="grid gap-3 sm:grid-cols-2">
             <select

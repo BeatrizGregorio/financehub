@@ -57,7 +57,7 @@ function StatPill({
 }
 
 export default async function DashboardPage() {
-  const [entries, budgets, methods, investments, rates, cycleStartDay, lang] = await Promise.all([
+  const [entries, budgets, methods, investments, rates, cycleStartDay, lang, accounts, transfers] = await Promise.all([
     prisma.entry.findMany(),
     getBudgets(),
     getPaymentMethods(),
@@ -65,6 +65,8 @@ export default async function DashboardPage() {
     getReferenceRates(),
     getCycleStartDay(),
     getLanguage(),
+    prisma.account.findMany(),
+    prisma.transfer.findMany(),
   ]);
   const t = dict(lang);
 
@@ -109,7 +111,10 @@ export default async function DashboardPage() {
   const allocation = allocationByType(investments, rates);
   const portfolioSeries = monthlyPortfolioValue(investments, rates, 12, cycleStartDay, lang);
   // The two halves of the app on one timeline - see netWorthOverTime().
-  const netWorth = netWorthOverTime(entries, investments, rates, 12, cycleStartDay, lang);
+  const netWorth = netWorthOverTime(entries, investments, rates, 12, cycleStartDay, lang, {
+    accounts,
+    transfers,
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -179,7 +184,7 @@ export default async function DashboardPage() {
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthOverMonthNet}</h2>
             <MonthlyTrendChart data={series} />
           </div>
-          <NetWorthCard data={netWorth} t={t} />
+          <NetWorthCard data={netWorth} t={t} hasAccounts={accounts.length > 0} />
           <PaymentMethodsCard methods={methods} t={t} />
           <div className={`${CARD} p-5`}>
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthlyValue}</h2>

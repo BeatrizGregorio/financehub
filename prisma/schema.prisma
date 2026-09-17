@@ -25,6 +25,9 @@ model Entry {
   seriesType       String?
   installmentNum   Int?
   installmentTotal Int?
+  /// Which Account the money moved through (V1.28). Optional: entries logged
+  /// before accounts existed, or paid by credit card, have none.
+  accountId        String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -185,4 +188,43 @@ model InvestmentGoal {
   expectedAnnualRate Float    @default(0.1)
   monthlyContribution Float?
   updatedAt          DateTime @updatedAt
+}
+
+/// A place money actually sits: a bank account, a savings account, cash (V1.28).
+///
+/// openingBalance is what it held on openingDate. Only entries and transfers
+/// dated on or after openingDate move the balance, so the owner can start
+/// using accounts today without re-entering years of history.
+///
+/// Referenced by plain id (Entry.accountId, Transfer.*AccountId) rather than a
+/// Prisma relation, matching how categories are referenced by name. Deleting
+/// is blocked while anything points at it; archiving is the normal path.
+model Account {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  /// "checking" | "savings" | "cash" | "other"
+  kind           String   @default("checking")
+  openingBalance Float    @default(0)
+  openingDate    DateTime
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
+
+/// Money moving between the owner's own places: never income or expense.
+///
+/// Either account to account, or account to investment. For the latter the
+/// matching buy on the holding can be recorded too; its id is kept so deleting
+/// the transfer removes that buy rather than leaving it behind.
+model Transfer {
+  id                      String   @id @default(cuid())
+  date                    DateTime
+  amount                  Float
+  fromAccountId           String
+  toAccountId             String?
+  toInvestmentId          String?
+  investmentTransactionId String?
+  note                    String?
+  createdAt               DateTime @default(now())
+
+  @@index([date])
 }

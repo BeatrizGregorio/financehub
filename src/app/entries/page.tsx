@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 export const PAGE_SIZE = 50;
 
-type Search = { q?: string; month?: string; type?: string; page?: string };
+type Search = { q?: string; month?: string; type?: string; page?: string; account?: string };
 
 export default async function EntriesPage({
   searchParams,
@@ -28,9 +28,13 @@ export default async function EntriesPage({
   const month = sp.month && sp.month !== "all" ? sp.month : "all";
   const type = sp.type === "income" || sp.type === "expense" ? sp.type : "all";
   const page = Math.max(1, Number(sp.page) || 1);
+  // "none" = entries not assigned to any account; otherwise an account id.
+  const account = sp.account ?? "all";
 
   const where: Prisma.EntryWhereInput = {};
   if (type !== "all") where.type = type;
+  if (account === "none") where.accountId = null;
+  else if (account !== "all") where.accountId = account;
   if (month !== "all") {
     // The same cycle-aware date range the sidebar's IN/OUT query uses, rather
     // than bucketing in memory — those two agreeing is the useful end-to-end
@@ -48,7 +52,7 @@ export default async function EntriesPage({
     where.OR = [{ name: { contains: q } }, { note: { contains: q } }];
   }
 
-  const [rows, total, sums, allDates, { expense, income }, paymentMethods, lang] =
+  const [rows, total, sums, allDates, { expense, income }, paymentMethods, lang, accounts] =
     await Promise.all([
       prisma.entry.findMany({
         where,
@@ -67,6 +71,7 @@ export default async function EntriesPage({
       getCategories(),
       getPaymentMethods(),
       getLanguage(),
+      prisma.account.findMany({ select: { id: true, name: true, archived: true }, orderBy: { name: "asc" } }),
     ]);
 
   // Series counts only for the groups actually on this page, so "Delete series"
@@ -102,7 +107,8 @@ export default async function EntriesPage({
       net={net}
       page={page}
       pageSize={PAGE_SIZE}
-      filters={{ q, month, type }}
+      filters={{ q, month, type, account }}
+      accounts={accounts}
       expenseCategories={expense}
       incomeCategories={income}
       paymentMethods={paymentMethods}

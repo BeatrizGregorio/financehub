@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { seedOpeningPosition } from "@/lib/holdingTransactions";
 import { prisma } from "@/lib/db";
 import { INVESTMENT_TYPES } from "@/lib/investmentTypes";
 
@@ -313,8 +314,13 @@ export async function addTransaction(
     quantity = q;
   }
 
-  await prisma.investmentTransaction.create({
-    data: { investmentId, date, kind, amount, quantity },
+  await prisma.$transaction(async (tx) => {
+    // Carry the existing position across before the first transaction takes
+    // over valuation — see seedOpeningPosition().
+    await seedOpeningPosition(tx, investmentId);
+    await tx.investmentTransaction.create({
+      data: { investmentId, date, kind, amount, quantity },
+    });
   });
 
   revalidateAll();

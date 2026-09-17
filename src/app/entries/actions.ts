@@ -14,6 +14,7 @@ type ParsedEntry = {
   category: string;
   note: string | null;
   method: string | null;
+  accountId: string | null;
 };
 
 function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry } {
@@ -24,6 +25,7 @@ function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry 
   const category = formData.get("category");
   const note = formData.get("note");
   const method = formData.get("method");
+  const accountRaw = formData.get("accountId");
 
   if (typeof name !== "string" || !name.trim()) {
     return { error: "Enter a name." };
@@ -53,6 +55,7 @@ function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry 
 
   const noteValue = typeof note === "string" && note.trim() ? note.trim() : null;
   const methodValue = typeof method === "string" && method.trim() ? method.trim() : null;
+  const accountId = typeof accountRaw === "string" && accountRaw.trim() ? accountRaw.trim() : null;
 
   return {
     data: {
@@ -63,6 +66,7 @@ function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry 
       category: category.trim(),
       note: noteValue,
       method: methodValue,
+      accountId,
     },
   };
 }
@@ -70,6 +74,7 @@ function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry 
 function revalidateAll() {
   revalidatePath("/");
   revalidatePath("/entries");
+  revalidatePath("/accounts");
 }
 
 export async function createEntry(

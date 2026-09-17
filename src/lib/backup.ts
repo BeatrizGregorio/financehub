@@ -21,6 +21,7 @@ import { clampLanguage } from "@/lib/i18n";
 // ─── File shape ─────────────────────────────────────────────────────────────
 
 export type BackupEntry = {
+  id?: string;
   name?: string;
   amount: number;
   date: string;
@@ -32,13 +33,15 @@ export type BackupEntry = {
   seriesType?: string | null;
   installmentNum?: number | null;
   installmentTotal?: number | null;
+  accountId?: string | null;
 };
 
 type BackupPricePoint = { date: string; price: number };
 type BackupCouponPayment = { date: string; amount: number };
-type BackupTransaction = { date: string; kind: string; amount: number; quantity?: number | null };
+type BackupTransaction = { id?: string; date: string; kind: string; amount: number; quantity?: number | null };
 
 type BackupInvestment = {
+  id?: string;
   name: string;
   type?: string;
   subtype?: string | null;
@@ -72,12 +75,30 @@ export type Backup = {
   investments?: BackupInvestment[];
   referenceRates?: { cdi: number; selic: number; ipca: number };
   settings?: { cycleStartDay?: number; accentColor?: string; language?: string };
+  accounts?: {
+    id: string;
+    name: string;
+    kind: string;
+    openingBalance: number;
+    openingDate: string;
+    archived: boolean;
+  }[];
+  transfers?: {
+    id?: string;
+    date: string;
+    amount: number;
+    fromAccountId: string;
+    toAccountId?: string | null;
+    toInvestmentId?: string | null;
+    investmentTransactionId?: string | null;
+    note?: string | null;
+  }[];
 };
 
 // ─── Build ──────────────────────────────────────────────────────────────────
 
 export async function buildBackup() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language] =
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers] =
     await Promise.all([
       prisma.entry.findMany(),
       prisma.category.findMany(),
@@ -88,6 +109,8 @@ export async function buildBackup() {
       getCycleStartDay(),
       getAccentColor(),
       getLanguage(),
+      prisma.account.findMany(),
+      prisma.transfer.findMany(),
     ]);
 
   return {
@@ -99,6 +122,9 @@ export async function buildBackup() {
     budgets: budgets.map((b) => ({ category: b.category, limit: b.limit })),
     paymentMethods: paymentMethods.map((m) => ({ name: m.name })),
     investments: investments.map((inv) => ({
+      // Ids are kept from V1.28: transfers point at holdings and at the buys
+      // they created, and those references must survive a restore.
+      id: inv.id,
       name: inv.name,
       type: inv.type,
       subtype: inv.subtype,
@@ -120,6 +146,7 @@ export async function buildBackup() {
       prices: inv.prices.map((p) => ({ date: p.date, price: p.price })),
       coupons: inv.coupons.map((c) => ({ date: c.date, amount: c.amount })),
       transactions: inv.transactions.map((tx) => ({
+        id: tx.id,
         date: tx.date,
         kind: tx.kind,
         amount: tx.amount,
@@ -130,6 +157,24 @@ export async function buildBackup() {
     // Additive keys stay `version: 3`: an older backup without them simply
     // leaves the current value alone on import.
     settings: { cycleStartDay, accentColor, language },
+    accounts: accounts.map((a) => ({
+      id: a.id,
+      name: a.name,
+      kind: a.kind,
+      openingBalance: a.openingBalance,
+      openingDate: a.openingDate,
+      archived: a.archived,
+    })),
+    transfers: transfers.map((t) => ({
+      id: t.id,
+      date: t.date,
+      amount: t.amount,
+      fromAccountId: t.fromAccountId,
+      toAccountId: t.toAccountId,
+      toInvestmentId: t.toInvestmentId,
+      investmentTransactionId: t.investmentTransactionId,
+      note: t.note,
+    })),
   };
 }
 
@@ -164,6 +209,23 @@ export async function restoreBackup(backup: Backup) {
   await prisma.couponPayment.deleteMany();
   await prisma.investmentTransaction.deleteMany();
   await prisma.investment.deleteMany();
+  await prisma.transfer.deleteMany();
+  await prisma.account.deleteMany();
+
+  // Accounts before entries, so entry.accountId references are valid the
+  // moment entries exist. Original ids are kept for exactly that reason.
+  if (backup.accounts?.length) {
+    await prisma.account.createMany({
+      data: backup.accounts.map((a) => ({
+        id: a.id,
+        name: a.name,
+        kind: a.kind,
+        openingBalance: a.openingBalance,
+        openingDate: new Date(a.openingDate),
+        archived: Boolean(a.archived),
+      })),
+    });
+  }
 
   if (backup.categories?.length) {
     await prisma.category.createMany({
@@ -183,6 +245,7 @@ export async function restoreBackup(backup: Backup) {
   if (backup.entries?.length) {
     await prisma.entry.createMany({
       data: backup.entries.map((e) => ({
+        ...(e.id ? { id: e.id } : {}),
         name: e.name?.trim() || e.category,
         amount: e.amount,
         date: new Date(e.date),
@@ -194,6 +257,7 @@ export async function restoreBackup(backup: Backup) {
         seriesType: e.seriesType ?? null,
         installmentNum: e.installmentNum ?? null,
         installmentTotal: e.installmentTotal ?? null,
+        accountId: e.accountId ?? null,
       })),
     });
   }
@@ -209,6 +273,7 @@ export async function restoreBackup(backup: Backup) {
   for (const inv of restorable) {
     await prisma.investment.create({
       data: {
+        ...(inv.id ? { id: inv.id } : {}),
         name: inv.name,
         type: inv.type,
         subtype: inv.subtype ?? null,
@@ -233,6 +298,7 @@ export async function restoreBackup(backup: Backup) {
         transactions: inv.transactions?.length
           ? {
               create: inv.transactions.map((tx) => ({
+                ...(tx.id ? { id: tx.id } : {}),
                 date: new Date(tx.date),
                 kind: tx.kind === "sell" ? "sell" : "buy",
                 amount: tx.amount,
@@ -244,6 +310,22 @@ export async function restoreBackup(backup: Backup) {
           ? { create: inv.coupons.map((c) => ({ date: new Date(c.date), amount: c.amount })) }
           : undefined,
       },
+    });
+  }
+
+  // Transfers last: they reference accounts, holdings and holding buys.
+  if (backup.transfers?.length) {
+    await prisma.transfer.createMany({
+      data: backup.transfers.map((t) => ({
+        ...(t.id ? { id: t.id } : {}),
+        date: new Date(t.date),
+        amount: t.amount,
+        fromAccountId: t.fromAccountId,
+        toAccountId: t.toAccountId ?? null,
+        toInvestmentId: t.toInvestmentId ?? null,
+        investmentTransactionId: t.investmentTransactionId ?? null,
+        note: t.note ?? null,
+      })),
     });
   }
 

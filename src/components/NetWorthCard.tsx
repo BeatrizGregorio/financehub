@@ -11,7 +11,17 @@ import type { Dict } from "@/lib/i18n";
  * starting from zero, not a bank balance, and saying so is the difference
  * between a useful number and a misleading one. Don't shorten it away.
  */
-export function NetWorthCard({ data, t }: { data: NetWorthPoint[]; t: Dict }) {
+export function NetWorthCard({
+  data,
+  t,
+  hasAccounts = false,
+}: {
+  data: NetWorthPoint[];
+  t: Dict;
+  /** With accounts the cash figure is a real balance, so the copy says so. */
+  hasAccounts?: boolean;
+}) {
+  const cashLabel = hasAccounts ? t.dashboard.cashAccounts : t.dashboard.cashLogged;
   const latest = data.length ? data[data.length - 1] : null;
 
   return (
@@ -27,15 +37,15 @@ export function NetWorthCard({ data, t }: { data: NetWorthPoint[]; t: Dict }) {
           </span>
         )}
       </div>
-      <p className="mb-3 text-[12.5px] text-[var(--color-muted)]">{t.dashboard.netWorthBlurb}</p>
+      <p className="mb-3 text-[12.5px] text-[var(--color-muted)]">{hasAccounts ? t.dashboard.netWorthBlurbAccounts : t.dashboard.netWorthBlurb}</p>
 
-      <NetWorthChart data={data} />
+      <NetWorthChart data={data} cashLabel={cashLabel} />
 
       {latest && (
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-[var(--color-border)] pt-3">
           <span className="flex items-center gap-1.5 text-[12px] text-[var(--color-muted)]">
             <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]" />
-            {t.dashboard.cashLogged}
+            {cashLabel}
             <span className="font-mono font-semibold text-[var(--color-ink)] tabular-nums">
               {formatCurrency(latest.cash)}
             </span>
