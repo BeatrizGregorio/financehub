@@ -19,6 +19,8 @@ import { LanguageCard } from "./LanguageCard";
 import { LicenseCard } from "./LicenseCard";
 import { OrphanCategoriesCard } from "./OrphanCategoriesCard";
 import { CsvImportCard } from "./CsvImportCard";
+import { AutoBackupCard } from "./AutoBackupCard";
+import { defaultBackupDir, getBackupSettings, listBackupFiles } from "@/lib/backup";
 import { dict } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +66,8 @@ export default async function SettingsPage() {
       getOrphanCategories(),
     ]);
   const t = dict(lang);
+  const backup = await getBackupSettings();
+  const backupFiles = listBackupFiles(backup.dir);
 
   return (
     <div className="flex flex-col gap-9">
@@ -105,6 +109,15 @@ export default async function SettingsPage() {
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>
         <BackupPanel />
+        <AutoBackupCard
+          enabled={backup.enabled}
+          dir={backup.dir}
+          customDir={backup.customDir}
+          defaultDir={defaultBackupDir()}
+          keep={backup.keep}
+          lastAt={backup.lastAt}
+          files={backupFiles}
+        />
         <CsvImportCard
           expenseCategories={expense}
           incomeCategories={income}

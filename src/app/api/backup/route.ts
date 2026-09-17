@@ -1,66 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { getAccentColor, getCycleStartDay, getLanguage, getReferenceRates } from "@/lib/data";
+import { buildBackup } from "@/lib/backup";
 
 export async function GET() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language] =
-    await Promise.all([
-      prisma.entry.findMany(),
-      prisma.category.findMany(),
-      prisma.budget.findMany(),
-      prisma.paymentMethod.findMany(),
-      prisma.investment.findMany({ include: { prices: true, coupons: true, transactions: true } }),
-      getReferenceRates(),
-      getCycleStartDay(),
-      getAccentColor(),
-      getLanguage(),
-    ]);
-
-  const backup = {
-    app: "FinanceHub",
-    version: 3,
-    exportedAt: new Date().toISOString(),
-    entries,
-    categories: categories.map((c) => ({ name: c.name, type: c.type })),
-    budgets: budgets.map((b) => ({ category: b.category, limit: b.limit })),
-    paymentMethods: paymentMethods.map((m) => ({ name: m.name })),
-    investments: investments.map((inv) => ({
-      name: inv.name,
-      type: inv.type,
-      subtype: inv.subtype,
-      indexador: inv.indexador,
-      annualRate: inv.annualRate,
-      spread: inv.spread,
-      adminFee: inv.adminFee,
-      perfFee: inv.perfFee,
-      amountInvested: inv.amountInvested,
-      startDate: inv.startDate,
-      maturityDate: inv.maturityDate,
-      symbol: inv.symbol,
-      quantity: inv.quantity,
-      purchaseRef: inv.purchaseRef,
-      expectedReturn: inv.expectedReturn,
-      corretagem: inv.corretagem,
-      institution: inv.institution,
-      notes: inv.notes,
-      prices: inv.prices.map((p) => ({ date: p.date, price: p.price })),
-      coupons: inv.coupons.map((c) => ({ date: c.date, amount: c.amount })),
-      // Additive, like coupons in V1.10: still version 3, and a backup written
-      // before transactions existed simply restores with none.
-      transactions: inv.transactions.map((tx) => ({
-        date: tx.date,
-        kind: tx.kind,
-        amount: tx.amount,
-        quantity: tx.quantity,
-      })),
-    })),
-    referenceRates: { cdi: rates.cdi, selic: rates.selic, ipca: rates.ipca },
-    // Additive since V1.15 (accentColor since V1.22) — still `version: 3`,
-    // since an older backup without these keys just falls back to the
-    // current value on import.
-    settings: { cycleStartDay, accentColor, language },
-  };
-
+  const backup = await buildBackup();
   const filename = `financehub-backup-${new Date().toISOString().slice(0, 10)}.json`;
 
   return new NextResponse(JSON.stringify(backup, null, 2), {

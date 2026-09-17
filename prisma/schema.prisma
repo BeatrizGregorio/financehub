@@ -144,6 +144,13 @@ model AppSettings {
   // setState-in-effect, which this project lints against. A column is the
   // honest fix: the server knows the answer before it renders.
   goalCardOpen  Boolean  @default(true)
+  // Automatic backups (V1.28). A dated JSON copy is written once a day and
+  // before anything destructive. autoBackupDir null means "next to the
+  // database file"; lastAutoBackupAt drives the once-a-day check.
+  autoBackupEnabled Boolean   @default(true)
+  autoBackupDir     String?
+  autoBackupKeep    Int       @default(14)
+  lastAutoBackupAt  DateTime?
   updatedAt     DateTime @updatedAt
 }
 

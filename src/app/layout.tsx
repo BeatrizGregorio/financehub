@@ -13,6 +13,7 @@ import { LicenseGate } from "@/components/LicenseGate";
 import { TrialBanner } from "@/components/TrialBanner";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import { currentCycleKey, cycleLabel, cycleRange } from "@/lib/format";
+import { maybeAutoBackup } from "@/lib/backup";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -37,6 +38,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Once a day, on the first page load: every route passes through this
+  // layout, so this is the one place guaranteed to run whichever page opens
+  // first. Cheap when it has nothing to do (one settings read), and it never
+  // throws — see maybeAutoBackup().
+  await maybeAutoBackup();
   const cycleStartDay = await getCycleStartDay();
   const accentColor = await getAccentColor();
   const language = await getLanguage();
