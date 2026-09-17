@@ -34,6 +34,8 @@ export type BackupEntry = {
   installmentNum?: number | null;
   installmentTotal?: number | null;
   accountId?: string | null;
+  splitId?: string | null;
+  tags?: string;
 };
 
 type BackupPricePoint = { date: string; price: number };
@@ -334,6 +336,8 @@ export async function restoreBackup(backup: Backup) {
         installmentNum: e.installmentNum ?? null,
         installmentTotal: e.installmentTotal ?? null,
         accountId: e.accountId ?? null,
+        splitId: e.splitId ?? null,
+        tags: e.tags ?? "",
       })),
     });
   }

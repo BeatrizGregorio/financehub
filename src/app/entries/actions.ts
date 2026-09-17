@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { addMonthsClamped } from "@/lib/format";
+import { parseTags, serializeTags } from "@/lib/tags";
 
 export type ActionState = { error?: string };
 
@@ -15,6 +16,7 @@ type ParsedEntry = {
   note: string | null;
   method: string | null;
   accountId: string | null;
+  tags: string;
 };
 
 function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry } {
@@ -49,7 +51,9 @@ function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry 
     return { error: "Choose income or expense." };
   }
 
-  if (typeof category !== "string" || !category.trim()) {
+  // While splitting, the categories are per part (checked in createEntry).
+  const splitting = formData.get("split") === "on";
+  if (!splitting && (typeof category !== "string" || !category.trim())) {
     return { error: "Choose a category." };
   }
 
@@ -63,10 +67,11 @@ function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry 
       amount,
       date,
       type,
-      category: category.trim(),
+      category: typeof category === "string" && category.trim() ? category.trim() : String(formData.get("splitCategory") ?? ""),
       note: noteValue,
       method: methodValue,
       accountId,
+      tags: serializeTags(parseTags(String(formData.get("tags") ?? ""))),
     },
   };
 }
@@ -84,6 +89,26 @@ export async function createEntry(
   const parsed = parseEntryForm(formData);
   if (parsed.error || !parsed.data) return { error: parsed.error };
   const { data } = parsed;
+
+  // Split across categories: one entry per part, sharing a splitId. Not
+  // combinable with repetition — the form hides those options while splitting.
+  if (formData.get("split") === "on") {
+    const categories = formData.getAll("splitCategory").map((c) => String(c).trim());
+    const amounts = formData.getAll("splitAmount").map((a) => Number(a));
+    if (categories.length < 2) return { error: "A split needs at least two parts." };
+    if (categories.some((c) => !c)) return { error: "Choose a category for every part." };
+    if (amounts.some((a) => !Number.isFinite(a) || a <= 0)) return { error: "Enter an amount greater than 0 for every part." };
+    const sum = Math.round(amounts.reduce((x, y) => x + y, 0) * 100);
+    if (sum !== Math.round(data.amount * 100)) {
+      return { error: `The parts add up to ${(sum / 100).toFixed(2)}, but the total is ${data.amount.toFixed(2)}.` };
+    }
+    const splitId = crypto.randomUUID();
+    await prisma.entry.createMany({
+      data: categories.map((category, i) => ({ ...data, category, amount: amounts[i], splitId })),
+    });
+    revalidateAll();
+    return {};
+  }
 
   const seriesType = formData.get("seriesType");
   const installmentsRaw = Number(formData.get("installments"));
@@ -137,6 +162,11 @@ export async function updateEntry(
 
 export async function deleteEntry(id: string) {
   await prisma.entry.delete({ where: { id } });
+  revalidateAll();
+}
+
+export async function deleteSplit(splitId: string) {
+  await prisma.entry.deleteMany({ where: { splitId } });
   revalidateAll();
 }
 

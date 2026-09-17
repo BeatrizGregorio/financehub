@@ -28,6 +28,11 @@ model Entry {
   /// Which Account the money moved through (V1.28). Optional: entries logged
   /// before accounts existed, or paid by credit card, have none.
   accountId        String?
+  /// Parts of one purchase split across categories share this (V1.28). Each
+  /// part is an ordinary entry, so budgets and charts need no special case.
+  splitId          String?
+  /// ",trip-2026,wedding," or "" — see lib/tags.ts for why the commas.
+  tags             String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

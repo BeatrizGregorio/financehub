@@ -11,7 +11,7 @@ import { useT } from "@/components/LanguageProvider";
 
 type CategoryOption = { id: string; name: string };
 type TypeFilter = "all" | "income" | "expense";
-type Filters = { q: string; month: string; type: string; account: string };
+type Filters = { q: string; month: string; type: string; account: string; tag: string };
 
 /**
  * Filters live in the URL rather than in component state.
@@ -35,6 +35,8 @@ export function EntriesClient({
   paymentMethods,
   accounts,
   creditCardNames,
+  splitCounts,
+  tags,
 }: {
   entries: EditableEntry[];
   months: { key: string; label: string }[];
@@ -49,6 +51,8 @@ export function EntriesClient({
   paymentMethods: CategoryOption[];
   accounts: { id: string; name: string; archived: boolean }[];
   creditCardNames: string[];
+  splitCounts: Record<string, number>;
+  tags: string[];
 }) {
   const { t } = useT();
   const activeAccounts = accounts.filter((a) => !a.archived);
@@ -70,6 +74,7 @@ export function EntriesClient({
     if (merged.month && merged.month !== "all") params.set("month", merged.month);
     if (merged.type && merged.type !== "all") params.set("type", merged.type);
     if (merged.account && merged.account !== "all") params.set("account", merged.account);
+    if (merged.tag && merged.tag !== "all") params.set("tag", merged.tag);
     // Any filter change resets to page 1 unless the caller asked for a page.
     const nextPage = "page" in next ? next.page : 1;
     if (nextPage && nextPage > 1) params.set("page", String(nextPage));
@@ -197,6 +202,28 @@ export function EntriesClient({
           />
         </div>
 
+        {tags.length > 0 && (
+          <div className="relative">
+            <select
+              aria-label={t.entries.filterByTag}
+              value={filters.tag}
+              onChange={(e) => navigate({ tag: e.target.value })}
+              className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-4 pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"
+            >
+              <option value="all">{t.entries.allTags}</option>
+              {tags.map((tg) => (
+                <option key={tg} value={tg}>
+                  #{tg}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink)]"
+            />
+          </div>
+        )}
+
         {accounts.length > 0 && (
           <div className="relative">
             <select
@@ -255,7 +282,7 @@ export function EntriesClient({
       </div>
 
       <div style={{ opacity: pending ? 0.6 : 1 }} className="transition-opacity">
-        <EntryTable entries={entries} groupCounts={groupCounts} onEdit={startEdit} accountName={accountName} />
+        <EntryTable entries={entries} groupCounts={groupCounts} onEdit={startEdit} accountName={accountName} splitCounts={splitCounts} />
       </div>
 
       {total > pageSize && (
