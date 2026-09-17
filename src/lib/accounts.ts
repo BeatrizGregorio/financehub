@@ -82,6 +82,11 @@ export function accountBalance(
 export type CashOptions = {
   /** Entries that don't touch cash at all — credit-card purchases (see cards.ts). */
   isOffCash?: (e: AccountEntryLike) => boolean;
+  /**
+   * Other money leaving cash: credit-card bill payments. With an account they
+   * reduce that account; without one they reduce the unassigned total.
+   */
+  outflows?: { date: Date; amount: number; fromAccountId: string | null }[];
 };
 
 /**
@@ -103,11 +108,24 @@ export function cashPosition(
   const end = dayKey(asOf);
   const onCash = options.isOffCash ? entries.filter((e) => !options.isOffCash!(e)) : entries;
 
+  const outflows = options.outflows ?? [];
+  // Outflows from a known account behave exactly like a transfer to nowhere.
+  const known = new Set(accounts.map((a) => a.id));
+  const allTransfers: TransferLike[] = [
+    ...transfers,
+    ...outflows
+      .filter((o) => o.fromAccountId && known.has(o.fromAccountId))
+      .map((o) => ({ date: o.date, amount: o.amount, fromAccountId: o.fromAccountId!, toAccountId: null, toInvestmentId: null })),
+  ];
+
   let total = 0;
-  for (const a of accounts) total += accountBalance(a, onCash, transfers, asOf);
+  for (const a of accounts) total += accountBalance(a, onCash, allTransfers, asOf);
+  for (const o of outflows) {
+    if (o.fromAccountId && known.has(o.fromAccountId)) continue;
+    if (dayKey(o.date) <= end) total -= o.amount;
+  }
   // "Unassigned" includes entries pointing at an account that no longer exists.
   // Skipping those would make money silently vanish from the total.
-  const known = new Set(accounts.map((a) => a.id));
   for (const e of onCash) {
     if (e.accountId && known.has(e.accountId)) continue;
     if (dayKey(e.date) <= end) total += signed(e);

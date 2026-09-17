@@ -49,6 +49,12 @@ model Budget {
 model PaymentMethod {
   id   String @id @default(cuid())
   name String @unique
+  /// Set up as a credit card (V1.28): purchases made with it group into
+  /// monthly bills instead of leaving an account immediately. See lib/cards.ts.
+  isCreditCard Boolean @default(false)
+  /// 1-28, like the budget cycle start day.
+  closingDay   Int?
+  dueDay       Int?
 }
 
 model Investment {
@@ -227,4 +233,19 @@ model Transfer {
   createdAt               DateTime @default(now())
 
   @@index([date])
+}
+
+/// Paying (part of) a credit card bill. Not an expense: the purchases already
+/// were. fromAccountId is optional so bills can be paid without using accounts.
+model CardPayment {
+  id              String   @id @default(cuid())
+  paymentMethodId String
+  /// "YYYY-MM" of the month the bill closes in.
+  billKey         String
+  amount          Float
+  date            DateTime
+  fromAccountId   String?
+  createdAt       DateTime @default(now())
+
+  @@index([paymentMethodId, billKey])
 }

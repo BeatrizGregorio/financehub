@@ -34,6 +34,7 @@ export function EntriesClient({
   incomeCategories,
   paymentMethods,
   accounts,
+  creditCardNames,
 }: {
   entries: EditableEntry[];
   months: { key: string; label: string }[];
@@ -47,6 +48,7 @@ export function EntriesClient({
   incomeCategories: CategoryOption[];
   paymentMethods: CategoryOption[];
   accounts: { id: string; name: string; archived: boolean }[];
+  creditCardNames: string[];
 }) {
   const { t } = useT();
   const activeAccounts = accounts.filter((a) => !a.archived);
@@ -134,6 +136,7 @@ export function EntriesClient({
             incomeCategories={incomeCategories}
             paymentMethods={paymentMethods}
             accounts={activeAccounts}
+            creditCardNames={creditCardNames}
           />
         </Modal>
       )}

@@ -71,7 +71,21 @@ export type Backup = {
   entries?: BackupEntry[];
   categories?: { name: string; type: string }[];
   budgets?: { category: string; limit: number }[];
-  paymentMethods?: { name: string }[];
+  paymentMethods?: {
+    id?: string;
+    name: string;
+    isCreditCard?: boolean;
+    closingDay?: number | null;
+    dueDay?: number | null;
+  }[];
+  cardPayments?: {
+    id?: string;
+    paymentMethodId: string;
+    billKey: string;
+    amount: number;
+    date: string;
+    fromAccountId?: string | null;
+  }[];
   investments?: BackupInvestment[];
   referenceRates?: { cdi: number; selic: number; ipca: number };
   settings?: { cycleStartDay?: number; accentColor?: string; language?: string };
@@ -98,7 +112,7 @@ export type Backup = {
 // ─── Build ──────────────────────────────────────────────────────────────────
 
 export async function buildBackup() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers] =
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments] =
     await Promise.all([
       prisma.entry.findMany(),
       prisma.category.findMany(),
@@ -111,6 +125,7 @@ export async function buildBackup() {
       getLanguage(),
       prisma.account.findMany(),
       prisma.transfer.findMany(),
+      prisma.cardPayment.findMany(),
     ]);
 
   return {
@@ -120,7 +135,14 @@ export async function buildBackup() {
     entries,
     categories: categories.map((c) => ({ name: c.name, type: c.type })),
     budgets: budgets.map((b) => ({ category: b.category, limit: b.limit })),
-    paymentMethods: paymentMethods.map((m) => ({ name: m.name })),
+    // Ids kept: card payments point at the card's payment method.
+    paymentMethods: paymentMethods.map((m) => ({
+      id: m.id,
+      name: m.name,
+      isCreditCard: m.isCreditCard,
+      closingDay: m.closingDay,
+      dueDay: m.dueDay,
+    })),
     investments: investments.map((inv) => ({
       // Ids are kept from V1.28: transfers point at holdings and at the buys
       // they created, and those references must survive a restore.
@@ -175,6 +197,14 @@ export async function buildBackup() {
       investmentTransactionId: t.investmentTransactionId,
       note: t.note,
     })),
+    cardPayments: cardPayments.map((c) => ({
+      id: c.id,
+      paymentMethodId: c.paymentMethodId,
+      billKey: c.billKey,
+      amount: c.amount,
+      date: c.date,
+      fromAccountId: c.fromAccountId,
+    })),
   };
 }
 
@@ -210,6 +240,7 @@ export async function restoreBackup(backup: Backup) {
   await prisma.investmentTransaction.deleteMany();
   await prisma.investment.deleteMany();
   await prisma.transfer.deleteMany();
+  await prisma.cardPayment.deleteMany();
   await prisma.account.deleteMany();
 
   // Accounts before entries, so entry.accountId references are valid the
@@ -234,7 +265,13 @@ export async function restoreBackup(backup: Backup) {
   }
   if (backup.paymentMethods?.length) {
     await prisma.paymentMethod.createMany({
-      data: backup.paymentMethods.map((m) => ({ name: m.name })),
+      data: backup.paymentMethods.map((m) => ({
+        ...(m.id ? { id: m.id } : {}),
+        name: m.name,
+        isCreditCard: Boolean(m.isCreditCard),
+        closingDay: m.closingDay ?? null,
+        dueDay: m.dueDay ?? null,
+      })),
     });
   }
   if (backup.budgets?.length) {
@@ -325,6 +362,19 @@ export async function restoreBackup(backup: Backup) {
         toInvestmentId: t.toInvestmentId ?? null,
         investmentTransactionId: t.investmentTransactionId ?? null,
         note: t.note ?? null,
+      })),
+    });
+  }
+
+  if (backup.cardPayments?.length) {
+    await prisma.cardPayment.createMany({
+      data: backup.cardPayments.map((c) => ({
+        ...(c.id ? { id: c.id } : {}),
+        paymentMethodId: c.paymentMethodId,
+        billKey: c.billKey,
+        amount: c.amount,
+        date: new Date(c.date),
+        fromAccountId: c.fromAccountId ?? null,
       })),
     });
   }

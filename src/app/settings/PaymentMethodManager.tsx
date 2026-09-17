@@ -9,7 +9,7 @@ import { useT } from "@/components/LanguageProvider";
 export function PaymentMethodManager({
   methods,
 }: {
-  methods: { id: string; name: string }[];
+  methods: { id: string; name: string; isCreditCard?: boolean }[];
 }) {
   const initialState: ActionState = {};
   const { t } = useT();
@@ -30,7 +30,17 @@ export function PaymentMethodManager({
       </p>
 
       <div className="mb-3.5 flex flex-wrap gap-2">
-        {methods.map((m) => (
+        {methods.map((m) =>
+          m.isCreditCard ? (
+            <span
+              key={m.id}
+              title={t.cards.lockedInSettings}
+              className="flex items-center gap-[7px] rounded-full bg-[var(--color-brand-tint)] py-[7px] pl-3 pr-3 text-[13px] font-semibold text-[var(--color-brand-text)]"
+            >
+              <CreditCard size={14} />
+              {m.name}
+            </span>
+          ) : (
           <form key={m.id} action={removePaymentMethod.bind(null, m.id)}>
             <button
               type="submit"
@@ -41,7 +51,8 @@ export function PaymentMethodManager({
               <X size={13} className="opacity-40" />
             </button>
           </form>
-        ))}
+          ),
+        )}
         {methods.length === 0 && <p className="text-[13px] text-[var(--color-muted-2)]">{t.settings.noMethods}</p>}
       </div>
 

@@ -547,6 +547,8 @@ export type NetWorthOptions = {
   isOffCash?: (e: AccountEntryLike) => boolean;
   /** Money owed on credit cards at a date, subtracted from the total. */
   debtAt?: (date: Date) => number;
+  /** Credit-card bill payments: cash leaving without being an expense. */
+  outflows?: { date: Date; amount: number; fromAccountId: string | null }[];
 };
 
 /**
@@ -577,7 +579,10 @@ export function netWorthOverTime(
   const transfers = options.transfers ?? [];
 
   return monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => {
-    const cash = cashPosition(accounts, entries, transfers, date, { isOffCash: options.isOffCash });
+    const cash = cashPosition(accounts, entries, transfers, date, {
+      isOffCash: options.isOffCash,
+      outflows: options.outflows,
+    });
     const debt = options.debtAt ? options.debtAt(date) : 0;
     const invested = investments.reduce((sum, inv) => sum + ownershipValue(inv, rates, date), 0);
     return {

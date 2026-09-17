@@ -275,6 +275,10 @@ export async function addPaymentMethod(
 }
 
 export async function removePaymentMethod(id: string) {
+  // A credit card is managed on the Cards page: deleting it here would orphan
+  // its bill payments and flip its purchases back to cash with no warning.
+  const method = await prisma.paymentMethod.findUnique({ where: { id } });
+  if (!method || method.isCreditCard) return;
   await prisma.paymentMethod.delete({ where: { id } });
   revalidateAll();
 }
@@ -332,7 +336,8 @@ export async function importBackup(
 export async function resetDefaults() {
   await safetyBackup();
   await prisma.category.deleteMany();
-  await prisma.paymentMethod.deleteMany();
+  // Cards survive a reset: their bill payments reference them.
+  await prisma.paymentMethod.deleteMany({ where: { isCreditCard: false } });
   await prisma.budget.deleteMany();
 
   await prisma.category.createMany({
@@ -341,8 +346,9 @@ export async function resetDefaults() {
       ...DEFAULT_INCOME_CATEGORIES.map((name) => ({ name, type: "income" })),
     ],
   });
+  const kept = new Set((await prisma.paymentMethod.findMany({ select: { name: true } })).map((m) => m.name));
   await prisma.paymentMethod.createMany({
-    data: DEFAULT_PAYMENT_METHODS.map((name) => ({ name })),
+    data: DEFAULT_PAYMENT_METHODS.filter((name) => !kept.has(name)).map((name) => ({ name })),
   });
 
   revalidateAll();

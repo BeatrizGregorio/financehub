@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ListOrdered, TrendingUp, Settings, ChartPie, Wallet } from "lucide-react";
+import { LayoutDashboard, ListOrdered, TrendingUp, Settings, ChartPie, Wallet, CreditCard } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { useT } from "@/components/LanguageProvider";
 
@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/", key: "dashboard", icon: LayoutDashboard },
   { href: "/entries", key: "entries", icon: ListOrdered },
   { href: "/accounts", key: "accounts", icon: Wallet },
+  { href: "/cards", key: "cards", icon: CreditCard },
   { href: "/investments", key: "investments", icon: TrendingUp },
   { href: "/settings", key: "settings", icon: Settings },
 ] as const;

@@ -6,8 +6,10 @@ import {
   getCycleStartDay,
   getLanguage,
   getPaymentMethods,
+  getCardContext,
   getReferenceRates,
 } from "@/lib/data";
+import { cardDebt, isCardPurchase } from "@/lib/cards";
 import { dict } from "@/lib/i18n";
 import { monthlySeries } from "@/lib/aggregate";
 import { currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
@@ -57,7 +59,7 @@ function StatPill({
 }
 
 export default async function DashboardPage() {
-  const [entries, budgets, methods, investments, rates, cycleStartDay, lang, accounts, transfers] = await Promise.all([
+  const [entries, budgets, methods, investments, rates, cycleStartDay, lang, accounts, transfers, cardContext] = await Promise.all([
     prisma.entry.findMany(),
     getBudgets(),
     getPaymentMethods(),
@@ -67,6 +69,7 @@ export default async function DashboardPage() {
     getLanguage(),
     prisma.account.findMany(),
     prisma.transfer.findMany(),
+    getCardContext(),
   ]);
   const t = dict(lang);
 
@@ -111,9 +114,15 @@ export default async function DashboardPage() {
   const allocation = allocationByType(investments, rates);
   const portfolioSeries = monthlyPortfolioValue(investments, rates, 12, cycleStartDay, lang);
   // The two halves of the app on one timeline - see netWorthOverTime().
+  // Card purchases aren't cash until the bill is paid; until then they're debt.
+  const { cards, payments: cardPayments } = cardContext;
+  const cardNames = new Set(cards.map((c) => c.name));
   const netWorth = netWorthOverTime(entries, investments, rates, 12, cycleStartDay, lang, {
     accounts,
     transfers,
+    isOffCash: (e) => isCardPurchase({ ...e, method: e.method ?? null }, cardNames),
+    outflows: cardPayments,
+    debtAt: (date) => cardDebt(cards, entries, cardPayments, date),
   });
 
   return (

@@ -50,6 +50,7 @@ export function EntryForm({
   incomeCategories,
   paymentMethods,
   accounts = [],
+  creditCardNames = [],
 }: {
   entry?: EditableEntry;
   onDone?: () => void;
@@ -58,6 +59,8 @@ export function EntryForm({
   paymentMethods: CategoryOption[];
   /** Active accounts. The field is hidden entirely when there are none. */
   accounts?: CategoryOption[];
+  /** Payment methods set up as credit cards: choosing one hides Account. */
+  creditCardNames?: string[];
 }) {
   const { t } = useT();
   const isEditing = Boolean(entry);
@@ -66,6 +69,8 @@ export function EntryForm({
     (entry?.type as "income" | "expense") ?? "expense",
   );
   const [seriesType, setSeriesType] = useState<"none" | "fixed">("none");
+  // Controlled so choosing a credit card can hide the Account field.
+  const [method, setMethod] = useState(entry?.method ?? "");
 
   const action = isEditing ? updateEntry.bind(null, entry!.id) : createEntry;
   const initialState: ActionState = {};
@@ -87,7 +92,9 @@ export function EntryForm({
   // Half-width fields after Category: Value, Payment method (expenses only),
   // Account (when accounts exist). With an odd count the last one would leave
   // an empty cell beside it in the two-column grid, so it spans both columns.
-  const halfWidthFields = 1 + (type === "expense" ? 1 : 0) + (accounts.length > 0 ? 1 : 0);
+  const paidByCard = type === "expense" && creditCardNames.includes(method);
+  const showAccount = accounts.length > 0 && !paidByCard;
+  const halfWidthFields = 1 + (type === "expense" ? 1 : 0) + (showAccount ? 1 : 0);
   const typeWord = type === "income" ? t.entries.typeIncome : t.entries.typeExpense;
 
   return (
@@ -218,7 +225,8 @@ export function EntryForm({
           <select
             id={`${formId}-method`}
             name="method"
-            defaultValue={entry?.method ?? ""}
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
             className={INPUT}
           >
             <option value="">{t.common.none}</option>
@@ -228,10 +236,13 @@ export function EntryForm({
               </option>
             ))}
           </select>
+          {paidByCard && (
+            <p className="mt-1.5 text-xs text-[var(--color-muted-2)]">{t.cards.cardMethodHint}</p>
+          )}
         </div>
       )}
 
-      {accounts.length > 0 && (
+      {showAccount && (
         <div className={halfWidthFields === 3 ? "sm:col-span-2" : ""}>
           <label htmlFor={`${formId}-account`} className={LABEL}>
             {t.accounts.entryAccount}

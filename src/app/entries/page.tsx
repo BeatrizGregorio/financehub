@@ -52,7 +52,7 @@ export default async function EntriesPage({
     where.OR = [{ name: { contains: q } }, { note: { contains: q } }];
   }
 
-  const [rows, total, sums, allDates, { expense, income }, paymentMethods, lang, accounts] =
+  const [rows, total, sums, allDates, { expense, income }, paymentMethods, lang, accounts, cardMethods] =
     await Promise.all([
       prisma.entry.findMany({
         where,
@@ -72,6 +72,7 @@ export default async function EntriesPage({
       getPaymentMethods(),
       getLanguage(),
       prisma.account.findMany({ select: { id: true, name: true, archived: true }, orderBy: { name: "asc" } }),
+      prisma.paymentMethod.findMany({ where: { isCreditCard: true }, select: { name: true } }),
     ]);
 
   // Series counts only for the groups actually on this page, so "Delete series"
@@ -109,6 +110,7 @@ export default async function EntriesPage({
       pageSize={PAGE_SIZE}
       filters={{ q, month, type, account }}
       accounts={accounts}
+      creditCardNames={cardMethods.map((m) => m.name)}
       expenseCategories={expense}
       incomeCategories={income}
       paymentMethods={paymentMethods}
