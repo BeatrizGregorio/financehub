@@ -18,6 +18,7 @@ import {
   writeBackupFile,
   type Backup,
 } from "@/lib/backup";
+import { buildMatcher, findDuplicates, normalizeMerchant } from "@/lib/csvMatch";
 
 export type ActionState = { error?: string };
 
@@ -158,6 +159,10 @@ export async function renameCategory(
       where: { category: oldName, type: category.type },
       data: { category: newName },
     });
+    await tx.categoryRule.updateMany({
+      where: { category: oldName, type: category.type },
+      data: { category: newName },
+    });
 
     // Budget.category is unique, so a budget already sitting under the new
     // name would collide. Keep that one and drop the old row rather than
@@ -201,25 +206,61 @@ export type CsvImportRow = {
   name: string;
   amount: number;
   type: "income" | "expense";
+  /** Chosen per row in the review table; falls back to the default for its type. */
+  category?: string;
+};
+
+export type CsvRowAnalysis = {
+  suggestion: { category: string; source: "rule" | "history" | "similar" } | null;
+  /** Name of the existing entry this row most likely duplicates. */
+  duplicateOf: string | null;
 };
 
 /**
- * Create entries from a parsed CSV.
+ * Suggest a category and flag likely duplicates for every mapped row, before
+ * anything is written. See lib/csvMatch.ts for how both are decided.
+ */
+export async function analyzeCsvRows(rows: CsvImportRow[]): Promise<CsvRowAnalysis[]> {
+  if (!Array.isArray(rows) || rows.length === 0 || rows.length > MAX_CSV_ROWS) return [];
+
+  const dates = rows.map((r) => new Date(r.date).getTime());
+  const from = new Date(Math.min(...dates) - 86_400_000);
+  const to = new Date(Math.max(...dates) + 86_400_000);
+
+  const [rules, history, categories, nearby] = await Promise.all([
+    prisma.categoryRule.findMany(),
+    prisma.entry.findMany({ select: { name: true, category: true, type: true, date: true } }),
+    prisma.category.findMany(),
+    // Only entries around the file's own date range can be duplicates.
+    prisma.entry.findMany({
+      where: { date: { gte: from, lte: to } },
+      select: { name: true, amount: true, type: true, date: true },
+    }),
+  ]);
+
+  const valid: Record<string, Set<string>> = { income: new Set(), expense: new Set() };
+  for (const c of categories) valid[c.type]?.add(c.name);
+
+  const suggest = buildMatcher(rules, history, valid);
+  const normalized = rows.map((r) => ({ ...r, date: new Date(r.date) }));
+  const dupes = findDuplicates(normalized, nearby);
+  return normalized.map((r, i) => ({ suggestion: suggest(r), duplicateOf: dupes[i] }));
+}
+
+/**
+ * Create entries from a reviewed CSV.
  *
- * The parsing and column mapping happen in the browser (see lib/csv.ts) so the
- * owner can see a preview and fix the mapping before anything is written. This
- * action receives already-mapped rows and does the one thing the browser can't.
- *
- * Unlike importBackup, this is **additive** — it never wipes existing data.
- * Importing a statement twice will duplicate its entries; there's no dedupe,
- * because a statement has no stable per-row id and two genuinely identical
- * charges on the same day are perfectly possible.
+ * Parsing, mapping, category suggestions and duplicate flags all happen before
+ * this, in the review table, so the owner has seen every row that arrives
+ * here. Additive: it never wipes existing data. Rows flagged as duplicates are
+ * simply not sent unless the owner ticked them back in.
  */
 export async function importCsvEntries(payload: {
   rows: CsvImportRow[];
   expenseCategory: string;
   incomeCategory: string;
   method: string | null;
+  accountId?: string | null;
 }): Promise<{ imported: number; error?: string }> {
   const { rows, expenseCategory, incomeCategory, method } = payload;
 
@@ -230,31 +271,69 @@ export async function importCsvEntries(payload: {
     return { imported: 0, error: `That file has more than ${MAX_CSV_ROWS} rows.` };
   }
 
-  // Entry.category is required, and a CSV almost never carries one, so the
-  // owner picks a default per direction. Verify they still exist rather than
-  // writing entries that would immediately show up as orphans.
-  const needsExpense = rows.some((r) => r.type === "expense");
-  const needsIncome = rows.some((r) => r.type === "income");
-  if (needsExpense && !expenseCategory) return { imported: 0, error: "Choose an expense category." };
-  if (needsIncome && !incomeCategory) return { imported: 0, error: "Choose an income category." };
+  const categories = await prisma.category.findMany();
+  const exists = (type: string, name: string | undefined) =>
+    !!name && categories.some((c) => c.type === type && c.name === name);
+
+  // A per-row choice must still exist; otherwise use the default, which must
+  // exist too. Never write an entry that would immediately be an orphan.
+  const resolved = rows.map((r) => {
+    const fallback = r.type === "expense" ? expenseCategory : incomeCategory;
+    return { ...r, category: exists(r.type, r.category) ? r.category! : fallback };
+  });
+  for (const r of resolved) {
+    if (!exists(r.type, r.category)) {
+      return { imported: 0, error: r.type === "expense" ? "Choose an expense category." : "Choose an income category." };
+    }
+  }
+
+  const accountId = payload.accountId || null;
+  if (accountId && !(await prisma.account.findUnique({ where: { id: accountId } }))) {
+    return { imported: 0, error: "That account no longer exists." };
+  }
 
   await safetyBackup();
   const now = new Date();
   await prisma.entry.createMany({
-    data: rows.map((r) => ({
+    data: resolved.map((r) => ({
       name: r.name,
       amount: Math.abs(r.amount),
       date: new Date(r.date),
       type: r.type,
-      category: r.type === "expense" ? expenseCategory : incomeCategory,
+      category: r.category,
       method: r.type === "expense" ? method : null,
+      accountId,
       createdAt: now,
       updatedAt: now,
     })),
   });
 
   revalidateAll();
-  return { imported: rows.length };
+  revalidatePath("/accounts");
+  return { imported: resolved.length };
+}
+
+export async function addCategoryRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const pattern = String(formData.get("pattern") ?? "").trim();
+  const type = String(formData.get("type") ?? "expense");
+  const category = String(formData.get("category") ?? "");
+  if (!normalizeMerchant(pattern)) return { error: "Enter some letters the description contains." };
+  if (type !== "income" && type !== "expense") return { error: "Choose income or expense." };
+  if (!(await prisma.category.findFirst({ where: { name: category, type } }))) {
+    return { error: "Choose a category." };
+  }
+  try {
+    await prisma.categoryRule.create({ data: { pattern, type, category } });
+  } catch {
+    return { error: `There's already a rule for "${pattern}".` };
+  }
+  revalidatePath("/settings");
+  return {};
+}
+
+export async function deleteCategoryRule(id: string) {
+  await prisma.categoryRule.delete({ where: { id } });
+  revalidatePath("/settings");
 }
 
 export async function addPaymentMethod(

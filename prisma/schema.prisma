@@ -249,3 +249,17 @@ model CardPayment {
 
   @@index([paymentMethodId, billKey])
 }
+
+/// "Description contains X -> category" for CSV imports (V1.28). The pattern
+/// is compared after normalizeMerchant(), so case, accents and digits don't
+/// matter. Rules win over what the app learned from past entries.
+model CategoryRule {
+  id        String   @id @default(cuid())
+  pattern   String
+  /// "income" | "expense"
+  type      String
+  category  String
+  createdAt DateTime @default(now())
+
+  @@unique([pattern, type])
+}

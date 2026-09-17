@@ -78,6 +78,7 @@ export type Backup = {
     closingDay?: number | null;
     dueDay?: number | null;
   }[];
+  categoryRules?: { pattern: string; type: string; category: string }[];
   cardPayments?: {
     id?: string;
     paymentMethodId: string;
@@ -112,7 +113,7 @@ export type Backup = {
 // ─── Build ──────────────────────────────────────────────────────────────────
 
 export async function buildBackup() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments] =
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments, categoryRules] =
     await Promise.all([
       prisma.entry.findMany(),
       prisma.category.findMany(),
@@ -126,6 +127,7 @@ export async function buildBackup() {
       prisma.account.findMany(),
       prisma.transfer.findMany(),
       prisma.cardPayment.findMany(),
+      prisma.categoryRule.findMany(),
     ]);
 
   return {
@@ -197,6 +199,7 @@ export async function buildBackup() {
       investmentTransactionId: t.investmentTransactionId,
       note: t.note,
     })),
+    categoryRules: categoryRules.map((r) => ({ pattern: r.pattern, type: r.type, category: r.category })),
     cardPayments: cardPayments.map((c) => ({
       id: c.id,
       paymentMethodId: c.paymentMethodId,
@@ -242,6 +245,12 @@ export async function restoreBackup(backup: Backup) {
   await prisma.transfer.deleteMany();
   await prisma.cardPayment.deleteMany();
   await prisma.account.deleteMany();
+  await prisma.categoryRule.deleteMany();
+  if (backup.categoryRules?.length) {
+    await prisma.categoryRule.createMany({
+      data: backup.categoryRules.map((r) => ({ pattern: r.pattern, type: r.type, category: r.category })),
+    });
+  }
 
   // Accounts before entries, so entry.accountId references are valid the
   // moment entries exist. Original ids are kept for exactly that reason.
