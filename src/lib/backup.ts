@@ -79,6 +79,14 @@ export type Backup = {
     dueDay?: number | null;
   }[];
   categoryRules?: { pattern: string; type: string; category: string }[];
+  sinkingFunds?: {
+    name: string;
+    amount: number;
+    dueDate: string;
+    repeatsYearly: boolean;
+    savedAmount: number;
+    category?: string | null;
+  }[];
   cardPayments?: {
     id?: string;
     paymentMethodId: string;
@@ -113,7 +121,7 @@ export type Backup = {
 // ─── Build ──────────────────────────────────────────────────────────────────
 
 export async function buildBackup() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments, categoryRules] =
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments, categoryRules, sinkingFunds] =
     await Promise.all([
       prisma.entry.findMany(),
       prisma.category.findMany(),
@@ -128,6 +136,7 @@ export async function buildBackup() {
       prisma.transfer.findMany(),
       prisma.cardPayment.findMany(),
       prisma.categoryRule.findMany(),
+      prisma.sinkingFund.findMany(),
     ]);
 
   return {
@@ -200,6 +209,14 @@ export async function buildBackup() {
       note: t.note,
     })),
     categoryRules: categoryRules.map((r) => ({ pattern: r.pattern, type: r.type, category: r.category })),
+    sinkingFunds: sinkingFunds.map((f) => ({
+      name: f.name,
+      amount: f.amount,
+      dueDate: f.dueDate,
+      repeatsYearly: f.repeatsYearly,
+      savedAmount: f.savedAmount,
+      category: f.category,
+    })),
     cardPayments: cardPayments.map((c) => ({
       id: c.id,
       paymentMethodId: c.paymentMethodId,
@@ -246,6 +263,19 @@ export async function restoreBackup(backup: Backup) {
   await prisma.cardPayment.deleteMany();
   await prisma.account.deleteMany();
   await prisma.categoryRule.deleteMany();
+  await prisma.sinkingFund.deleteMany();
+  if (backup.sinkingFunds?.length) {
+    await prisma.sinkingFund.createMany({
+      data: backup.sinkingFunds.map((f) => ({
+        name: f.name,
+        amount: f.amount,
+        dueDate: new Date(f.dueDate),
+        repeatsYearly: Boolean(f.repeatsYearly),
+        savedAmount: f.savedAmount ?? 0,
+        category: f.category ?? null,
+      })),
+    });
+  }
   if (backup.categoryRules?.length) {
     await prisma.categoryRule.createMany({
       data: backup.categoryRules.map((r) => ({ pattern: r.pattern, type: r.type, category: r.category })),

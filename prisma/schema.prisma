@@ -263,3 +263,17 @@ model CategoryRule {
 
   @@unique([pattern, type])
 }
+
+/// A big predictable bill saved for over time: IPVA, IPTU, insurance (V1.28).
+/// savedAmount is kept up to date by hand. See lib/sinkingFunds.ts.
+model SinkingFund {
+  id            String   @id @default(cuid())
+  name          String
+  amount        Float
+  dueDate       DateTime
+  repeatsYearly Boolean  @default(true)
+  savedAmount   Float    @default(0)
+  /// Optional expense category the bill is paid from, for reference.
+  category      String?
+  createdAt     DateTime @default(now())
+}

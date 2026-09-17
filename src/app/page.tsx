@@ -25,6 +25,7 @@ import { AllocationCard } from "@/components/AllocationCard";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
 import { allocationByType, monthlyPortfolioValue, netWorthOverTime } from "@/lib/investments";
 import { NetWorthCard } from "@/components/NetWorthCard";
+import { SetAsideCard } from "@/components/SetAsideCard";
 import { CARD } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,7 @@ function StatPill({
 }
 
 export default async function DashboardPage() {
-  const [entries, budgets, methods, investments, rates, cycleStartDay, lang, accounts, transfers, cardContext] = await Promise.all([
+  const [entries, budgets, methods, investments, rates, cycleStartDay, lang, accounts, transfers, cardContext, funds] = await Promise.all([
     prisma.entry.findMany(),
     getBudgets(),
     getPaymentMethods(),
@@ -70,6 +71,7 @@ export default async function DashboardPage() {
     prisma.account.findMany(),
     prisma.transfer.findMany(),
     getCardContext(),
+    prisma.sinkingFund.findMany(),
   ]);
   const t = dict(lang);
 
@@ -170,6 +172,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5">
           <BudgetsCard entries={entries} budgets={budgets} cycleStartDay={cycleStartDay} t={t} />
+          {funds.length > 0 && <SetAsideCard funds={funds} t={t} lang={lang} />}
           {/* Real future-dated entries only - see upcomingEntries(). */}
           <UpcomingCard entries={entries} t={t} lang={lang} />
           <RecentEntriesCard entries={entries} t={t} />

@@ -21,6 +21,7 @@ import { OrphanCategoriesCard } from "./OrphanCategoriesCard";
 import { CsvImportCard } from "./CsvImportCard";
 import { AutoBackupCard } from "./AutoBackupCard";
 import { CategoryRulesCard } from "./CategoryRulesCard";
+import { SinkingFundsCard } from "./SinkingFundsCard";
 import { prisma } from "@/lib/db";
 import { defaultBackupDir, getBackupSettings, listBackupFiles } from "@/lib/backup";
 import { dict } from "@/lib/i18n";
@@ -70,9 +71,10 @@ export default async function SettingsPage() {
   const t = dict(lang);
   const backup = await getBackupSettings();
   const backupFiles = listBackupFiles(backup.dir);
-  const [rules, accounts] = await Promise.all([
+  const [rules, accounts, funds] = await Promise.all([
     prisma.categoryRule.findMany({ orderBy: [{ type: "asc" }, { pattern: "asc" }] }),
     prisma.account.findMany({ where: { archived: false }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.sinkingFund.findMany({ orderBy: { dueDate: "asc" } }),
   ]);
 
   return (
@@ -99,6 +101,7 @@ export default async function SettingsPage() {
         />
         <BudgetEditor categories={expense} budgets={budgets} />
         <PaymentMethodManager methods={methods} />
+        <SinkingFundsCard funds={funds} expenseCategories={expense} />
         {/* Renders nothing unless something is actually orphaned. */}
         <OrphanCategoriesCard report={orphans} />
       </Section>
