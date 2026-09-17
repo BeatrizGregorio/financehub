@@ -6,8 +6,10 @@ import {
   getCycleStartDay,
   getLanguage,
   getPaymentMethods,
+  getCardContext,
   getReferenceRates,
 } from "@/lib/data";
+import { cardDebt, isCardPurchase } from "@/lib/cards";
 import { dict } from "@/lib/i18n";
 import { monthlySeries } from "@/lib/aggregate";
 import { currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
@@ -23,6 +25,7 @@ import { AllocationCard } from "@/components/AllocationCard";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
 import { allocationByType, monthlyPortfolioValue, netWorthOverTime } from "@/lib/investments";
 import { NetWorthCard } from "@/components/NetWorthCard";
+import { SetAsideCard } from "@/components/SetAsideCard";
 import { CARD } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +60,7 @@ function StatPill({
 }
 
 export default async function DashboardPage() {
-  const [entries, budgets, methods, investments, rates, cycleStartDay, lang] = await Promise.all([
+  const [entries, budgets, methods, investments, rates, cycleStartDay, lang, accounts, transfers, cardContext, funds] = await Promise.all([
     prisma.entry.findMany(),
     getBudgets(),
     getPaymentMethods(),
@@ -65,6 +68,10 @@ export default async function DashboardPage() {
     getReferenceRates(),
     getCycleStartDay(),
     getLanguage(),
+    prisma.account.findMany(),
+    prisma.transfer.findMany(),
+    getCardContext(),
+    prisma.sinkingFund.findMany(),
   ]);
   const t = dict(lang);
 
@@ -109,7 +116,16 @@ export default async function DashboardPage() {
   const allocation = allocationByType(investments, rates);
   const portfolioSeries = monthlyPortfolioValue(investments, rates, 12, cycleStartDay, lang);
   // The two halves of the app on one timeline - see netWorthOverTime().
-  const netWorth = netWorthOverTime(entries, investments, rates, 12, cycleStartDay, lang);
+  // Card purchases aren't cash until the bill is paid; until then they're debt.
+  const { cards, payments: cardPayments } = cardContext;
+  const cardNames = new Set(cards.map((c) => c.name));
+  const netWorth = netWorthOverTime(entries, investments, rates, 12, cycleStartDay, lang, {
+    accounts,
+    transfers,
+    isOffCash: (e) => isCardPurchase({ ...e, method: e.method ?? null }, cardNames),
+    outflows: cardPayments,
+    debtAt: (date) => cardDebt(cards, entries, cardPayments, date),
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -156,6 +172,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5">
           <BudgetsCard entries={entries} budgets={budgets} cycleStartDay={cycleStartDay} t={t} />
+          {funds.length > 0 && <SetAsideCard funds={funds} t={t} lang={lang} />}
           {/* Real future-dated entries only - see upcomingEntries(). */}
           <UpcomingCard entries={entries} t={t} lang={lang} />
           <RecentEntriesCard entries={entries} t={t} />
@@ -179,7 +196,7 @@ export default async function DashboardPage() {
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthOverMonthNet}</h2>
             <MonthlyTrendChart data={series} />
           </div>
-          <NetWorthCard data={netWorth} t={t} />
+          <NetWorthCard data={netWorth} t={t} hasAccounts={accounts.length > 0} />
           <PaymentMethodsCard methods={methods} t={t} />
           <div className={`${CARD} p-5`}>
             <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">{t.dashboard.monthlyValue}</h2>

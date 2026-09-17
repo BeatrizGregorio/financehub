@@ -13,6 +13,7 @@ import { LicenseGate } from "@/components/LicenseGate";
 import { TrialBanner } from "@/components/TrialBanner";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import { currentCycleKey, cycleLabel, cycleRange } from "@/lib/format";
+import { maybeAutoBackup } from "@/lib/backup";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -37,6 +38,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Once a day, on the first page load: every route passes through this
+  // layout, so this is the one place guaranteed to run whichever page opens
+  // first. Cheap when it has nothing to do (one settings read), and it never
+  // throws — see maybeAutoBackup().
+  await maybeAutoBackup();
   const cycleStartDay = await getCycleStartDay();
   const accentColor = await getAccentColor();
   const language = await getLanguage();
@@ -65,29 +71,29 @@ export default async function RootLayout({
       className={`${jakarta.variable} ${dmMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <div className="relative h-screen w-full overflow-hidden bg-[var(--background)]">
+        <div className="relative h-screen w-full overflow-hidden bg-[var(--background)] print:h-auto print:overflow-visible">
           {/* Ambient background blobs */}
           <div
-            className="pointer-events-none fixed -top-[15%] -left-[8%] z-0 h-[55vw] w-[55vw] rounded-full blur-[60px]"
+            className="pointer-events-none fixed print:hidden -top-[15%] -left-[8%] z-0 h-[55vw] w-[55vw] rounded-full blur-[60px]"
             style={{ background: "radial-gradient(circle, rgb(var(--brand-rgb) / 0.12) 0%, transparent 65%)" }}
           />
           <div
-            className="pointer-events-none fixed -right-[5%] -bottom-[10%] z-0 h-[45vw] w-[45vw] rounded-full blur-[60px]"
+            className="pointer-events-none fixed print:hidden -right-[5%] -bottom-[10%] z-0 h-[45vw] w-[45vw] rounded-full blur-[60px]"
             style={{ background: "radial-gradient(circle, rgba(59,130,246,0.09) 0%, transparent 65%)" }}
           />
           <div
-            className="pointer-events-none fixed top-[35%] right-[18%] z-0 h-[28vw] w-[28vw] rounded-full blur-[50px]"
+            className="pointer-events-none fixed print:hidden top-[35%] right-[18%] z-0 h-[28vw] w-[28vw] rounded-full blur-[50px]"
             style={{ background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 65%)" }}
           />
 
           <LanguageProvider lang={language}>
-            <div className="relative z-10 mx-auto flex h-full w-full max-w-[1600px]">
+            <div className="relative z-10 mx-auto flex h-full w-full max-w-[1600px] print:block print:h-auto">
               <Nav
                 income={income}
                 expense={expense}
                 monthLabel={cycleLabel(currentCycle, language)}
               />
-              <main className="min-w-0 flex-1 overflow-y-auto">
+              <main className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
                 {/* The gate replaces the page content but keeps the chrome, so
                     an expired copy still looks like the app the buyer paid for
                     rather than an error screen. */}

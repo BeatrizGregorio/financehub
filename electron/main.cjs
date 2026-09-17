@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, Notification } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -206,6 +206,82 @@ async function showStartupError(win, err) {
   await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 }
 
+// ─── Bill reminders (V1.28) ────────────────────────────────────────────────
+// The server decides what's due (GET /api/reminders, which also honours the
+// on/off switch in Settings); this side only shows notifications and
+// remembers which ones it already showed, so each reminder appears once.
+// They only fire while the app is running — there's no background service.
+const REMINDER_INTERVAL_MS = 30 * 60 * 1000;
+const REMINDER_MEMORY_DAYS = 90;
+const shownPath = path.join(app.getPath("userData"), "reminders-shown.json");
+// A Notification that goes out of scope can be garbage-collected, silently
+// dropping its click handler, so live ones are held here until dismissed.
+const liveNotifications = new Set();
+
+function loadShown() {
+  try {
+    return JSON.parse(fs.readFileSync(shownPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveShown(shown) {
+  const cutoff = Date.now() - REMINDER_MEMORY_DAYS * 86400000;
+  for (const id of Object.keys(shown)) if (shown[id] < cutoff) delete shown[id];
+  try {
+    fs.writeFileSync(shownPath, JSON.stringify(shown));
+  } catch (err) {
+    log(`Could not save reminder history: ${err.message}`);
+  }
+}
+
+async function checkReminders(win) {
+  if (!Notification.isSupported()) return;
+  let data;
+  try {
+    const res = await fetch(`http://127.0.0.1:${PORT}/api/reminders`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    log(`Reminder check failed: ${err.message}`);
+    return;
+  }
+  if (!data.enabled || !Array.isArray(data.items)) return;
+
+  const shown = loadShown();
+  let changed = false;
+  for (const item of data.items) {
+    if (shown[item.id]) continue;
+    const n = new Notification({ title: item.title, body: item.body });
+    liveNotifications.add(n);
+    const release = () => liveNotifications.delete(n);
+    n.on("close", release);
+    n.on("click", () => {
+      release();
+      if (win.isDestroyed()) return;
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+      win.loadURL(`http://127.0.0.1:${PORT}${item.href || "/"}`);
+    });
+    n.show();
+    shown[item.id] = Date.now();
+    changed = true;
+  }
+  if (changed) {
+    saveShown(shown);
+    log(`Showed ${data.items.filter((i) => shown[i.id]).length} reminder(s)`);
+  }
+}
+
+function startReminders(win) {
+  // A short delay so the first check doesn't compete with the first page load.
+  setTimeout(() => checkReminders(win), 15000);
+  const timer = setInterval(() => checkReminders(win), REMINDER_INTERVAL_MS);
+  win.on("closed", () => clearInterval(timer));
+}
+
 async function createWindow() {
   const win = new BrowserWindow({
     width: 1360,
@@ -219,10 +295,15 @@ async function createWindow() {
   try {
     await startServer();
     await win.loadURL(`http://127.0.0.1:${PORT}`);
+    startReminders(win);
   } catch (err) {
     await showStartupError(win, err);
   }
 }
+
+// Windows only shows toast notifications for an app with an identity; this
+// matches build.appId in package.json.
+if (process.platform === "win32") app.setAppUserModelId("com.financehub.app");
 
 app.whenReady().then(() => {
   log(`FinanceHub starting (packaged=${app.isPackaged}, platform=${process.platform})`);

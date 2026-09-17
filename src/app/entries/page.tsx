@@ -4,6 +4,7 @@ import { cycleKey, cycleLabel, cycleRange } from "@/lib/format";
 import { getLanguage } from "@/lib/data";
 import { EntriesClient } from "./EntriesClient";
 import type { Prisma } from "@/generated/prisma/client";
+import { tagNeedle, tagsOf } from "@/lib/tags";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export const PAGE_SIZE = 50;
 
-type Search = { q?: string; month?: string; type?: string; page?: string };
+type Search = { q?: string; month?: string; type?: string; page?: string; account?: string; tag?: string };
 
 export default async function EntriesPage({
   searchParams,
@@ -28,9 +29,15 @@ export default async function EntriesPage({
   const month = sp.month && sp.month !== "all" ? sp.month : "all";
   const type = sp.type === "income" || sp.type === "expense" ? sp.type : "all";
   const page = Math.max(1, Number(sp.page) || 1);
+  // "none" = entries not assigned to any account; otherwise an account id.
+  const account = sp.account ?? "all";
+  const tag = sp.tag ?? "all";
 
   const where: Prisma.EntryWhereInput = {};
   if (type !== "all") where.type = type;
+  if (tag !== "all") where.tags = { contains: tagNeedle(tag) };
+  if (account === "none") where.accountId = null;
+  else if (account !== "all") where.accountId = account;
   if (month !== "all") {
     // The same cycle-aware date range the sidebar's IN/OUT query uses, rather
     // than bucketing in memory — those two agreeing is the useful end-to-end
@@ -48,7 +55,7 @@ export default async function EntriesPage({
     where.OR = [{ name: { contains: q } }, { note: { contains: q } }];
   }
 
-  const [rows, total, sums, allDates, { expense, income }, paymentMethods, lang] =
+  const [rows, total, sums, allDates, { expense, income }, paymentMethods, lang, accounts, cardMethods] =
     await Promise.all([
       prisma.entry.findMany({
         where,
@@ -63,10 +70,12 @@ export default async function EntriesPage({
       // One column for every entry, purely to build the month picker. Far
       // lighter than the full rows this page used to load, and it keeps the
       // picker showing every month rather than only those on the current page.
-      prisma.entry.findMany({ select: { date: true } }),
+      prisma.entry.findMany({ select: { date: true, tags: true } }),
       getCategories(),
       getPaymentMethods(),
       getLanguage(),
+      prisma.account.findMany({ select: { id: true, name: true, archived: true }, orderBy: { name: "asc" } }),
+      prisma.paymentMethod.findMany({ where: { isCreditCard: true }, select: { name: true } }),
     ]);
 
   // Series counts only for the groups actually on this page, so "Delete series"
@@ -83,6 +92,15 @@ export default async function EntriesPage({
   for (const g of groupRows) {
     if (g.groupId) groupCounts[g.groupId] = g._count._all;
   }
+
+  const splitIds = [...new Set(rows.map((r) => r.splitId).filter((x): x is string => !!x))];
+  const splitRows = splitIds.length
+    ? await prisma.entry.groupBy({ by: ["splitId"], where: { splitId: { in: splitIds } }, _count: { _all: true } })
+    : [];
+  const splitCounts: Record<string, number> = {};
+  for (const r of splitRows) if (r.splitId) splitCounts[r.splitId] = r._count._all;
+
+  const allTags = [...new Set(allDates.flatMap((e) => tagsOf(e.tags)))].sort();
 
   const monthKeys = [...new Set(allDates.map((e) => cycleKey(e.date, cycleStartDay)))]
     .sort((a, b) => (a < b ? 1 : -1))
@@ -102,7 +120,11 @@ export default async function EntriesPage({
       net={net}
       page={page}
       pageSize={PAGE_SIZE}
-      filters={{ q, month, type }}
+      filters={{ q, month, type, account, tag }}
+      splitCounts={splitCounts}
+      tags={allTags}
+      accounts={accounts}
+      creditCardNames={cardMethods.map((m) => m.name)}
       expenseCategories={expense}
       incomeCategories={income}
       paymentMethods={paymentMethods}

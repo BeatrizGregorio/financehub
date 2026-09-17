@@ -53,3 +53,6 @@ financehub-backup-*.json
 
 # personal Claude Code settings (not meant for the team/repo)
 .claude/settings.local.json
+
+# Automatic backups (V1.28) hold real financial data — never commit them.
+/backups/

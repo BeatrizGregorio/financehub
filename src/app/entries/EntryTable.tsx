@@ -1,6 +1,7 @@
 "use client";
 
-import { deleteEntry, deleteSeries } from "./actions";
+import { deleteEntry, deleteSeries, deleteSplit } from "./actions";
+import { tagsOf } from "@/lib/tags";
 import { categoryColor } from "@/lib/categories";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { EditableEntry } from "./EntryForm";
@@ -63,6 +64,24 @@ function DeleteSeriesButton({
   );
 }
 
+function DeleteSplitButton({ splitId, count, t }: { splitId: string; count: number; t: Dict }) {
+  return (
+    <form
+      action={deleteSplit.bind(null, splitId)}
+      onSubmit={(e) => {
+        if (!confirm(t.entries.confirmDeleteSplit(count))) e.preventDefault();
+      }}
+    >
+      <button
+        type="submit"
+        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
+      >
+        {t.entries.splitAction}
+      </button>
+    </form>
+  );
+}
+
 function seriesBadge(entry: EditableEntry, t: Dict): string | null {
   if (entry.seriesType === "fixed") return t.entries.recurring;
   if (entry.seriesType === "installment") {
@@ -75,12 +94,16 @@ export function EntryTable({
   entries,
   groupCounts,
   onEdit,
+  accountName,
+  splitCounts = {},
 }: {
   entries: EditableEntry[];
   // A plain object rather than a Map: this crosses the server/client boundary
   // now, and a Map does not survive React serialization.
   groupCounts: Record<string, number>;
   onEdit: (entry: EditableEntry) => void;
+  accountName?: (id: string | null) => string | null;
+  splitCounts?: Record<string, number>;
 }) {
   const { t, lang } = useT();
 
@@ -123,6 +146,11 @@ export function EntryTable({
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="flex items-center gap-2 truncate text-[13.5px] font-semibold text-[var(--color-ink)]">
                     <span className="truncate">{entry.name}</span>
+                    {entry.splitId && (
+                      <span className="shrink-0 rounded-md bg-[var(--color-panel)] px-[7px] py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-[var(--color-muted)]">
+                        {t.entries.splitBadge}
+                      </span>
+                    )}
                     {badge && (
                       <span className="shrink-0 rounded-md bg-[var(--color-panel)] px-[7px] py-0.5 font-mono text-[9.5px] uppercase tracking-wide text-[var(--color-muted)]">
                         {badge}
@@ -132,6 +160,15 @@ export function EntryTable({
                   {entry.note && (
                     <span className="truncate text-[12px] text-[var(--color-muted-2)]">{entry.note}</span>
                   )}
+                  {tagsOf(entry.tags).length > 0 && (
+                    <span className="flex flex-wrap gap-1">
+                      {tagsOf(entry.tags).map((tag) => (
+                        <span key={tag} className="rounded-full bg-[var(--color-brand-tint)] px-1.5 py-px font-mono text-[10px] text-[var(--color-brand-text)]">
+                          #{tag}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </span>
                 <span className="flex items-center gap-[9px] text-[13.5px] font-semibold">
                   <span
@@ -140,8 +177,13 @@ export function EntryTable({
                   />
                   {entry.category}
                 </span>
-                <span className="truncate text-[13px] text-[var(--color-muted)]">
-                  {entry.method ?? ""}
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate text-[13px] text-[var(--color-muted)]">{entry.method ?? ""}</span>
+                  {accountName?.(entry.accountId) && (
+                    <span className="truncate text-[11.5px] text-[var(--color-muted-2)]">
+                      {accountName(entry.accountId)}
+                    </span>
+                  )}
                 </span>
                 <span
                   className="text-right font-mono text-sm font-medium"
@@ -159,6 +201,9 @@ export function EntryTable({
                     {t.common.edit}
                   </button>
                   <DeleteButton id={entry.id} t={t} />
+                  {entry.splitId && (splitCounts[entry.splitId] ?? 0) > 1 && (
+                    <DeleteSplitButton splitId={entry.splitId} count={splitCounts[entry.splitId]} t={t} />
+                  )}
                   {entry.groupId && seriesCount > 1 && (
                     <DeleteSeriesButton groupId={entry.groupId} count={seriesCount} t={t} />
                   )}

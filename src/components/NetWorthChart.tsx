@@ -10,7 +10,7 @@ import { useT } from "@/components/LanguageProvider";
  * composition is readable at a glance — the point of putting the two halves on
  * one chart at all. A single total line would hide which half moved.
  */
-export function NetWorthChart({ data }: { data: NetWorthPoint[] }) {
+export function NetWorthChart({ data, cashLabel }: { data: NetWorthPoint[]; cashLabel?: string }) {
   const { t } = useT();
 
   if (data.length === 0) {
@@ -72,7 +72,7 @@ export function NetWorthChart({ data }: { data: NetWorthPoint[] }) {
             type="monotone"
             dataKey="cash"
             stackId="nw"
-            name={t.dashboard.cashLogged}
+            name={cashLabel ?? t.dashboard.cashLogged}
             stroke="var(--color-brand)"
             strokeWidth={2}
             fill="url(#nw-cash)"

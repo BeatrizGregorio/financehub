@@ -19,6 +19,13 @@ import { LanguageCard } from "./LanguageCard";
 import { LicenseCard } from "./LicenseCard";
 import { OrphanCategoriesCard } from "./OrphanCategoriesCard";
 import { CsvImportCard } from "./CsvImportCard";
+import { AutoBackupCard } from "./AutoBackupCard";
+import { CategoryRulesCard } from "./CategoryRulesCard";
+import { SinkingFundsCard } from "./SinkingFundsCard";
+import { RemindersCard } from "./RemindersCard";
+import { getRemindersEnabled, loadReminders } from "@/lib/reminderData";
+import { prisma } from "@/lib/db";
+import { defaultBackupDir, getBackupSettings, listBackupFiles } from "@/lib/backup";
 import { dict } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +71,14 @@ export default async function SettingsPage() {
       getOrphanCategories(),
     ]);
   const t = dict(lang);
+  const backup = await getBackupSettings();
+  const [remindersEnabled, reminders] = await Promise.all([getRemindersEnabled(), loadReminders(t, lang)]);
+  const backupFiles = listBackupFiles(backup.dir);
+  const [rules, accounts, funds] = await Promise.all([
+    prisma.categoryRule.findMany({ orderBy: [{ type: "asc" }, { pattern: "asc" }] }),
+    prisma.account.findMany({ where: { archived: false }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.sinkingFund.findMany({ orderBy: { dueDate: "asc" } }),
+  ]);
 
   return (
     <div className="flex flex-col gap-9">
@@ -89,6 +104,7 @@ export default async function SettingsPage() {
         />
         <BudgetEditor categories={expense} budgets={budgets} />
         <PaymentMethodManager methods={methods} />
+        <SinkingFundsCard funds={funds} expenseCategories={expense} />
         {/* Renders nothing unless something is actually orphaned. */}
         <OrphanCategoriesCard report={orphans} />
       </Section>
@@ -101,15 +117,27 @@ export default async function SettingsPage() {
           <AccentColorCard accentColor={accentColor} />
           <LanguageCard language={lang} />
         </div>
+        <RemindersCard enabled={remindersEnabled} items={reminders} />
       </Section>
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>
         <BackupPanel />
+        <AutoBackupCard
+          enabled={backup.enabled}
+          dir={backup.dir}
+          customDir={backup.customDir}
+          defaultDir={defaultBackupDir()}
+          keep={backup.keep}
+          lastAt={backup.lastAt}
+          files={backupFiles}
+        />
         <CsvImportCard
           expenseCategories={expense}
           incomeCategories={income}
           methods={methods}
+          accounts={accounts}
         />
+        <CategoryRulesCard rules={rules} expenseCategories={expense} incomeCategories={income} />
         {/* Nothing useful to say about a licence when licensing is switched
             off — see LICENSING_ENABLED in lib/data.ts. */}
         {LICENSING_ENABLED && <LicenseCard license={license} />}

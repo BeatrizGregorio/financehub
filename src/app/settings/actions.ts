@@ -10,6 +10,15 @@ import {
 import { MAX_CYCLE_START_DAY, clampCycleStartDay } from "@/lib/format";
 import { ACCENT_COLORS, clampAccentColor } from "@/lib/theme";
 import { LANGUAGES, clampLanguage } from "@/lib/i18n";
+import {
+  AUTO_BACKUP_KEEP_MAX,
+  restoreBackup,
+  safetyBackup,
+  validateBackup,
+  writeBackupFile,
+  type Backup,
+} from "@/lib/backup";
+import { buildMatcher, findDuplicates, normalizeMerchant } from "@/lib/csvMatch";
 
 export type ActionState = { error?: string };
 
@@ -150,6 +159,10 @@ export async function renameCategory(
       where: { category: oldName, type: category.type },
       data: { category: newName },
     });
+    await tx.categoryRule.updateMany({
+      where: { category: oldName, type: category.type },
+      data: { category: newName },
+    });
 
     // Budget.category is unique, so a budget already sitting under the new
     // name would collide. Keep that one and drop the old row rather than
@@ -193,25 +206,61 @@ export type CsvImportRow = {
   name: string;
   amount: number;
   type: "income" | "expense";
+  /** Chosen per row in the review table; falls back to the default for its type. */
+  category?: string;
+};
+
+export type CsvRowAnalysis = {
+  suggestion: { category: string; source: "rule" | "history" | "similar" } | null;
+  /** Name of the existing entry this row most likely duplicates. */
+  duplicateOf: string | null;
 };
 
 /**
- * Create entries from a parsed CSV.
+ * Suggest a category and flag likely duplicates for every mapped row, before
+ * anything is written. See lib/csvMatch.ts for how both are decided.
+ */
+export async function analyzeCsvRows(rows: CsvImportRow[]): Promise<CsvRowAnalysis[]> {
+  if (!Array.isArray(rows) || rows.length === 0 || rows.length > MAX_CSV_ROWS) return [];
+
+  const dates = rows.map((r) => new Date(r.date).getTime());
+  const from = new Date(Math.min(...dates) - 86_400_000);
+  const to = new Date(Math.max(...dates) + 86_400_000);
+
+  const [rules, history, categories, nearby] = await Promise.all([
+    prisma.categoryRule.findMany(),
+    prisma.entry.findMany({ select: { name: true, category: true, type: true, date: true } }),
+    prisma.category.findMany(),
+    // Only entries around the file's own date range can be duplicates.
+    prisma.entry.findMany({
+      where: { date: { gte: from, lte: to } },
+      select: { name: true, amount: true, type: true, date: true },
+    }),
+  ]);
+
+  const valid: Record<string, Set<string>> = { income: new Set(), expense: new Set() };
+  for (const c of categories) valid[c.type]?.add(c.name);
+
+  const suggest = buildMatcher(rules, history, valid);
+  const normalized = rows.map((r) => ({ ...r, date: new Date(r.date) }));
+  const dupes = findDuplicates(normalized, nearby);
+  return normalized.map((r, i) => ({ suggestion: suggest(r), duplicateOf: dupes[i] }));
+}
+
+/**
+ * Create entries from a reviewed CSV.
  *
- * The parsing and column mapping happen in the browser (see lib/csv.ts) so the
- * owner can see a preview and fix the mapping before anything is written. This
- * action receives already-mapped rows and does the one thing the browser can't.
- *
- * Unlike importBackup, this is **additive** — it never wipes existing data.
- * Importing a statement twice will duplicate its entries; there's no dedupe,
- * because a statement has no stable per-row id and two genuinely identical
- * charges on the same day are perfectly possible.
+ * Parsing, mapping, category suggestions and duplicate flags all happen before
+ * this, in the review table, so the owner has seen every row that arrives
+ * here. Additive: it never wipes existing data. Rows flagged as duplicates are
+ * simply not sent unless the owner ticked them back in.
  */
 export async function importCsvEntries(payload: {
   rows: CsvImportRow[];
   expenseCategory: string;
   incomeCategory: string;
   method: string | null;
+  accountId?: string | null;
 }): Promise<{ imported: number; error?: string }> {
   const { rows, expenseCategory, incomeCategory, method } = payload;
 
@@ -222,30 +271,69 @@ export async function importCsvEntries(payload: {
     return { imported: 0, error: `That file has more than ${MAX_CSV_ROWS} rows.` };
   }
 
-  // Entry.category is required, and a CSV almost never carries one, so the
-  // owner picks a default per direction. Verify they still exist rather than
-  // writing entries that would immediately show up as orphans.
-  const needsExpense = rows.some((r) => r.type === "expense");
-  const needsIncome = rows.some((r) => r.type === "income");
-  if (needsExpense && !expenseCategory) return { imported: 0, error: "Choose an expense category." };
-  if (needsIncome && !incomeCategory) return { imported: 0, error: "Choose an income category." };
+  const categories = await prisma.category.findMany();
+  const exists = (type: string, name: string | undefined) =>
+    !!name && categories.some((c) => c.type === type && c.name === name);
 
+  // A per-row choice must still exist; otherwise use the default, which must
+  // exist too. Never write an entry that would immediately be an orphan.
+  const resolved = rows.map((r) => {
+    const fallback = r.type === "expense" ? expenseCategory : incomeCategory;
+    return { ...r, category: exists(r.type, r.category) ? r.category! : fallback };
+  });
+  for (const r of resolved) {
+    if (!exists(r.type, r.category)) {
+      return { imported: 0, error: r.type === "expense" ? "Choose an expense category." : "Choose an income category." };
+    }
+  }
+
+  const accountId = payload.accountId || null;
+  if (accountId && !(await prisma.account.findUnique({ where: { id: accountId } }))) {
+    return { imported: 0, error: "That account no longer exists." };
+  }
+
+  await safetyBackup();
   const now = new Date();
   await prisma.entry.createMany({
-    data: rows.map((r) => ({
+    data: resolved.map((r) => ({
       name: r.name,
       amount: Math.abs(r.amount),
       date: new Date(r.date),
       type: r.type,
-      category: r.type === "expense" ? expenseCategory : incomeCategory,
+      category: r.category,
       method: r.type === "expense" ? method : null,
+      accountId,
       createdAt: now,
       updatedAt: now,
     })),
   });
 
   revalidateAll();
-  return { imported: rows.length };
+  revalidatePath("/accounts");
+  return { imported: resolved.length };
+}
+
+export async function addCategoryRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const pattern = String(formData.get("pattern") ?? "").trim();
+  const type = String(formData.get("type") ?? "expense");
+  const category = String(formData.get("category") ?? "");
+  if (!normalizeMerchant(pattern)) return { error: "Enter some letters the description contains." };
+  if (type !== "income" && type !== "expense") return { error: "Choose income or expense." };
+  if (!(await prisma.category.findFirst({ where: { name: category, type } }))) {
+    return { error: "Choose a category." };
+  }
+  try {
+    await prisma.categoryRule.create({ data: { pattern, type, category } });
+  } catch {
+    return { error: `There's already a rule for "${pattern}".` };
+  }
+  revalidatePath("/settings");
+  return {};
+}
+
+export async function deleteCategoryRule(id: string) {
+  await prisma.categoryRule.delete({ where: { id } });
+  revalidatePath("/settings");
 }
 
 export async function addPaymentMethod(
@@ -266,6 +354,10 @@ export async function addPaymentMethod(
 }
 
 export async function removePaymentMethod(id: string) {
+  // A credit card is managed on the Cards page: deleting it here would orphan
+  // its bill payments and flip its purchases back to cash with no warning.
+  const method = await prisma.paymentMethod.findUnique({ where: { id } });
+  if (!method || method.isCreditCard) return;
   await prisma.paymentMethod.delete({ where: { id } });
   revalidateAll();
 }
@@ -292,72 +384,6 @@ export async function saveBudgets(formData: FormData) {
   revalidateAll();
 }
 
-type BackupEntry = {
-  name?: string;
-  amount: number;
-  date: string;
-  type: string;
-  category: string;
-  note?: string | null;
-  method?: string | null;
-  groupId?: string | null;
-  seriesType?: string | null;
-  installmentNum?: number | null;
-  installmentTotal?: number | null;
-};
-
-type BackupPricePoint = {
-  date: string;
-  price: number;
-};
-
-type BackupCouponPayment = {
-  date: string;
-  amount: number;
-};
-
-type BackupTransaction = {
-  date: string;
-  kind: string;
-  amount: number;
-  quantity?: number | null;
-};
-
-type BackupInvestment = {
-  name: string;
-  type?: string;
-  subtype?: string | null;
-  indexador?: string | null;
-  annualRate?: number | null;
-  spread?: number | null;
-  adminFee?: number | null;
-  perfFee?: number | null;
-  amountInvested?: number;
-  startDate?: string;
-  maturityDate?: string | null;
-  symbol?: string | null;
-  quantity?: number | null;
-  purchaseRef?: number | null;
-  expectedReturn?: number | null;
-  corretagem?: number | null;
-  institution?: string | null;
-  notes?: string | null;
-  prices?: BackupPricePoint[];
-  coupons?: BackupCouponPayment[];
-  transactions?: BackupTransaction[];
-};
-
-type Backup = {
-  app?: string;
-  entries?: BackupEntry[];
-  categories?: { name: string; type: string }[];
-  budgets?: { category: string; limit: number }[];
-  paymentMethods?: { name: string }[];
-  investments?: BackupInvestment[];
-  referenceRates?: { cdi: number; selic: number; ipca: number };
-  settings?: { cycleStartDay?: number; accentColor?: string; language?: string };
-};
-
 export async function importBackup(
   _prevState: ActionState,
   formData: FormData,
@@ -374,148 +400,12 @@ export async function importBackup(
     return { error: "That file isn't valid JSON." };
   }
 
-  if (backup.app !== "FinanceHub" || !Array.isArray(backup.entries)) {
-    return { error: "That doesn't look like a FinanceHub backup file." };
-  }
+  const invalid = validateBackup(backup);
+  if (invalid) return { error: invalid };
 
-  // NOTE: `License` is deliberately absent from this wipe, and from the backup
-  // export. A backup is for moving the owner's own data between machines;
-  // carrying the licence inside it would make "send me your backup file" a way
-  // to hand someone a paid copy, and wiping it here would deactivate the app
-  // every time someone restored a backup.
-  await prisma.entry.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.budget.deleteMany();
-  await prisma.paymentMethod.deleteMany();
-  // Price points/coupons first: SQLite only enforces the ON DELETE CASCADE on
-  // Investment when foreign key checks are on for the connection, so don't
-  // rely on it here either.
-  await prisma.pricePoint.deleteMany();
-  await prisma.couponPayment.deleteMany();
-  await prisma.investmentTransaction.deleteMany();
-  await prisma.investment.deleteMany();
-
-  if (backup.categories?.length) {
-    await prisma.category.createMany({
-      data: backup.categories.map((c) => ({ name: c.name, type: c.type })),
-    });
-  }
-  if (backup.paymentMethods?.length) {
-    await prisma.paymentMethod.createMany({
-      data: backup.paymentMethods.map((m) => ({ name: m.name })),
-    });
-  }
-  if (backup.budgets?.length) {
-    await prisma.budget.createMany({
-      data: backup.budgets.map((b) => ({ category: b.category, limit: b.limit })),
-    });
-  }
-  if (backup.entries.length) {
-    await prisma.entry.createMany({
-      data: backup.entries.map((e) => ({
-        name: e.name?.trim() || e.category,
-        amount: e.amount,
-        date: new Date(e.date),
-        type: e.type,
-        category: e.category,
-        note: e.note ?? null,
-        method: e.method ?? null,
-        groupId: e.groupId ?? null,
-        seriesType: e.seriesType ?? null,
-        installmentNum: e.installmentNum ?? null,
-        installmentTotal: e.installmentTotal ?? null,
-      })),
-    });
-  }
-
-  // Only restore investments that match the current (V1.7) schema shape —
-  // an older backup's `assetClass`/`quantity`/`avgCost` model has no sensible
-  // automatic mapping to type/subtype/amountInvested/startDate, so those are
-  // skipped rather than guessed, same as a backup with no `investments` key.
-  const restorable = (backup.investments ?? []).filter(
-    (inv): inv is BackupInvestment & { type: string; amountInvested: number; startDate: string } =>
-      Boolean(inv.type && inv.amountInvested != null && inv.startDate),
-  );
-
-  for (const inv of restorable) {
-    await prisma.investment.create({
-      data: {
-        name: inv.name,
-        type: inv.type,
-        subtype: inv.subtype ?? null,
-        indexador: inv.indexador ?? null,
-        annualRate: inv.annualRate ?? null,
-        spread: inv.spread ?? null,
-        adminFee: inv.adminFee ?? null,
-        perfFee: inv.perfFee ?? null,
-        amountInvested: inv.amountInvested,
-        startDate: new Date(inv.startDate),
-        maturityDate: inv.maturityDate ? new Date(inv.maturityDate) : null,
-        symbol: inv.symbol ?? null,
-        quantity: inv.quantity ?? null,
-        purchaseRef: inv.purchaseRef ?? null,
-        expectedReturn: inv.expectedReturn ?? null,
-        corretagem: inv.corretagem ?? null,
-        institution: inv.institution ?? null,
-        notes: inv.notes ?? null,
-        prices: inv.prices?.length
-          ? { create: inv.prices.map((p) => ({ date: new Date(p.date), price: p.price })) }
-          : undefined,
-        transactions: inv.transactions?.length
-          ? {
-              create: inv.transactions.map((tx) => ({
-                date: new Date(tx.date),
-                kind: tx.kind === "sell" ? "sell" : "buy",
-                amount: tx.amount,
-                quantity: tx.quantity ?? null,
-              })),
-            }
-          : undefined,
-        coupons: inv.coupons?.length
-          ? { create: inv.coupons.map((c) => ({ date: new Date(c.date), amount: c.amount })) }
-          : undefined,
-      },
-    });
-  }
-
-  if (backup.referenceRates) {
-    await prisma.referenceRates.upsert({
-      where: { id: "singleton" },
-      create: { id: "singleton", ...backup.referenceRates },
-      update: backup.referenceRates,
-    });
-  }
-
-  // Pre-V1.15 backups have no `settings` key — leave the current start day
-  // alone rather than silently resetting it to the default.
-  if (backup.settings?.cycleStartDay != null) {
-    const cycleStartDay = clampCycleStartDay(backup.settings.cycleStartDay);
-    await prisma.appSettings.upsert({
-      where: { id: "singleton" },
-      create: { id: "singleton", cycleStartDay },
-      update: { cycleStartDay },
-    });
-  }
-
-  // Same reasoning for the accent: absent means "leave it as it is", not
-  // "reset to green".
-  if (backup.settings?.accentColor != null) {
-    const accentColor = clampAccentColor(backup.settings.accentColor);
-    await prisma.appSettings.upsert({
-      where: { id: "singleton" },
-      create: { id: "singleton", accentColor },
-      update: { accentColor },
-    });
-  }
-
-  if (backup.settings?.language != null) {
-    const language = clampLanguage(backup.settings.language);
-    await prisma.appSettings.upsert({
-      where: { id: "singleton" },
-      create: { id: "singleton", language },
-      update: { language },
-    });
-  }
+  // Restoring wipes everything, so keep a copy of what's about to be replaced.
+  await safetyBackup();
+  await restoreBackup(backup);
 
   revalidateAll();
   revalidatePath("/investments");
@@ -523,8 +413,10 @@ export async function importBackup(
 }
 
 export async function resetDefaults() {
+  await safetyBackup();
   await prisma.category.deleteMany();
-  await prisma.paymentMethod.deleteMany();
+  // Cards survive a reset: their bill payments reference them.
+  await prisma.paymentMethod.deleteMany({ where: { isCreditCard: false } });
   await prisma.budget.deleteMany();
 
   await prisma.category.createMany({
@@ -533,9 +425,68 @@ export async function resetDefaults() {
       ...DEFAULT_INCOME_CATEGORIES.map((name) => ({ name, type: "income" })),
     ],
   });
+  const kept = new Set((await prisma.paymentMethod.findMany({ select: { name: true } })).map((m) => m.name));
   await prisma.paymentMethod.createMany({
-    data: DEFAULT_PAYMENT_METHODS.map((name) => ({ name })),
+    data: DEFAULT_PAYMENT_METHODS.filter((name) => !kept.has(name)).map((name) => ({ name })),
   });
 
   revalidateAll();
+}
+
+/** Turn desktop bill reminders on or off. Submitted straight from the checkbox. */
+export async function updateReminders(formData: FormData): Promise<void> {
+  const enabled = formData.get("enabled") === "on";
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", remindersEnabled: enabled },
+    update: { remindersEnabled: enabled },
+  });
+  revalidatePath("/settings");
+}
+
+/** Save the automatic-backup preferences. A blank folder means the default. */
+export async function updateBackupSettings(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const enabled = formData.get("enabled") === "on";
+  const dirRaw = String(formData.get("dir") ?? "").trim();
+  const keep = Math.floor(Number(formData.get("keep")));
+  if (!Number.isFinite(keep) || keep < 1 || keep > AUTO_BACKUP_KEEP_MAX) {
+    return { error: `Keep between 1 and ${AUTO_BACKUP_KEEP_MAX} backups.` };
+  }
+
+  // Prove the folder is usable now, rather than discovering tomorrow that
+  // every automatic backup has been silently failing.
+  if (dirRaw) {
+    try {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      fs.mkdirSync(dirRaw, { recursive: true });
+      const probe = path.join(dirRaw, ".financehub-write-test");
+      fs.writeFileSync(probe, "ok");
+      fs.unlinkSync(probe);
+    } catch {
+      return { error: "That folder can't be written to. Check the path and try again." };
+    }
+  }
+
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", autoBackupEnabled: enabled, autoBackupDir: dirRaw || null, autoBackupKeep: keep },
+    update: { autoBackupEnabled: enabled, autoBackupDir: dirRaw || null, autoBackupKeep: keep },
+  });
+  revalidatePath("/settings");
+  return {};
+}
+
+/** "Back up now" — works even when automatic backups are switched off. */
+export async function backUpNow(): Promise<ActionState & { file?: string }> {
+  try {
+    const file = await writeBackupFile("manual");
+    revalidatePath("/settings");
+    return { file };
+  } catch {
+    return { error: "The backup couldn't be written. Check the folder in the settings above." };
+  }
 }

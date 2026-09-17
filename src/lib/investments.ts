@@ -8,6 +8,7 @@ import {
 } from "@/lib/format";
 import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
 import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
+import { cashPosition, type AccountEntryLike, type AccountLike, type TransferLike } from "@/lib/accounts";
 
 export type PricePointLike = { date: Date; price: number };
 export type CouponPaymentLike = { date: Date; amount: number };
@@ -529,7 +530,7 @@ export function projectPortfolioValue(
 }
 
 /** Just enough of an Entry for the cash side of net worth. */
-export type CashFlowLike = { amount: number; date: Date; type: string };
+export type CashFlowLike = AccountEntryLike;
 
 export type NetWorthPoint = {
   date: string;
@@ -539,22 +540,31 @@ export type NetWorthPoint = {
   total: number;
 };
 
+export type NetWorthOptions = {
+  accounts?: AccountLike[];
+  transfers?: TransferLike[];
+  /** Entries that never touch cash (credit-card purchases). */
+  isOffCash?: (e: AccountEntryLike) => boolean;
+  /** Money owed on credit cards at a date, subtracted from the total. */
+  debtAt?: (date: Date) => number;
+  /** Credit-card bill payments: cash leaving without being an expense. */
+  outflows?: { date: Date; amount: number; fromAccountId: string | null }[];
+};
+
 /**
- * Cash position and portfolio value on one timeline, at the same monthly
+ * Cash, investments and card debt on one timeline, at the same monthly
  * checkpoints the other monthly charts use.
  *
- * These are the app's two halves and they never met on a single screen: entries
- * track flow, holdings track assets, and the number most people actually want is
- * the sum.
- *
- * **The cash figure is cumulative logged entries, not a bank balance.** It
- * starts from zero at the first entry ever recorded, so it only equals real
- * cash if the owner has logged everything since opening the account. The card
- * says so; don't relabel it as "balance" without also solving opening balances,
- * which is a separate feature.
+ * The cash side is cashPosition() from accounts.ts. With no accounts defined it
+ * is the running total of everything logged — not a bank balance, and the card
+ * says so. With accounts it is their real balances (plus anything unassigned),
+ * and the card's wording changes to match. Don't relabel the no-accounts figure
+ * as a balance.
  *
  * The investments side reuses ownershipValue(), so a holding still contributes
- * nothing before it was bought or after it matured.
+ * nothing before it was bought or after it matured. A transfer from an account
+ * into a holding therefore moves value from one series to the other rather
+ * than changing the total — which is the point of modelling it as a transfer.
  */
 export function netWorthOverTime(
   entries: CashFlowLike[],
@@ -563,25 +573,26 @@ export function netWorthOverTime(
   monthsBack = 12,
   startDay: number = CYCLE_START_DAY,
   lang: Language = DEFAULT_LANGUAGE,
+  options: NetWorthOptions = {},
 ): NetWorthPoint[] {
-  // Sorted once, then walked with a moving index, so this stays linear rather
-  // than re-scanning every entry at every checkpoint.
-  const sorted = [...entries].sort((a, b) => a.date.getTime() - b.date.getTime());
-  let i = 0;
-  let running = 0;
+  const accounts = options.accounts ?? [];
+  const transfers = options.transfers ?? [];
 
   return monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => {
-    while (i < sorted.length && dateKey(sorted[i].date) <= dateKey(date)) {
-      running += sorted[i].type === "income" ? sorted[i].amount : -sorted[i].amount;
-      i++;
-    }
+    const cash = cashPosition(accounts, entries, transfers, date, {
+      isOffCash: options.isOffCash,
+      outflows: options.outflows,
+    });
+    const debt = options.debtAt ? options.debtAt(date) : 0;
     const invested = investments.reduce((sum, inv) => sum + ownershipValue(inv, rates, date), 0);
     return {
       date: dateKey(date),
       label: cycleLabel(key, lang),
-      cash: running,
+      // Card debt is shown inside the cash series rather than as a third area:
+      // money you owe on a card is money your accounts already have spoken for.
+      cash: cash - debt,
       investments: invested,
-      total: running + invested,
+      total: cash - debt + invested,
     };
   });
 }
