@@ -22,6 +22,8 @@ import { CsvImportCard } from "./CsvImportCard";
 import { AutoBackupCard } from "./AutoBackupCard";
 import { CategoryRulesCard } from "./CategoryRulesCard";
 import { SinkingFundsCard } from "./SinkingFundsCard";
+import { RemindersCard } from "./RemindersCard";
+import { getRemindersEnabled, loadReminders } from "@/lib/reminderData";
 import { prisma } from "@/lib/db";
 import { defaultBackupDir, getBackupSettings, listBackupFiles } from "@/lib/backup";
 import { dict } from "@/lib/i18n";
@@ -70,6 +72,7 @@ export default async function SettingsPage() {
     ]);
   const t = dict(lang);
   const backup = await getBackupSettings();
+  const [remindersEnabled, reminders] = await Promise.all([getRemindersEnabled(), loadReminders(t, lang)]);
   const backupFiles = listBackupFiles(backup.dir);
   const [rules, accounts, funds] = await Promise.all([
     prisma.categoryRule.findMany({ orderBy: [{ type: "asc" }, { pattern: "asc" }] }),
@@ -114,6 +117,7 @@ export default async function SettingsPage() {
           <AccentColorCard accentColor={accentColor} />
           <LanguageCard language={lang} />
         </div>
+        <RemindersCard enabled={remindersEnabled} items={reminders} />
       </Section>
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>

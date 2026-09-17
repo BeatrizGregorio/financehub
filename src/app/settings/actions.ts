@@ -433,6 +433,17 @@ export async function resetDefaults() {
   revalidateAll();
 }
 
+/** Turn desktop bill reminders on or off. Submitted straight from the checkbox. */
+export async function updateReminders(formData: FormData): Promise<void> {
+  const enabled = formData.get("enabled") === "on";
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", remindersEnabled: enabled },
+    update: { remindersEnabled: enabled },
+  });
+  revalidatePath("/settings");
+}
+
 /** Save the automatic-backup preferences. A blank folder means the default. */
 export async function updateBackupSettings(
   _prevState: ActionState,

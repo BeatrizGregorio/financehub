@@ -595,6 +595,29 @@ const en = {
     settingsBlurbTrial: "You're on the free trial.",
     settingsBlurbLicensed: "This copy is activated.",
   },
+  reminders: {
+    title: "Bill reminders",
+    blurb:
+      "The desktop app shows a notification for expenses due today or tomorrow, card bills due within 3 days or overdue, and yearly bills due within a week. Each one appears once.",
+    enabled: "Show desktop notifications",
+    dueNow: "Due now",
+    none: "Nothing due right now.",
+    browserNote: "Notifications appear only in the desktop app. In the browser, this list is the reminder.",
+    entryTitle: (name: string, days: number) => (days === 0 ? `${name} is due today` : `${name} is due tomorrow`),
+    entryBody: (amount: string, date: string) => `${amount} · ${date}`,
+    billTitle: (name: string, days: number, overdue: boolean) =>
+      overdue
+        ? `${name} bill is overdue`
+        : days === 0
+          ? `${name} bill is due today`
+          : days === 1
+            ? `${name} bill is due tomorrow`
+            : `${name} bill is due in ${days} days`,
+    billBody: (amount: string, date: string) => `${amount} left to pay · due ${date}`,
+    fundTitle: (name: string, days: number) =>
+      days === 0 ? `${name} is due today` : days === 1 ? `${name} is due tomorrow` : `${name} is due in ${days} days`,
+    fundBody: (amount: string, date: string) => `${amount} still to set aside · due ${date}`,
+  },
   reports: {
     title: "Reports",
     subtitle: "A whole year at a glance, and the figures your income tax declaration asks for.",
@@ -1250,6 +1273,29 @@ const pt: Dict = {
     settingsTitle: "Licença",
     settingsBlurbTrial: "Você está no período de teste gratuito.",
     settingsBlurbLicensed: "Esta cópia está ativada.",
+  },
+  reminders: {
+    title: "Lembretes de contas",
+    blurb:
+      "O app para desktop mostra uma notificação para despesas que vencem hoje ou amanhã, faturas que vencem em até 3 dias ou estão atrasadas, e contas anuais que vencem em até uma semana. Cada uma aparece uma vez só.",
+    enabled: "Mostrar notificações no desktop",
+    dueNow: "Vencendo agora",
+    none: "Nada vencendo agora.",
+    browserNote: "As notificações só aparecem no app para desktop. No navegador, esta lista é o lembrete.",
+    entryTitle: (name: string, days: number) => (days === 0 ? `${name} vence hoje` : `${name} vence amanhã`),
+    entryBody: (amount: string, date: string) => `${amount} · ${date}`,
+    billTitle: (name: string, days: number, overdue: boolean) =>
+      overdue
+        ? `Fatura ${name} atrasada`
+        : days === 0
+          ? `Fatura ${name} vence hoje`
+          : days === 1
+            ? `Fatura ${name} vence amanhã`
+            : `Fatura ${name} vence em ${days} dias`,
+    billBody: (amount: string, date: string) => `${amount} a pagar · vence ${date}`,
+    fundTitle: (name: string, days: number) =>
+      days === 0 ? `${name} vence hoje` : days === 1 ? `${name} vence amanhã` : `${name} vence em ${days} dias`,
+    fundBody: (amount: string, date: string) => `${amount} ainda a guardar · vence ${date}`,
   },
   reports: {
     title: "Relatórios",

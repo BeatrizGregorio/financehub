@@ -5,6 +5,7 @@ import { getAccentColor, getCycleStartDay, getLanguage, getReferenceRates } from
 import { clampCycleStartDay } from "@/lib/format";
 import { clampAccentColor } from "@/lib/theme";
 import { clampLanguage } from "@/lib/i18n";
+import { getRemindersEnabled } from "@/lib/reminderData";
 
 /**
  * Everything about the backup file lives here: building it, restoring it, and
@@ -99,7 +100,7 @@ export type Backup = {
   }[];
   investments?: BackupInvestment[];
   referenceRates?: { cdi: number; selic: number; ipca: number };
-  settings?: { cycleStartDay?: number; accentColor?: string; language?: string };
+  settings?: { cycleStartDay?: number; accentColor?: string; language?: string; remindersEnabled?: boolean };
   accounts?: {
     id: string;
     name: string;
@@ -123,7 +124,7 @@ export type Backup = {
 // ─── Build ──────────────────────────────────────────────────────────────────
 
 export async function buildBackup() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments, categoryRules, sinkingFunds] =
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments, categoryRules, sinkingFunds, remindersEnabled] =
     await Promise.all([
       prisma.entry.findMany(),
       prisma.category.findMany(),
@@ -139,6 +140,7 @@ export async function buildBackup() {
       prisma.cardPayment.findMany(),
       prisma.categoryRule.findMany(),
       prisma.sinkingFund.findMany(),
+      getRemindersEnabled(),
     ]);
 
   return {
@@ -191,7 +193,7 @@ export async function buildBackup() {
     referenceRates: { cdi: rates.cdi, selic: rates.selic, ipca: rates.ipca },
     // Additive keys stay `version: 3`: an older backup without them simply
     // leaves the current value alone on import.
-    settings: { cycleStartDay, accentColor, language },
+    settings: { cycleStartDay, accentColor, language, remindersEnabled },
     accounts: accounts.map((a) => ({
       id: a.id,
       name: a.name,
@@ -432,10 +434,11 @@ export async function restoreBackup(backup: Backup) {
 
   // Absent settings mean "leave the current value alone", not "reset".
   const s = backup.settings;
-  const settingsUpdate: { cycleStartDay?: number; accentColor?: string; language?: string } = {};
+  const settingsUpdate: { cycleStartDay?: number; accentColor?: string; language?: string; remindersEnabled?: boolean } = {};
   if (s?.cycleStartDay != null) settingsUpdate.cycleStartDay = clampCycleStartDay(s.cycleStartDay);
   if (s?.accentColor != null) settingsUpdate.accentColor = clampAccentColor(s.accentColor);
   if (s?.language != null) settingsUpdate.language = clampLanguage(s.language);
+  if (typeof s?.remindersEnabled === "boolean") settingsUpdate.remindersEnabled = s.remindersEnabled;
   if (Object.keys(settingsUpdate).length) {
     await prisma.appSettings.upsert({
       where: { id: "singleton" },

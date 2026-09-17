@@ -165,6 +165,9 @@ model AppSettings {
   autoBackupDir     String?
   autoBackupKeep    Int       @default(14)
   lastAutoBackupAt  DateTime?
+  // Desktop notifications for bills due soon (V1.28). Read by /api/reminders,
+  // which the Electron shell polls; the browser version has no notifications.
+  remindersEnabled  Boolean   @default(true)
   updatedAt     DateTime @updatedAt
 }
 
