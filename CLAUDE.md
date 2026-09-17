@@ -1070,6 +1070,91 @@ zero chart surfaces until a screenshot forced a paint.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.28 (nine new features) added 2026-09-17, from a list the owner approved
+wholesale ("DO IT ALL"). One commit each, in this order. Every lib file below
+is pure and was asserted standalone (`tsc` to CommonJS + a node script) before
+any UI was built, then checked in the browser against hand-computed figures.
+All six migrations are additive with defaults, so an existing database behaves
+as before until something new is used. Backup stays `version: 3`; every new
+table and setting is an additive key, restored with ids preserved.
+
+**1. Automatic backups** (`lib/backup.ts`, `AutoBackupCard`). Export, import
+and auto-backup now share one builder/restorer. A dated JSON copy is written
+once a day (checked from `layout.tsx` via `maybeAutoBackup()`) and a
+`pre-import` copy before every restore. Pruning only ever touches files
+matching its own name pattern, so pointing the folder at Documents can't delete
+anything else. Skipped on an empty database and during `next build`. The
+folder is test-written when saved, so a bad path fails now rather than silently
+every night. `/backups/` is gitignored.
+
+**2. Credit card bills** (`lib/cards.ts`, `/cards`). A payment method can be a
+card with a closing and due day (capped 1–28, same reason as the cycle day). A
+purchase before the closing day lands on this month's bill, on/after it on
+next month's. **Paying a bill is a `CardPayment`, not an expense** — logging
+it as an expense too would count every purchase twice. The Cards page flags
+entries that look like bill payments ("fatura", "pagamento cartão") but
+changes nothing; only the owner knows how she logged them.
+
+**3. Accounts, opening balances, transfers** (`lib/accounts.ts`, `/accounts`).
+`Entry.accountId` is optional; unassigned entries (or ones pointing at a
+deleted account) are shown as their own line rather than dropped. Net worth
+uses real balances once accounts exist, and subtracts card debt. A transfer
+into a holding records a buy; `seedOpeningPosition()` first records the
+holding's existing position as an opening buy, otherwise the first transaction
+would replace the holding's whole value.
+
+**4. CSV categories + duplicates** (`lib/csvMatch.ts`). Suggestion order is
+owner rule (`CategoryRule`, "contains") > the category last used for the same
+normalized merchant > a similar merchant (first word ≥ 4 chars, so "PAG" can't
+match everything). A duplicate is same date + amount + type + similar name;
+each existing entry can be claimed by only one imported row. Import now has a
+review step where each row's category and include/skip can be changed.
+
+**5. Yearly bills / sinking funds** (`lib/sinkingFunds.ts`, Settings → Money,
+dashboard `SetAsideCard` only when funds exist). Monthly set-aside = what's
+left ÷ months left counting this one. "Saved so far" is typed by hand — the
+app doesn't pretend to know which money is earmarked.
+
+**6 + 7. Reports page** (`lib/reports.ts`, `/reports`). One year selector for
+both halves; defaults to last year because that's the declaration being filed.
+- *Year in review* uses the twelve **budget cycles** named Jan–Dec, so it
+  agrees with every monthly view (with start day 10, a 5 Jan entry is in the
+  previous year's December). Category comparison vs the prior year, tag totals.
+- *IR summary*: positions at **acquisition cost** at 31/12 of both years
+  (what "Bens e Direitos" asks; market value shown only as reference), coupons
+  and maturity gains split exempt/taxable via `isIrExempt`, estimated tax
+  withheld, and sells listed **without a gain** — there is no lot tracking, so
+  computing one would be invented. Same "estimate, not filing guidance"
+  framing as the rest of the tax UI; keep it.
+- Print button; `print:hidden` on the sidebar and blobs, and the `h-screen
+  overflow-hidden` shell unclips under `print:` so the page isn't cut at one
+  screen.
+
+**8. Split entries + tags** (`lib/tags.ts`). A split saves one entry per
+category sharing a `splitId`; the parts must add up to the total. Tags are
+stored as `",a,b,"` so a `contains ",tag,"` query can't match a substring of
+another tag. **React 19 resets a form's uncontrolled fields after a form action
+finishes, even when it returns an error** — a split mismatch wiped the whole
+form. Fixed here with client-side validation before submit; the same reset
+still affects other forms app-wide when a server-side validation fails
+(pre-existing, not fixed).
+
+**9. Desktop bill reminders** (`lib/reminders.ts`, `lib/reminderData.ts`,
+`/api/reminders`, `electron/main.cjs`). The server decides what's due —
+expenses today/tomorrow (card purchases excluded), card bills closed and due
+within 3 days or overdue, sinking funds due within 7 days and not fully saved
+— and returns it as text in the owner's language. Electron polls every 30
+minutes, shows a `Notification`, and records shown ids in
+`reminders-shown.json` in userData so each fires once (an overdue bill gets
+one more, since its id carries the phase). `setAppUserModelId` is required for
+Windows toasts. They only fire while the app is running. The browser version
+has no notifications; the Settings card lists what's due instead. **Verified
+by loading `main.cjs` under Node with a stubbed `electron` module** and a
+4173→3000 proxy (dedupe, history file, click navigation) — a real OS toast
+from a packaged build has not been seen yet.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
