@@ -1,7 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { addCoupon, deleteCoupon, updateCoupon, type ActionState } from "./actions";
+import { RowAction } from "@/components/RowAction";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { totalCoupons } from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
@@ -70,25 +73,14 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
         <span className="font-mono text-[12.5px] font-medium text-[var(--color-positive-text)]">
           +{formatCurrency(amount)}
         </span>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
-        >
-          {t.common.edit}
-        </button>
+        <RowAction label={t.common.edit} icon={Pencil} onClick={() => setEditing(true)} />
         <form
           action={deleteCoupon.bind(null, id)}
           onSubmit={(e) => {
             if (!confirm(t.investments.confirmDeleteCoupon)) e.preventDefault();
           }}
         >
-          <button
-            type="submit"
-            className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-          >
-            {t.common.delete}
-          </button>
+          <RowAction type="submit" label={t.common.delete} icon={Trash2} tone="danger" />
         </form>
       </div>
     </div>
@@ -99,17 +91,12 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
   const { t } = useT();
   const initialState: ActionState = {};
   const [state, formAction] = useActionState(addCoupon.bind(null, investmentId), initialState);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  // Reset the uncontrolled date/amount fields after a successful add, same
-  // pattern as EntryForm.tsx — only the reset lives in the effect, not any
-  // controlled state, so this doesn't hit the set-state-in-effect rule.
-  useEffect(() => {
-    if (!state.error) formRef.current?.reset();
-  }, [state]);
+  // Clears the date/amount after a successful add, and keeps them when the
+  // action returns an error (React 19 would otherwise empty them anyway).
+  const { formProps } = useKeepTypedValues(state);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-2 pb-3">
+    <form action={formAction} {...formProps} className="flex flex-wrap items-end gap-2 pb-3">
       <div>
         <label
           htmlFor={`coupon-date-${investmentId}`}

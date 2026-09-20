@@ -5,6 +5,7 @@ import { ArrowRight, Wand2, X } from "lucide-react";
 import { addCategoryRule, deleteCategoryRule, type ActionState } from "./actions";
 import { CARD } from "@/lib/ui";
 import { useT } from "@/components/LanguageProvider";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 
 type Option = { id: string; name: string };
 
@@ -25,6 +26,8 @@ export function CategoryRulesCard({
   const { t } = useT();
   const [state, formAction] = useActionState(addCategoryRule, {} as ActionState);
   const [type, setType] = useState<"expense" | "income">("expense");
+  // The key below clears the form on success; this keeps it filled on error.
+  const keep = useKeepTypedValues(state, { resetOnSuccess: false });
   const options = type === "expense" ? expenseCategories : incomeCategories;
 
   const inputClass =
@@ -68,7 +71,7 @@ export function CategoryRulesCard({
 
       {/* Keyed on the rule count: a successful add grows the list, which
           remounts the form empty; a failed one keeps what was typed. */}
-      <form key={rules.length} action={formAction} className="flex flex-wrap items-center gap-2">
+      <form key={rules.length} action={formAction} {...keep.formProps} className="flex flex-wrap items-center gap-2">
         <input
           name="pattern"
           required

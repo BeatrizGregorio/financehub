@@ -1,6 +1,8 @@
 "use client";
 
+import { Pencil, Trash2 } from "lucide-react";
 import { deleteHolding } from "./actions";
+import { RowAction } from "@/components/RowAction";
 import { typeColor, typeIconName, typeLabel, subtypeLabel, showsRateFields } from "@/lib/investmentTypes";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { currentValue, gainLoss, isMatured, latestPrice, type ReferenceRatesLike } from "@/lib/investments";
@@ -18,7 +20,7 @@ import type { Dict } from "@/lib/i18n";
 // without a horizontal scrollbar at 1280px (969px of usable width, measured)
 // and at the desktop app's 1360px window. The Name column absorbs the
 // remainder and truncates with an ellipsis. Re-measure before changing these.
-const GRID_COLS = "1.3fr 140px 120px 165px 276px";
+const GRID_COLS = "1.3fr 140px 120px 165px 250px";
 
 function DeleteButton({ id, t }: { id: string; t: Dict }) {
   return (
@@ -30,14 +32,7 @@ function DeleteButton({ id, t }: { id: string; t: Dict }) {
         }
       }}
     >
-      <button
-        type="submit"
-        // 24px minimum hit area (was 16px of bare text); the negative margin
-        // keeps the row height unchanged. Same pattern as EntryTable.
-        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-      >
-        {t.common.delete}
-      </button>
+      <RowAction type="submit" label={t.common.delete} icon={Trash2} tone="danger" />
     </form>
   );
 }
@@ -176,13 +171,7 @@ export function HoldingsTable({
                       {t.investments.addCoupon}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onEdit(holding)}
-                    className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
-                  >
-                    {t.common.edit}
-                  </button>
+                  <RowAction label={t.common.edit} icon={Pencil} onClick={() => onEdit(holding)} />
                   <DeleteButton id={holding.id} t={t} />
                 </div>
               </div>

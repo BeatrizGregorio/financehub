@@ -8,12 +8,14 @@ import {
   Banknote,
   Info,
   Landmark,
+  Pencil,
   PiggyBank,
   Plus,
   Trash2,
   Wallet,
 } from "lucide-react";
 import { Modal } from "@/components/Modal";
+import { RowAction } from "@/components/RowAction";
 import { AccountForm, TransferForm, type EditableAccount } from "./AccountForms";
 import { deleteAccount, deleteTransfer, setAccountArchived } from "./actions";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -178,16 +180,14 @@ export function AccountsClient({
                   </div>
 
                   <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--color-border)] pt-3">
-                    <button
-                      type="button"
+                    <RowAction
+                      label={t.common.edit}
+                      icon={Pencil}
                       onClick={() => {
                         setEditing(a);
                         setShowAccountForm(true);
                       }}
-                      className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
-                    >
-                      {t.common.edit}
-                    </button>
+                    />
                     <button
                       type="button"
                       onClick={() => void setAccountArchived(a.id, !a.archived)}
@@ -195,17 +195,16 @@ export function AccountsClient({
                     >
                       {a.archived ? t.accounts.unarchive : t.accounts.archive}
                     </button>
-                    <button
-                      type="button"
+                    <RowAction
+                      label={t.common.delete}
+                      icon={Trash2}
+                      tone="danger"
                       onClick={async () => {
                         if (!confirm(t.accounts.confirmDeleteAccount)) return;
                         const res = await deleteAccount(a.id);
                         setError(res.error ?? null);
                       }}
-                      className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-                    >
-                      {t.common.delete}
-                    </button>
+                    />
                   </div>
                 </div>
               );

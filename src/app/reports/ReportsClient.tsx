@@ -1,5 +1,6 @@
 "use client";
 
+import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bar,
@@ -59,6 +60,11 @@ export function ReportsClient({
 }) {
   const { t } = useT();
   const router = useRouter();
+  // Same reasoning as the entries filters: the year select is controlled by
+  // server state, so without this it snaps back to the old year until the new
+  // one has rendered.
+  const [, startTransition] = useTransition();
+  const [shownYear, showYear] = useOptimistic(year);
 
   const chartData = review.months.map((m) => ({
     label: cycleLabel(m.key, lang).split(" ")[0],
@@ -78,8 +84,14 @@ export function ReportsClient({
           <div className="relative">
             <select
               aria-label={t.reports.chooseYear}
-              value={year}
-              onChange={(e) => router.push(`/reports?year=${e.target.value}`)}
+              value={shownYear}
+              onChange={(e) => {
+                const next = e.target.value;
+                startTransition(() => {
+                  showYear(Number(next));
+                  router.push(`/reports?year=${next}`);
+                });
+              }}
               className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-4 pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"
             >
               {years.map((y) => (

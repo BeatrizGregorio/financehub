@@ -8,6 +8,7 @@ import { createEntry, updateEntry, type ActionState } from "./actions";
 import { formatCurrency, toDateInputValue } from "@/lib/format";
 import { tagsOf } from "@/lib/tags";
 import { useT } from "@/components/LanguageProvider";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 
 export type EditableEntry = {
   id: string;
@@ -88,6 +89,12 @@ export function EntryForm({
   const [state, formAction] = useActionState(action, initialState);
   const [submitCount, setSubmitCount] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  // The split case is caught client-side below; this covers every other
+  // server rejection, which React 19 would otherwise answer by emptying the
+  // form. resetOnSuccess is off because the effect below already decides what
+  // success means here: adding resets and stays open for the next entry,
+  // editing closes the modal.
+  const keep = useKeepTypedValues(state, { formRef, resetOnSuccess: false });
 
   useEffect(() => {
     if (submitCount === 0 || state.error) return;
@@ -140,6 +147,7 @@ export function EntryForm({
           setSplitGap(gap);
           return;
         }
+        keep.onSubmit();
         setSubmitCount((c) => c + 1);
       }}
       onInput={recomputeSplit}

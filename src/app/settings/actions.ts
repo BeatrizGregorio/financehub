@@ -433,6 +433,18 @@ export async function resetDefaults() {
   revalidateAll();
 }
 
+/** Show or hide the optional credit card points tab. Programmes are kept either way. */
+export async function updatePointsEnabled(formData: FormData): Promise<void> {
+  const enabled = formData.get("enabled") === "on";
+  await prisma.appSettings.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", pointsEnabled: enabled },
+    update: { pointsEnabled: enabled },
+  });
+  // The sidebar link lives in the root layout, so every route re-renders.
+  revalidatePath("/", "layout");
+}
+
 /** Turn desktop bill reminders on or off. Submitted straight from the checkbox. */
 export async function updateReminders(formData: FormData): Promise<void> {
   const enabled = formData.get("enabled") === "on";

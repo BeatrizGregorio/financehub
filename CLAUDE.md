@@ -1155,6 +1155,157 @@ from a packaged build has not been seen yet.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.29 (tall popups scroll; row actions are icons) added 2026-09-20, two small
+owner-reported UI fixes.
+
+**(1) A tall modal ran off the screen.** `Modal.tsx`'s overlay was
+`items-center` with `overflow-y-auto` on the overlay itself — and **a centred
+flex item taller than its container overflows past the *top* edge, which no
+scrollbar can reach**. The holding detail view (two charts, tax breakdown,
+price/coupon/transaction lists) is exactly that, so its heading and close
+button were stranded above the viewport. Now the card is capped at the
+viewport (`max-h-full` inside a `py-6` overlay) and its **body** scrolls, with
+the header pinned. The body needs `min-h-0` alongside `flex-1 overflow-y-auto`
+— without it a flex child keeps its content height and never scrolls.
+Verified by measurement at 1280×720 and 375×812: card fully on screen, body
+scrolls to its last element, close button stays visible, and Recharts still
+measures a real width (518px) inside the scroll container. Short modals (Add
+entry) are unchanged — still centred, no scrollbar, same 24px padding.
+
+**(2) Edit/Delete are icons everywhere** (`components/RowAction.tsx`, shared):
+`Pencil` and `Trash2`, 28px square — over the 24px WCAG 2.2 minimum on their
+own, so the old `px-1.5 py-1` hit-area padding is gone, but the `-my-1` stays
+so rows don't grow. **An icon with no text needs its name another way**: both
+`aria-label` and `title` come from `t.common.edit`/`t.common.delete`, so
+screen readers and hover tooltips are translated (Editar/Excluir) for free —
+no new dictionary keys. Applied in `EntryTable`, `HoldingsTable`,
+`AccountsClient`, `CouponSection` and `HoldingDetail`'s price rows.
+
+**Deliberately still text:** "Delete series", "Delete split", "Archive",
+"View more", "Add coupon". Three identical bins in one row would be a guessing
+game, and those actions have no obvious icon. **Deliberately still `X`:** the
+category, payment-method and CSV-rule chips — a bin inside a small pill reads
+heavy, and × is the standard chip-removal affordance.
+
+`HoldingsTable`'s actions column went 276px → **250px** (icons are 28+28
+instead of 35+51 of text). Re-measured per the V1.19 note that owns those
+widths: 243px used of 250, all four actions on one line sharing a centre, and
+no horizontal scrollbar at either 1280px or the desktop app's 1360px.
+`tsc --noEmit` / `npm run lint` clean.
+
+V1.30 (inputs and dropdowns that looked broken) added 2026-09-20, from the
+owner reporting that fields "sometimes don't work". Two real causes, both
+timing- or error-dependent, which is why they came and went. A sweep for a
+third (a controlled field with no onChange, the classic dead input) found
+none: every controlled field in `src/` has a handler.
+
+**(1) A filter dropdown snapped back to its old value.** The entries filters
+and the reports year picker are controlled by *server* state (`value={filters
+.month}`), and choosing an option only starts a navigation. Until the server
+answers, React re-renders them with the old value, so the control reverts.
+Measured with an A/B against the previous build: **~80ms on this machine,
+and it scales with how slow the response is** — a cold start or a big
+database turns a flicker into "my click did nothing". The list already dimmed
+via `pending`, so the table looked busy while the dropdown lied.
+
+Fixed with React 19's `useOptimistic` (`shownFilters` / `shownYear`): the
+control shows the picked value for the length of the transition, then hands
+back to the real one, reverting by itself if the navigation never lands.
+**The optimistic update must be called inside `startTransition`** — outside
+one it is discarded immediately. The type-filter pills read from the same
+optimistic copy, so the highlight moves at once too.
+
+**(2) A rejected form emptied itself.** The documented React 19 behaviour
+(see V1.28 item 8) — **a form action clears the form's uncontrolled fields
+when it finishes, even when it returned an error**. These forms only reset
+themselves on success, so the wipe was React's, not theirs. Reproduced end to
+end: typing a duplicate category and pressing Add left the field empty, and
+the error was easy to miss — indistinguishable from an input that ignored
+you.
+
+`components/useKeepTypedValues.ts` snapshots a form's fields as they are
+submitted and writes them back when the action reports an error, keeping the
+reset-on-success these forms already had. Writing DOM values in an effect is
+fine — it is not setState, which is what the lint config rejects. Applied to
+the category, payment-method, CSV-rule, sinking-fund, coupon, transaction,
+entry, holding, account and transfer forms.
+- `resetOnSuccess: false` is for forms that decide success for themselves:
+  `EntryForm` (adding resets and stays open for the next entry, editing
+  closes the modal), the modals that close, and the two keyed forms whose
+  `key` already remounts them empty.
+- **Pass `formProps` as a spread, not `ref={keep.ref} onSubmit={keep.onSubmit}`**
+  — reading those off the hook result inside JSX trips
+  `react-hooks/refs` ("Cannot access refs during render"). A form with its own
+  handler calls `keep.onSubmit()` from inside it instead.
+
+Verified in the browser per form, both paths: a duplicate keeps what was
+typed *and* shows the error, a valid one saves and clears. Then the whole
+app for regressions — entry add (stays open, resets), entry edit (closes),
+holding add, account add, bill add, rule add — plus zero console errors on
+every page. Two testing notes worth keeping: **assigning "42,50" to a
+`type=number` input from script yields an empty value** (real typing of a
+comma is accepted and becomes "1.50"), which looked like a bug and was the
+test's fault; and `requestAnimationFrame` never fires while the Browser pane
+is hidden, so sample with `setTimeout` instead.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
+V1.31 (optional credit card points tab) added 2026-09-20. The owner picked
+"Option A — just balances" from three options offered (A balances, B balances
+plus points estimated from logged card spending, C a full points ledger), and
+asked for it to be optional, switched on in Settings.
+
+**Points belong to a programme, not a card.** `PointsProgram` is a flat table
+— name, balance, optional `valuePer1000` (BRL), optional `expiresOn`, notes.
+Several cards can feed one Livelo account, and points also arrive from
+transfers and promos with no card involved, so hanging them off
+`PaymentMethod` would have been wrong from day one.
+
+**Deliberately NOT estimating points from spending** (that was option B). Real
+programmes exclude categories, run multipliers and change rates, so an
+estimate would quietly disagree with the owner's statement — worse than no
+number, same reasoning as every other "don't invent data" call in this app.
+If it's ever wanted, the earn rate belongs on `PaymentMethod` and the estimate
+in `lib/points.ts`; nothing here would need to change.
+
+Maths is `lib/points.ts`, pure and asserted standalone (18 assertions):
+`expiryStatus` (**none / expired / soon / ok — "no expiry date" is
+deliberately distinct from "fine for now"**, since only one of them should
+ever be warned about), `pointsValue`, `totalPoints`/`totalValue` (programmes
+with no rate contribute nothing rather than zero-ing the total), and
+`sortPrograms`, which puts what needs attention first: expired, then soonest,
+then dated, then never-expires, biggest balance breaking ties.
+
+**Optional means the route closes too, not just the sidebar link.**
+`/points` calls `notFound()` when the switch is off, so an old link or a typed
+URL can't reach a tab the owner turned off. `Nav` takes `showPoints` and
+splices the link in before Settings; `updatePointsEnabled` revalidates
+`"/"` with `"layout"` because the sidebar lives in the root layout.
+**Switching it off keeps the programmes** — the Settings card says so, since a
+switch that silently deletes data is a trap.
+
+Balances are typed in and parsed with `parsePoints`, which **strips both "."
+and "," before parsing**: a statement reads "50.000" in Brazil and "50,000"
+in the US, both mean fifty thousand, and no programme deals in fractions of a
+point. Points are formatted with `Intl.NumberFormat` following the interface
+language (73.500 in pt, 73,500 in en) — unlike money, which is always pt-BR.
+
+Verified in the browser against hand-computed figures: four programmes
+totalling 73,000 points and R$ 1.270,00 (Smiles has no rate, so it adds
+nothing), "50.000" parsed to 50,000, the attention banner naming the expired
+one and "LATAM Pass in 20 days", the quick balance update recalculating the
+total (73,000 → 76,500), edit moving a date out and dropping the banner from
+2 to 1, delete, the empty state, both languages, no overflow at 375px, and a
+backup export carrying `pointsPrograms` plus `settings.pointsEnabled` (still
+`version: 3`, additive).
+
+**The V1.5 gotcha bit again and cost a debugging round trip: restart
+`npm run dev` after `prisma generate`.** Every page 500'd with
+`Unknown field pointsEnabled` until the dev server was restarted — the
+running server holds the old generated client.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

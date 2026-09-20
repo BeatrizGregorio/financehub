@@ -6,6 +6,7 @@ import { createAccount, createTransfer, updateAccount, type ActionState } from "
 import { ACCOUNT_KINDS } from "@/lib/accounts";
 import { toDateInputValue } from "@/lib/format";
 import { useT } from "@/components/LanguageProvider";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 
 export const INPUT =
   "w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--color-ink)] focus:bg-[var(--color-surface-raised)]";
@@ -32,11 +33,20 @@ function Submit({ label }: { label: string }) {
  */
 function useCloseOnSuccess(state: ActionState, onDone: () => void) {
   const [submitted, setSubmitted] = useState(0);
+  // Success closes the modal, so there is nothing to reset; the point here is
+  // keeping the typed values when the server rejects the form.
+  const keep = useKeepTypedValues(state, { resetOnSuccess: false });
   useEffect(() => {
     if (submitted === 0 || state.error) return;
     onDone();
   }, [state, submitted, onDone]);
-  return () => setSubmitted((n) => n + 1);
+  return {
+    ref: keep.ref,
+    onSubmit: () => {
+      keep.onSubmit();
+      setSubmitted((n) => n + 1);
+    },
+  };
 }
 
 export type EditableAccount = {
@@ -51,10 +61,10 @@ export function AccountForm({ account, onDone }: { account?: EditableAccount; on
   const { t } = useT();
   const action = account ? updateAccount.bind(null, account.id) : createAccount;
   const [state, formAction] = useActionState(action, {} as ActionState);
-  const markSubmitted = useCloseOnSuccess(state, onDone);
+  const formProps = useCloseOnSuccess(state, onDone);
 
   return (
-    <form action={formAction} onSubmit={markSubmitted} className="grid gap-4 sm:grid-cols-2">
+    <form action={formAction} {...formProps} className="grid gap-4 sm:grid-cols-2">
       <div className="sm:col-span-2">
         <label htmlFor="acc-name" className={LABEL}>{t.accounts.name}</label>
         <input
@@ -128,7 +138,7 @@ export function TransferForm({
 }) {
   const { t } = useT();
   const [state, formAction] = useActionState(createTransfer, {} as ActionState);
-  const markSubmitted = useCloseOnSuccess(state, onDone);
+  const formProps = useCloseOnSuccess(state, onDone);
   const [to, setTo] = useState(accounts[1] ? `account:${accounts[1].id}` : "");
 
   if (accounts.length === 0) {
@@ -136,7 +146,7 @@ export function TransferForm({
   }
 
   return (
-    <form action={formAction} onSubmit={markSubmitted} className="grid gap-4 sm:grid-cols-2">
+    <form action={formAction} {...formProps} className="grid gap-4 sm:grid-cols-2">
       <div>
         <label htmlFor="tr-from" className={LABEL}>{t.accounts.from}</label>
         <select id="tr-from" name="from" required defaultValue={accounts[0].id} className={INPUT}>

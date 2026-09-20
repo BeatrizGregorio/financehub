@@ -1,6 +1,8 @@
 "use client";
 
+import { Pencil, Trash2 } from "lucide-react";
 import { deleteEntry, deleteSeries, deleteSplit } from "./actions";
+import { RowAction } from "@/components/RowAction";
 import { tagsOf } from "@/lib/tags";
 import { categoryColor } from "@/lib/categories";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -20,15 +22,7 @@ function DeleteButton({ id, t }: { id: string; t: Dict }) {
         }
       }}
     >
-      <button
-        type="submit"
-        // px/py enlarge the hit area to the 24px WCAG minimum (the bare text
-        // was 16px tall); the matching negative margin keeps the row's
-        // visual height unchanged.
-        className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-      >
-        {t.common.delete}
-      </button>
+      <RowAction type="submit" label={t.common.delete} icon={Trash2} tone="danger" />
     </form>
   );
 }
@@ -193,13 +187,7 @@ export function EntryTable({
                   {formatCurrency(entry.amount)}
                 </span>
                 <div className="flex items-center justify-end gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(entry)}
-                    className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
-                  >
-                    {t.common.edit}
-                  </button>
+                  <RowAction label={t.common.edit} icon={Pencil} onClick={() => onEdit(entry)} />
                   <DeleteButton id={entry.id} t={t} />
                   {entry.splitId && (splitCounts[entry.splitId] ?? 0) > 1 && (
                     <DeleteSplitButton splitId={entry.splitId} count={splitCounts[entry.splitId]} t={t} />

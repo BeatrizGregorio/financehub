@@ -7,6 +7,7 @@ import { fundStatus, monthlySetAside } from "@/lib/sinkingFunds";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { CARD } from "@/lib/ui";
 import { useT } from "@/components/LanguageProvider";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 
 export type FundRow = {
   id: string;
@@ -53,6 +54,9 @@ export function SinkingFundsCard({ funds, expenseCategories }: { funds: FundRow[
   const { t, lang } = useT();
   const [state, action] = useActionState(createFund, {} as ActionState);
   const [adding, setAdding] = useState(false);
+  // The key on the form below clears it on success; this keeps what was typed
+  // when the server rejects it.
+  const keepAdd = useKeepTypedValues(state, { resetOnSuccess: false });
   const today = new Date();
 
   return (
@@ -77,7 +81,12 @@ export function SinkingFundsCard({ funds, expenseCategories }: { funds: FundRow[
 
       {adding && (
         // Keyed on the fund count so a successful add clears the form.
-        <form key={funds.length} action={action} className="mb-4 grid grid-cols-1 gap-3 rounded-[14px] bg-[var(--color-inset-2)] p-3.5 sm:grid-cols-2 lg:grid-cols-5">
+        <form
+          key={funds.length}
+          action={action}
+          {...keepAdd.formProps}
+          className="mb-4 grid grid-cols-1 gap-3 rounded-[14px] bg-[var(--color-inset-2)] p-3.5 sm:grid-cols-2 lg:grid-cols-5"
+        >
           <label className="lg:col-span-2">
             <span className={MICRO}>{t.common.name}</span>
             <input name="name" required maxLength={60} placeholder={t.settings.fundNamePlaceholder} className={FIELD} />

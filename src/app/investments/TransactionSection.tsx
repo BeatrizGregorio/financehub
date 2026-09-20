@@ -7,6 +7,7 @@ import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { showsPosition } from "@/lib/investmentTypes";
 import { investedAt, quantityAt } from "@/lib/investments";
 import { useT } from "@/components/LanguageProvider";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 import type { Holding } from "./InvestmentsClient";
 
 /**
@@ -26,6 +27,8 @@ export function TransactionSection({ holding }: { holding: Holding }) {
     {} as ActionState,
   );
   const [kind, setKind] = useState<"buy" | "sell">("buy");
+  // Clears after a successful add; keeps what was typed on an error.
+  const { formProps } = useKeepTypedValues(state);
 
   const txs = [...(holding.transactions ?? [])].sort(
     (a, b) => b.date.getTime() - a.date.getTime(),
@@ -54,7 +57,7 @@ export function TransactionSection({ holding }: { holding: Holding }) {
         {txs.length === 0 ? t.investments.transactionsEmptyHint : t.investments.transactionsActiveHint}
       </p>
 
-      <form action={formAction} className="mb-3 flex flex-wrap items-end gap-2">
+      <form action={formAction} {...formProps} className="mb-3 flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1">
           <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
             {t.investments.kind}
