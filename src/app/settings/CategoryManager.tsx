@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 import { X } from "lucide-react";
 import { addCategory, removeCategory, renameCategory, type ActionState } from "./actions";
 import { categoryColor } from "@/lib/categories";
@@ -99,13 +100,8 @@ export function CategoryManager({
   const initialState: ActionState = {};
   const { t } = useT();
   const [state, formAction] = useActionState(action, initialState);
-  const formRef = useRef<HTMLFormElement>(null);
-  const submitCount = useRef(0);
-
-  useEffect(() => {
-    if (submitCount.current === 0) return;
-    if (!state.error) formRef.current?.reset();
-  }, [state]);
+  // Clears on success, and puts back what was typed when the server says no.
+  const { formProps } = useKeepTypedValues(state);
 
   return (
     <div className={`${CARD} p-[22px]`}>
@@ -122,12 +118,7 @@ export function CategoryManager({
         )}
       </div>
 
-      <form
-        ref={formRef}
-        action={formAction}
-        onSubmit={() => (submitCount.current += 1)}
-        className="flex gap-2"
-      >
+      <form action={formAction} {...formProps} className="flex gap-2">
         <input
           name="name"
           type="text"

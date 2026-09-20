@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { addCoupon, deleteCoupon, updateCoupon, type ActionState } from "./actions";
 import { RowAction } from "@/components/RowAction";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { totalCoupons } from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
@@ -90,17 +91,12 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
   const { t } = useT();
   const initialState: ActionState = {};
   const [state, formAction] = useActionState(addCoupon.bind(null, investmentId), initialState);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  // Reset the uncontrolled date/amount fields after a successful add, same
-  // pattern as EntryForm.tsx — only the reset lives in the effect, not any
-  // controlled state, so this doesn't hit the set-state-in-effect rule.
-  useEffect(() => {
-    if (!state.error) formRef.current?.reset();
-  }, [state]);
+  // Clears the date/amount after a successful add, and keeps them when the
+  // action returns an error (React 19 would otherwise empty them anyway).
+  const { formProps } = useKeepTypedValues(state);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-2 pb-3">
+    <form action={formAction} {...formProps} className="flex flex-wrap items-end gap-2 pb-3">
       <div>
         <label
           htmlFor={`coupon-date-${investmentId}`}

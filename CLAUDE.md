@@ -1193,6 +1193,63 @@ widths: 243px used of 250, all four actions on one line sharing a centre, and
 no horizontal scrollbar at either 1280px or the desktop app's 1360px.
 `tsc --noEmit` / `npm run lint` clean.
 
+V1.30 (inputs and dropdowns that looked broken) added 2026-09-20, from the
+owner reporting that fields "sometimes don't work". Two real causes, both
+timing- or error-dependent, which is why they came and went. A sweep for a
+third (a controlled field with no onChange, the classic dead input) found
+none: every controlled field in `src/` has a handler.
+
+**(1) A filter dropdown snapped back to its old value.** The entries filters
+and the reports year picker are controlled by *server* state (`value={filters
+.month}`), and choosing an option only starts a navigation. Until the server
+answers, React re-renders them with the old value, so the control reverts.
+Measured with an A/B against the previous build: **~80ms on this machine,
+and it scales with how slow the response is** — a cold start or a big
+database turns a flicker into "my click did nothing". The list already dimmed
+via `pending`, so the table looked busy while the dropdown lied.
+
+Fixed with React 19's `useOptimistic` (`shownFilters` / `shownYear`): the
+control shows the picked value for the length of the transition, then hands
+back to the real one, reverting by itself if the navigation never lands.
+**The optimistic update must be called inside `startTransition`** — outside
+one it is discarded immediately. The type-filter pills read from the same
+optimistic copy, so the highlight moves at once too.
+
+**(2) A rejected form emptied itself.** The documented React 19 behaviour
+(see V1.28 item 8) — **a form action clears the form's uncontrolled fields
+when it finishes, even when it returned an error**. These forms only reset
+themselves on success, so the wipe was React's, not theirs. Reproduced end to
+end: typing a duplicate category and pressing Add left the field empty, and
+the error was easy to miss — indistinguishable from an input that ignored
+you.
+
+`components/useKeepTypedValues.ts` snapshots a form's fields as they are
+submitted and writes them back when the action reports an error, keeping the
+reset-on-success these forms already had. Writing DOM values in an effect is
+fine — it is not setState, which is what the lint config rejects. Applied to
+the category, payment-method, CSV-rule, sinking-fund, coupon, transaction,
+entry, holding, account and transfer forms.
+- `resetOnSuccess: false` is for forms that decide success for themselves:
+  `EntryForm` (adding resets and stays open for the next entry, editing
+  closes the modal), the modals that close, and the two keyed forms whose
+  `key` already remounts them empty.
+- **Pass `formProps` as a spread, not `ref={keep.ref} onSubmit={keep.onSubmit}`**
+  — reading those off the hook result inside JSX trips
+  `react-hooks/refs` ("Cannot access refs during render"). A form with its own
+  handler calls `keep.onSubmit()` from inside it instead.
+
+Verified in the browser per form, both paths: a duplicate keeps what was
+typed *and* shows the error, a valid one saves and clears. Then the whole
+app for regressions — entry add (stays open, resets), entry edit (closes),
+holding add, account add, bill add, rule add — plus zero console errors on
+every page. Two testing notes worth keeping: **assigning "42,50" to a
+`type=number` input from script yields an empty value** (real typing of a
+comma is accepted and becomes "1.50"), which looked like a bug and was the
+test's fault; and `requestAnimationFrame` never fires while the Browser pane
+is hidden, so sample with `setTimeout` instead.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

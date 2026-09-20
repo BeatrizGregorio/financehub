@@ -25,6 +25,7 @@ import {
 } from "@/lib/investmentTypes";
 import type { Holding } from "./InvestmentsClient";
 import { useT } from "@/components/LanguageProvider";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 import type { Dict } from "@/lib/i18n";
 
 const INPUT =
@@ -91,6 +92,9 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
   const [state, formAction] = useActionState(action, initialState);
   const [submitCount, setSubmitCount] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  // A dozen fields, and the modal stays open when the server rejects it — the
+  // worst case for the React 19 reset, so the values are put back.
+  const keep = useKeepTypedValues(state, { formRef, resetOnSuccess: false });
 
   useEffect(() => {
     if (submitCount === 0 || state.error) return;
@@ -102,7 +106,10 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
     <form
       ref={formRef}
       action={formAction}
-      onSubmit={() => setSubmitCount((c) => c + 1)}
+      onSubmit={() => {
+        keep.onSubmit();
+        setSubmitCount((c) => c + 1);
+      }}
       className="grid gap-4 sm:grid-cols-2"
     >
       <div className="sm:col-span-2">

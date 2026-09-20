@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Plus, Calendar, ChevronDown, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
@@ -60,6 +60,16 @@ export function EntriesClient({
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
+  // The filter controls show what was just picked, straight away.
+  //
+  // They are controlled by server state, and picking an option only starts a
+  // navigation — so until the server answers, React re-renders them with the
+  // OLD filters and the control snaps back to its previous value. Locally
+  // that is a single frame; on a slow response (cold start, a big database)
+  // it reads as "my click did nothing". useOptimistic holds the picked value
+  // for the length of the transition, then hands back to the real one —
+  // reverting by itself if the navigation never lands.
+  const [shownFilters, showFilters] = useOptimistic(filters);
 
   const [editing, setEditing] = useState<EditableEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -80,6 +90,9 @@ export function EntriesClient({
     if (nextPage && nextPage > 1) params.set("page", String(nextPage));
     const query = params.toString();
     startTransition(() => {
+      // Inside the transition on purpose: an optimistic update made outside
+      // one is thrown away immediately.
+      showFilters({ ...filters, ...next });
       router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
     });
   }
@@ -149,7 +162,7 @@ export function EntriesClient({
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="flex gap-1 rounded-full border border-black/[0.06] bg-[var(--color-card)] p-1 backdrop-blur-xl">
           {(["all", "income", "expense"] as const).map((filter) => {
-            const active = filters.type === filter;
+            const active = shownFilters.type === filter;
             const activeBg =
               filter === "income"
                 ? "var(--color-positive-tint)"
@@ -185,7 +198,7 @@ export function EntriesClient({
           </div>
           <select
             aria-label={t.entries.filterByMonth}
-            value={filters.month}
+            value={shownFilters.month}
             onChange={(e) => navigate({ month: e.target.value })}
             className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-[38px] pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"
           >
@@ -206,7 +219,7 @@ export function EntriesClient({
           <div className="relative">
             <select
               aria-label={t.entries.filterByTag}
-              value={filters.tag}
+              value={shownFilters.tag}
               onChange={(e) => navigate({ tag: e.target.value })}
               className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-4 pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"
             >
@@ -228,7 +241,7 @@ export function EntriesClient({
           <div className="relative">
             <select
               aria-label={t.accounts.filterByAccount}
-              value={filters.account}
+              value={shownFilters.account}
               onChange={(e) => navigate({ account: e.target.value })}
               className="appearance-none rounded-full border border-[var(--color-border)] bg-[var(--color-card)] py-[9px] pl-4 pr-8 text-[13px] font-semibold text-[var(--color-ink)] outline-none"
             >

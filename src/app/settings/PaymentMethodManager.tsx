@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState } from "react";
 import { CreditCard, X } from "lucide-react";
 import { addPaymentMethod, removePaymentMethod, type ActionState } from "./actions";
 import { CARD } from "@/lib/ui";
 import { useT } from "@/components/LanguageProvider";
+import { useKeepTypedValues } from "@/components/useKeepTypedValues";
 
 export function PaymentMethodManager({
   methods,
@@ -14,13 +15,8 @@ export function PaymentMethodManager({
   const initialState: ActionState = {};
   const { t } = useT();
   const [state, formAction] = useActionState(addPaymentMethod, initialState);
-  const formRef = useRef<HTMLFormElement>(null);
-  const submitCount = useRef(0);
-
-  useEffect(() => {
-    if (submitCount.current === 0) return;
-    if (!state.error) formRef.current?.reset();
-  }, [state]);
+  // Clears on success, and puts back what was typed when the server says no.
+  const { formProps } = useKeepTypedValues(state);
 
   return (
     <div className={`${CARD} p-[22px]`}>
@@ -56,12 +52,7 @@ export function PaymentMethodManager({
         {methods.length === 0 && <p className="text-[13px] text-[var(--color-muted-2)]">{t.settings.noMethods}</p>}
       </div>
 
-      <form
-        ref={formRef}
-        action={formAction}
-        onSubmit={() => (submitCount.current += 1)}
-        className="flex gap-2"
-      >
+      <form action={formAction} {...formProps} className="flex gap-2">
         <input
           name="name"
           type="text"
