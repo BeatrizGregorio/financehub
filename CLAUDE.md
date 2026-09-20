@@ -1351,6 +1351,38 @@ viewBox scales it proportionally (929×288 → 703×218).
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.33 (holding detail: dates in, empty price blocks out) added 2026-09-20,
+two owner-requested tweaks to the Investments "View more" view.
+
+**Start date and maturity** now sit in their own row above the money figures,
+in the same micro-label style — identity, not performance. The maturity cell
+renders **only when there is one**: Ação, Cripto and open-ended funds never
+mature, so an empty "Maturity —" would be noise. A holding past its maturity
+shows the date in the rust tone with the existing `t.investments.matured`
+word appended, routed through `isMatured()` per the V1.20 rule that every
+maturity check goes through that one function.
+
+A new `maturity` key was needed in both dictionaries: the existing
+`maturityDate` reads "Maturity date (optional)", which is form wording and
+wrong as a display label.
+
+**The manual-price chart and the price-history list are hidden entirely when
+a holding has no prices**, instead of rendering two empty states. Accrual-
+valued holdings (most Renda Fixa) never get a manual price, so those two
+blocks were permanently empty for them. The monthly value chart above still
+shows, since it is computed from accrual and doesn't need prices.
+`noPricesRecorded` became unused and was removed from both dictionaries;
+`noPriceHistory` stays because `PortfolioValueChart` still uses it.
+
+Verified in the browser across all four cases: a holding with prices (both
+blocks present), one without (both gone, no empty states), an Ação with no
+maturity date (start shown, maturity cell absent), and a matured CDB
+("Mar 10, 2026 · Matured" in `rgb(201, 42, 58)`). Then in Portuguese —
+"DATA DE INÍCIO 15/04/2025 · VENCIMENTO 15/04/2027" with pt-BR dates and no
+English left behind.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
