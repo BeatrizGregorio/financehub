@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { addCoupon, deleteCoupon, updateCoupon, type ActionState } from "./actions";
+import { RowAction } from "@/components/RowAction";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { totalCoupons } from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
@@ -70,25 +72,14 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
         <span className="font-mono text-[12.5px] font-medium text-[var(--color-positive-text)]">
           +{formatCurrency(amount)}
         </span>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
-        >
-          {t.common.edit}
-        </button>
+        <RowAction label={t.common.edit} icon={Pencil} onClick={() => setEditing(true)} />
         <form
           action={deleteCoupon.bind(null, id)}
           onSubmit={(e) => {
             if (!confirm(t.investments.confirmDeleteCoupon)) e.preventDefault();
           }}
         >
-          <button
-            type="submit"
-            className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-          >
-            {t.common.delete}
-          </button>
+          <RowAction type="submit" label={t.common.delete} icon={Trash2} tone="danger" />
         </form>
       </div>
     </div>

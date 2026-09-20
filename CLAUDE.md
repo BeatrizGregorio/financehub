@@ -1155,6 +1155,44 @@ from a packaged build has not been seen yet.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.29 (tall popups scroll; row actions are icons) added 2026-09-20, two small
+owner-reported UI fixes.
+
+**(1) A tall modal ran off the screen.** `Modal.tsx`'s overlay was
+`items-center` with `overflow-y-auto` on the overlay itself — and **a centred
+flex item taller than its container overflows past the *top* edge, which no
+scrollbar can reach**. The holding detail view (two charts, tax breakdown,
+price/coupon/transaction lists) is exactly that, so its heading and close
+button were stranded above the viewport. Now the card is capped at the
+viewport (`max-h-full` inside a `py-6` overlay) and its **body** scrolls, with
+the header pinned. The body needs `min-h-0` alongside `flex-1 overflow-y-auto`
+— without it a flex child keeps its content height and never scrolls.
+Verified by measurement at 1280×720 and 375×812: card fully on screen, body
+scrolls to its last element, close button stays visible, and Recharts still
+measures a real width (518px) inside the scroll container. Short modals (Add
+entry) are unchanged — still centred, no scrollbar, same 24px padding.
+
+**(2) Edit/Delete are icons everywhere** (`components/RowAction.tsx`, shared):
+`Pencil` and `Trash2`, 28px square — over the 24px WCAG 2.2 minimum on their
+own, so the old `px-1.5 py-1` hit-area padding is gone, but the `-my-1` stays
+so rows don't grow. **An icon with no text needs its name another way**: both
+`aria-label` and `title` come from `t.common.edit`/`t.common.delete`, so
+screen readers and hover tooltips are translated (Editar/Excluir) for free —
+no new dictionary keys. Applied in `EntryTable`, `HoldingsTable`,
+`AccountsClient`, `CouponSection` and `HoldingDetail`'s price rows.
+
+**Deliberately still text:** "Delete series", "Delete split", "Archive",
+"View more", "Add coupon". Three identical bins in one row would be a guessing
+game, and those actions have no obvious icon. **Deliberately still `X`:** the
+category, payment-method and CSV-rule chips — a bin inside a small pill reads
+heavy, and × is the standard chip-removal affordance.
+
+`HoldingsTable`'s actions column went 276px → **250px** (icons are 28+28
+instead of 35+51 of text). Re-measured per the V1.19 note that owns those
+widths: 243px used of 250, all four actions on one line sharing a centre, and
+no horizontal scrollbar at either 1280px or the desktop app's 1360px.
+`tsc --noEmit` / `npm run lint` clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

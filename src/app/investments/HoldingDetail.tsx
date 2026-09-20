@@ -2,7 +2,9 @@
 
 import { useActionState, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Pencil, Trash2 } from "lucide-react";
 import { deletePricePoint, updatePricePoint, type ActionState } from "./actions";
+import { RowAction } from "@/components/RowAction";
 import { CouponSection } from "./CouponSection";
 import { TransactionSection } from "./TransactionSection";
 import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
@@ -76,25 +78,14 @@ function PriceRow({
         <span className="font-mono text-[12.5px] font-medium text-[var(--color-ink)]">
           {formatCurrency(price)}
         </span>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-ink)]"
-        >
-          {t.common.edit}
-        </button>
+        <RowAction label={t.common.edit} icon={Pencil} onClick={() => setEditing(true)} />
         <form
           action={deletePricePoint.bind(null, id)}
           onSubmit={(e) => {
             if (!confirm(t.investments.confirmDeletePrice)) e.preventDefault();
           }}
         >
-          <button
-            type="submit"
-            className="text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-          >
-            {t.common.delete}
-          </button>
+          <RowAction type="submit" label={t.common.delete} icon={Trash2} tone="danger" />
         </form>
       </div>
     </div>
