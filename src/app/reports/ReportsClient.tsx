@@ -127,7 +127,7 @@ export function ReportsClient({
               <Pill label={t.reports.savingsRate} value={pct(review.savingsRate)} tone={(review.savingsRate ?? 0) >= 0 ? "positive" : "negative"} />
             </div>
 
-            <div className={`${CARD} p-5 print:shadow-none`}>
+            <div className={`${CARD} p-5 print:break-inside-avoid print:shadow-none`}>
               <h3 className="mb-1 text-[17px] font-extrabold tracking-tight">{t.reports.monthByMonth}</h3>
               <p className="mb-3 text-[12.5px] text-[var(--color-muted)]">{t.reports.monthByMonthBlurb}</p>
               <div className="h-72 w-full">

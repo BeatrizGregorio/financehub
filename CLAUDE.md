@@ -1306,6 +1306,51 @@ running server holds the old generated client.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.32 (the printed report ran off the page) added 2026-09-20, owner-reported:
+printing the Reports page cut the chart off at the right edge. V1.28 added
+`print:hidden` and unclipped the shell, but never made the chart itself fit.
+
+**Cause:** Recharts measures its container on screen and writes that width
+onto the `<svg>` as an attribute — `width="929"` here — while A4 at 12mm
+margins gives about **703px**. Nothing re-measures during printing, so the
+chart keeps its screen width and overflows by ~226px. The svg carries a
+matching `viewBox`, so it can be scaled rather than cropped.
+
+The print block in `globals.css` is four selectors, and **each one was found
+by measuring, after the two obvious versions silently made it worse**:
+- `.recharts-responsive-container > div` — **Recharts v3 puts a deliberately
+  zero-sized holder between the container and the chart** (inline
+  `width:0;height:0;overflow:visible`, with the chart overflowing it on
+  purpose). A percentage width anywhere below resolves against that zero, so
+  without widening the holder first, the wrapper, the svg and the legend all
+  measured **0** — a blank chart, worse than an overflowing one.
+- `.recharts-wrapper > svg` — the **direct child** matters: Recharts gives
+  legend swatches `class="recharts-surface"` too, and a bare
+  `.recharts-surface` rule stretches every 14px colour chip to page width.
+- `.recharts-legend-wrapper` — the legend is an absolutely positioned **HTML**
+  div with its own inline pixel width, outside the svg, so scaling the svg
+  alone leaves the legend hanging off the edge (measured: 924px).
+- **Heights are left exactly as Recharts set them.** The first attempt added
+  `height: auto` (plus `print:h-auto` on the chart box) and the container then
+  measured zero height, so Recharts rendered nothing at all. The svg keeps
+  `height="288"` and letterboxes via the viewBox instead.
+
+Tables get `min-width: 0` and their `overflow-x-auto` wrapper `overflow:
+visible` in print — a min-width meant for sideways scrolling has nothing to
+scroll on paper. `@page { margin: 12mm }`.
+
+**Verification, since a real print preview can't be driven from the Browser
+pane:** the shipped `@media print` block was flipped to `@media screen` at
+runtime (`rule.media.mediaText`) with the page constrained to 703px, so the
+actual rules were exercised rather than a copy. Before: chart 929px, legend
+924px, 42 elements past the page edge. After: chart 592px, legend 592px,
+legend swatches still 14px, **zero elements overflowing**, and the chart still
+draws (5 bars, the savings-rate line, every axis tick, all inside the svg).
+An earlier check cloning the static svg into a 703px box confirmed the
+viewBox scales it proportionally (929×288 → 703×218).
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
