@@ -4,6 +4,7 @@ import { Nav } from "@/components/Nav";
 import { prisma } from "@/lib/db";
 import {
   getAccentColor,
+  getPointsEnabled,
   getCycleStartDay,
   getLanguage,
   getLicenseStatus,
@@ -45,6 +46,7 @@ export default async function RootLayout({
   await maybeAutoBackup();
   const cycleStartDay = await getCycleStartDay();
   const accentColor = await getAccentColor();
+  const pointsEnabled = await getPointsEnabled();
   const language = await getLanguage();
   const license = await getLicenseStatus();
   // Only asked when the gate will actually render — see hasAnyData().
@@ -92,6 +94,7 @@ export default async function RootLayout({
                 income={income}
                 expense={expense}
                 monthLabel={cycleLabel(currentCycle, language)}
+                showPoints={pointsEnabled}
               />
               <main className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
                 {/* The gate replaces the page content but keeps the chrome, so

@@ -1250,6 +1250,62 @@ is hidden, so sample with `setTimeout` instead.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.31 (optional credit card points tab) added 2026-09-20. The owner picked
+"Option A — just balances" from three options offered (A balances, B balances
+plus points estimated from logged card spending, C a full points ledger), and
+asked for it to be optional, switched on in Settings.
+
+**Points belong to a programme, not a card.** `PointsProgram` is a flat table
+— name, balance, optional `valuePer1000` (BRL), optional `expiresOn`, notes.
+Several cards can feed one Livelo account, and points also arrive from
+transfers and promos with no card involved, so hanging them off
+`PaymentMethod` would have been wrong from day one.
+
+**Deliberately NOT estimating points from spending** (that was option B). Real
+programmes exclude categories, run multipliers and change rates, so an
+estimate would quietly disagree with the owner's statement — worse than no
+number, same reasoning as every other "don't invent data" call in this app.
+If it's ever wanted, the earn rate belongs on `PaymentMethod` and the estimate
+in `lib/points.ts`; nothing here would need to change.
+
+Maths is `lib/points.ts`, pure and asserted standalone (18 assertions):
+`expiryStatus` (**none / expired / soon / ok — "no expiry date" is
+deliberately distinct from "fine for now"**, since only one of them should
+ever be warned about), `pointsValue`, `totalPoints`/`totalValue` (programmes
+with no rate contribute nothing rather than zero-ing the total), and
+`sortPrograms`, which puts what needs attention first: expired, then soonest,
+then dated, then never-expires, biggest balance breaking ties.
+
+**Optional means the route closes too, not just the sidebar link.**
+`/points` calls `notFound()` when the switch is off, so an old link or a typed
+URL can't reach a tab the owner turned off. `Nav` takes `showPoints` and
+splices the link in before Settings; `updatePointsEnabled` revalidates
+`"/"` with `"layout"` because the sidebar lives in the root layout.
+**Switching it off keeps the programmes** — the Settings card says so, since a
+switch that silently deletes data is a trap.
+
+Balances are typed in and parsed with `parsePoints`, which **strips both "."
+and "," before parsing**: a statement reads "50.000" in Brazil and "50,000"
+in the US, both mean fifty thousand, and no programme deals in fractions of a
+point. Points are formatted with `Intl.NumberFormat` following the interface
+language (73.500 in pt, 73,500 in en) — unlike money, which is always pt-BR.
+
+Verified in the browser against hand-computed figures: four programmes
+totalling 73,000 points and R$ 1.270,00 (Smiles has no rate, so it adds
+nothing), "50.000" parsed to 50,000, the attention banner naming the expired
+one and "LATAM Pass in 20 days", the quick balance update recalculating the
+total (73,000 → 76,500), edit moving a date out and dropping the banner from
+2 to 1, delete, the empty state, both languages, no overflow at 375px, and a
+backup export carrying `pointsPrograms` plus `settings.pointsEnabled` (still
+`version: 3`, additive).
+
+**The V1.5 gotcha bit again and cost a debugging round trip: restart
+`npm run dev` after `prisma generate`.** Every page 500'd with
+`Unknown field pointsEnabled` until the dev server was restarted — the
+running server holds the old generated client.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

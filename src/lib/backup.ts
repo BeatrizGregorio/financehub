@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/db";
-import { getAccentColor, getCycleStartDay, getLanguage, getReferenceRates } from "@/lib/data";
+import { getAccentColor, getCycleStartDay, getLanguage, getPointsEnabled, getReferenceRates } from "@/lib/data";
 import { clampCycleStartDay } from "@/lib/format";
 import { clampAccentColor } from "@/lib/theme";
 import { clampLanguage } from "@/lib/i18n";
@@ -90,6 +90,13 @@ export type Backup = {
     savedAmount: number;
     category?: string | null;
   }[];
+  pointsPrograms?: {
+    name: string;
+    balance: number;
+    valuePer1000?: number | null;
+    expiresOn?: string | null;
+    notes?: string | null;
+  }[];
   cardPayments?: {
     id?: string;
     paymentMethodId: string;
@@ -100,7 +107,13 @@ export type Backup = {
   }[];
   investments?: BackupInvestment[];
   referenceRates?: { cdi: number; selic: number; ipca: number };
-  settings?: { cycleStartDay?: number; accentColor?: string; language?: string; remindersEnabled?: boolean };
+  settings?: {
+    cycleStartDay?: number;
+    accentColor?: string;
+    language?: string;
+    remindersEnabled?: boolean;
+    pointsEnabled?: boolean;
+  };
   accounts?: {
     id: string;
     name: string;
@@ -124,7 +137,7 @@ export type Backup = {
 // ─── Build ──────────────────────────────────────────────────────────────────
 
 export async function buildBackup() {
-  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments, categoryRules, sinkingFunds, remindersEnabled] =
+  const [entries, categories, budgets, paymentMethods, investments, rates, cycleStartDay, accentColor, language, accounts, transfers, cardPayments, categoryRules, sinkingFunds, remindersEnabled, pointsEnabled, pointsPrograms] =
     await Promise.all([
       prisma.entry.findMany(),
       prisma.category.findMany(),
@@ -141,6 +154,8 @@ export async function buildBackup() {
       prisma.categoryRule.findMany(),
       prisma.sinkingFund.findMany(),
       getRemindersEnabled(),
+      getPointsEnabled(),
+      prisma.pointsProgram.findMany(),
     ]);
 
   return {
@@ -193,7 +208,7 @@ export async function buildBackup() {
     referenceRates: { cdi: rates.cdi, selic: rates.selic, ipca: rates.ipca },
     // Additive keys stay `version: 3`: an older backup without them simply
     // leaves the current value alone on import.
-    settings: { cycleStartDay, accentColor, language, remindersEnabled },
+    settings: { cycleStartDay, accentColor, language, remindersEnabled, pointsEnabled },
     accounts: accounts.map((a) => ({
       id: a.id,
       name: a.name,
@@ -220,6 +235,13 @@ export async function buildBackup() {
       repeatsYearly: f.repeatsYearly,
       savedAmount: f.savedAmount,
       category: f.category,
+    })),
+    pointsPrograms: pointsPrograms.map((p) => ({
+      name: p.name,
+      balance: p.balance,
+      valuePer1000: p.valuePer1000,
+      expiresOn: p.expiresOn,
+      notes: p.notes,
     })),
     cardPayments: cardPayments.map((c) => ({
       id: c.id,
@@ -268,6 +290,20 @@ export async function restoreBackup(backup: Backup) {
   await prisma.account.deleteMany();
   await prisma.categoryRule.deleteMany();
   await prisma.sinkingFund.deleteMany();
+  await prisma.pointsProgram.deleteMany();
+  if (backup.pointsPrograms?.length) {
+    await prisma.pointsProgram.createMany({
+      data: backup.pointsPrograms.map((p) => ({
+        name: p.name,
+        balance: p.balance ?? 0,
+        valuePer1000: p.valuePer1000 ?? null,
+        // Dates come back as ISO strings; new Date() is right here because
+        // that's what they were serialized from, not a "YYYY-MM-DD" input.
+        expiresOn: p.expiresOn ? new Date(p.expiresOn) : null,
+        notes: p.notes ?? null,
+      })),
+    });
+  }
   if (backup.sinkingFunds?.length) {
     await prisma.sinkingFund.createMany({
       data: backup.sinkingFunds.map((f) => ({
@@ -434,11 +470,18 @@ export async function restoreBackup(backup: Backup) {
 
   // Absent settings mean "leave the current value alone", not "reset".
   const s = backup.settings;
-  const settingsUpdate: { cycleStartDay?: number; accentColor?: string; language?: string; remindersEnabled?: boolean } = {};
+  const settingsUpdate: {
+    cycleStartDay?: number;
+    accentColor?: string;
+    language?: string;
+    remindersEnabled?: boolean;
+    pointsEnabled?: boolean;
+  } = {};
   if (s?.cycleStartDay != null) settingsUpdate.cycleStartDay = clampCycleStartDay(s.cycleStartDay);
   if (s?.accentColor != null) settingsUpdate.accentColor = clampAccentColor(s.accentColor);
   if (s?.language != null) settingsUpdate.language = clampLanguage(s.language);
   if (typeof s?.remindersEnabled === "boolean") settingsUpdate.remindersEnabled = s.remindersEnabled;
+  if (typeof s?.pointsEnabled === "boolean") settingsUpdate.pointsEnabled = s.pointsEnabled;
   if (Object.keys(settingsUpdate).length) {
     await prisma.appSettings.upsert({
       where: { id: "singleton" },

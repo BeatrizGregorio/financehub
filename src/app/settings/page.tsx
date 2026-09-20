@@ -23,7 +23,9 @@ import { AutoBackupCard } from "./AutoBackupCard";
 import { CategoryRulesCard } from "./CategoryRulesCard";
 import { SinkingFundsCard } from "./SinkingFundsCard";
 import { RemindersCard } from "./RemindersCard";
+import { PointsCard } from "./PointsCard";
 import { getRemindersEnabled, loadReminders } from "@/lib/reminderData";
+import { getPointsEnabled } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { defaultBackupDir, getBackupSettings, listBackupFiles } from "@/lib/backup";
 import { dict } from "@/lib/i18n";
@@ -72,7 +74,12 @@ export default async function SettingsPage() {
     ]);
   const t = dict(lang);
   const backup = await getBackupSettings();
-  const [remindersEnabled, reminders] = await Promise.all([getRemindersEnabled(), loadReminders(t, lang)]);
+  const [remindersEnabled, reminders, pointsEnabled, pointsCount] = await Promise.all([
+    getRemindersEnabled(),
+    loadReminders(t, lang),
+    getPointsEnabled(),
+    prisma.pointsProgram.count(),
+  ]);
   const backupFiles = listBackupFiles(backup.dir);
   const [rules, accounts, funds] = await Promise.all([
     prisma.categoryRule.findMany({ orderBy: [{ type: "asc" }, { pattern: "asc" }] }),
@@ -118,6 +125,7 @@ export default async function SettingsPage() {
           <LanguageCard language={lang} />
         </div>
         <RemindersCard enabled={remindersEnabled} items={reminders} />
+        <PointsCard enabled={pointsEnabled} programCount={pointsCount} />
       </Section>
 
       <Section title={t.settings.sectionData} blurb={t.settings.sectionDataBlurb}>

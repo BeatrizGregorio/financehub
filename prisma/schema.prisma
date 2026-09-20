@@ -168,6 +168,9 @@ model AppSettings {
   // Desktop notifications for bills due soon (V1.28). Read by /api/reminders,
   // which the Electron shell polls; the browser version has no notifications.
   remindersEnabled  Boolean   @default(true)
+  // Credit card points tab (V1.31). Off by default — it is an optional
+  // extra, and an empty tab in the sidebar would just be noise.
+  pointsEnabled     Boolean   @default(false)
   updatedAt     DateTime @updatedAt
 }
 
@@ -274,6 +277,20 @@ model CategoryRule {
 
 /// A big predictable bill saved for over time: IPVA, IPTU, insurance (V1.28).
 /// savedAmount is kept up to date by hand. See lib/sinkingFunds.ts.
+model PointsProgram {
+  id           String    @id @default(cuid())
+  name         String
+  /// Points held right now, typed in by hand — this app never talks to a
+  /// rewards programme, so the owner is the source of truth.
+  balance      Float     @default(0)
+  /// BRL per 1000 points, the owner own estimate. Optional.
+  valuePer1000 Float?
+  expiresOn    DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 model SinkingFund {
   id            String   @id @default(cuid())
   name          String

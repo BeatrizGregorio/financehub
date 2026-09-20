@@ -3,7 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ListOrdered, TrendingUp, Settings, ChartPie, Wallet, CreditCard, FileText } from "lucide-react";
+import {
+  LayoutDashboard,
+  ListOrdered,
+  TrendingUp,
+  Settings,
+  ChartPie,
+  Wallet,
+  CreditCard,
+  FileText,
+  Gift,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { useT } from "@/components/LanguageProvider";
 
@@ -19,17 +29,25 @@ const LINKS = [
   { href: "/settings", key: "settings", icon: Settings },
 ] as const;
 
+// Slotted in before Settings when the owner switches the points tab on.
+const POINTS_LINK = { href: "/points", key: "points", icon: Gift } as const;
+
 export function Nav({
   income,
   expense,
   monthLabel,
+  showPoints = false,
 }: {
   income: number;
   expense: number;
   monthLabel: string;
+  showPoints?: boolean;
 }) {
   const pathname = usePathname();
   const { t } = useT();
+  const links = showPoints
+    ? [...LINKS.slice(0, -1), POINTS_LINK, LINKS[LINKS.length - 1]]
+    : [...LINKS];
   const [collapsed, setCollapsed] = useState(false);
 
   // Start collapsed on narrow viewports (phone/small-window widths) — the
@@ -68,7 +86,7 @@ export function Nav({
       </div>
 
       <nav className="flex flex-1 flex-col gap-1">
-        {LINKS.map(({ href, key, icon: Icon }) => {
+        {links.map(({ href, key, icon: Icon }) => {
           const active = pathname === href;
           const label = t.nav[key];
           return (
