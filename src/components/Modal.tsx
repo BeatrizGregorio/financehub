@@ -48,14 +48,19 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/15 px-4 py-10 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/15 px-4 py-6 backdrop-blur-sm"
       onClick={onClose}
     >
+      {/* The card never grows past the viewport; its body scrolls instead, so
+          the header (title + close) is always reachable. Scrolling the overlay
+          itself doesn't work here: a centred flex item taller than its
+          container overflows past the *top* edge, which no scrollbar can
+          reach — that's how a tall holding's detail view lost its heading. */}
       <div
-        className="w-full max-w-xl rounded-[22px] border border-black/[0.07] bg-[var(--color-modal)] p-6 shadow-[var(--shadow-card)]"
+        className="flex max-h-full w-full max-w-xl flex-col rounded-[22px] border border-black/[0.07] bg-[var(--color-modal)] shadow-[var(--shadow-card)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between px-6 pt-6 pb-4">
           <h2 className="text-base font-bold text-[var(--color-ink)]">{title}</h2>
           <button
             type="button"
@@ -66,7 +71,9 @@ export function Modal({
             <X size={16} />
           </button>
         </div>
-        {children}
+        {/* min-h-0 lets this shrink below its content so overflow-y-auto can
+            actually scroll — without it a flex child keeps its full height. */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">{children}</div>
       </div>
     </div>,
     document.body,
