@@ -1451,6 +1451,44 @@ select by `[name=...]`.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.35 ("Upcoming" stops at the end of the current month) added 2026-09-21,
+owner-reported: with a series, the card showed **next** month's installment as
+the next thing due, when she wanted what is still to come *this* month.
+
+`upcomingEntries()` took a rolling `days = 30` window from tomorrow. A
+recurring or installment series generates one row per month, so as soon as the
+next installment fell inside 30 days it appeared in the card — and near the
+end of a cycle the card was mostly next month's rows. The V1.27 note calling
+this "real data, not a fabrication" still holds; the window was simply the
+wrong shape for the question.
+
+It now takes **`until: Date`** — the last day of the current budget cycle,
+passed from the dashboard as
+`cycleEndDate(currentCycleKey(cycleStartDay), cycleStartDay)`. The window
+therefore follows whatever start day is configured (10 Sep – 9 Oct by
+default) rather than assuming calendar months, in line with the V1.14/V1.15
+rule that the cycle day is always threaded as an argument, never read from a
+global. The exclusive end is midnight after `until`, so an entry dated on the
+cycle's last day counts whatever time of day it carries.
+
+Copy followed the behaviour: the badge is now `untilDate` ("until Oct 9" /
+"até 09/10") rather than a fixed "next 30 days", and the empty state is
+"Nothing else scheduled this month." — `nextDays`/`nothingScheduled` were
+replaced in both dictionaries rather than left behind.
+
+Verified with assertions against the real compiled module (a scratch tsconfig
+mapping `@/*`, since `aggregate.ts` imports `format.ts`): on 21 Sep with start
+day 10 the cycle ends 9 Oct; an entry on 9 Oct is in, 10 Oct is out, and 18
+Oct — which the **old rolling window would have included**, asserted
+explicitly — is out. Day 1 behaves the same against 30 Sep. Then in the
+browser with a real 4× installment series: the card shows "Geladeira 1/4"
+(25 Sep) and "Aluguel" (5 Oct) under a "until Oct 9" badge, with instalments
+2–4 and a 12 Oct one-off correctly absent; "A vencer · até 09/10" in
+Portuguese; and the empty state showing when entries exist but none fall in
+the rest of the cycle.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
