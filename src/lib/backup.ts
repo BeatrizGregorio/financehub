@@ -293,6 +293,9 @@ export async function restoreBackup(backup: Backup) {
   // to hand someone a paid copy, and wiping it here would deactivate the app
   // every time someone restored a backup.
   await prisma.entry.deleteMany();
+  // The undo buffer belongs to the data that was just replaced: offering to
+  // restore rows from a different database would be worse than losing it.
+  await prisma.deletedEntryBatch.deleteMany();
   await prisma.category.deleteMany();
   await prisma.budget.deleteMany();
   await prisma.paymentMethod.deleteMany();

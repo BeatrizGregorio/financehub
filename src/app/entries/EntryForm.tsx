@@ -50,6 +50,7 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 
 export function EntryForm({
   entry,
+  seriesCount = 0,
   onDone,
   expenseCategories,
   incomeCategories,
@@ -58,6 +59,9 @@ export function EntryForm({
   creditCardNames = [],
 }: {
   entry?: EditableEntry;
+  /** How many entries share this one's groupId — the series scope is only
+      offered when there is actually more than one. */
+  seriesCount?: number;
   onDone?: () => void;
   expenseCategories: CategoryOption[];
   incomeCategories: CategoryOption[];
@@ -69,6 +73,9 @@ export function EntryForm({
 }) {
   const { t } = useT();
   const isEditing = Boolean(entry);
+  // Editing one of a series: offer to apply the change to all of them.
+  const editingSeries = isEditing && Boolean(entry?.groupId) && seriesCount > 1;
+  const [scope, setScope] = useState<"one" | "series">("one");
   const formId = useId();
   const [type, setType] = useState<"income" | "expense">(
     (entry?.type as "income" | "expense") ?? "expense",
@@ -433,6 +440,39 @@ export function EntryForm({
               </div>
               {type === "expense" && seriesType === "none" && (
                 <p className="mt-1.5 text-xs text-[var(--color-muted-2)]">{t.entries.installmentsHint}</p>
+              )}
+            </div>
+          )}
+
+          {editingSeries && (
+            <div className="sm:col-span-2">
+              <p className={LABEL}>{t.entries.applyTo}</p>
+              {/* Defaults to this entry alone: a bulk rewrite should always be
+                  something the owner picked, never the path of least effort. */}
+              <input type="hidden" name="scope" value={scope} />
+              <div className="flex flex-wrap gap-2">
+                {(["one", "series"] as const).map((option) => {
+                  const active = scope === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setScope(option)}
+                      className="rounded-full px-4 py-2 text-[13px] font-semibold transition"
+                      style={{
+                        background: active ? "var(--color-brand-tint)" : "var(--color-inset)",
+                        color: active ? "var(--color-brand-text)" : "var(--color-muted)",
+                      }}
+                    >
+                      {option === "one" ? t.entries.applyToOne : t.entries.applyToSeries(seriesCount)}
+                    </button>
+                  );
+                })}
+              </div>
+              {scope === "series" && (
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--color-muted-2)]">
+                  {t.entries.applyToSeriesHint}
+                </p>
               )}
             </div>
           )}

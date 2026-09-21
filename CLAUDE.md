@@ -1489,6 +1489,69 @@ the rest of the cycle.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.36 (edit a whole series; undo a delete) added 2026-09-21, the two gaps the
+owner picked from a list of suggestions. Both touch several rows at once,
+which is where a quiet mistake is expensive, so the shared logic lives in
+`lib/entryEdits.ts`, pure and asserted standalone (18 assertions).
+
+**(1) Editing a series.** Deleting a series was possible but editing one was
+not: a rent increase meant deleting twelve rows and recreating them. The edit
+modal now offers "Only this entry" / "All N in the series" when the entry has
+a `groupId` with more than one row, read from `groupCounts` which the page
+already computed.
+
+**It defaults to this entry alone, deliberately** — a bulk rewrite should be
+something the owner picked, never the path of least effort. The scope rides in
+a hidden `scope` field rather than a new bound argument, so `updateEntry`'s
+signature is unchanged.
+
+**`sharedSeriesFields()` withholds exactly one field: the date.** Copying it
+would collapse a twelve-month series onto one day, which is never what "apply
+to all" means; the edited row takes its new date, the rest keep theirs. The
+function lists the other fields one by one rather than spreading-minus-date,
+so its `Omit<EntryFields, "date">` return type turns a newly added field into
+a **compile error** instead of a field that silently stops propagating. For
+instalments `amount` is per entry, so applying it sets each instalment to that
+amount rather than re-splitting a total — the hint under the choice says so.
+
+**(2) Undo a delete.** Every delete was a `confirm()` and then gone, and
+"Delete series" takes a dozen rows with it. `DeletedEntryBatch` now stores the
+deleted rows as JSON (ids included) and the entries page shows one banner —
+Undo / Dismiss — while the batch is fresh.
+
+- **Only ever one batch:** `recordDeletion()` clears the table before writing,
+  so nothing accumulates and the banner can't be ambiguous about what it
+  restores.
+- `UNDO_WINDOW_MINUTES = 30`, checked by `withinUndoWindow()`, which also
+  rejects a *future* timestamp rather than treating it as fresh.
+- **Restore keeps the original ids**, so a restored split or series is the same
+  group it was — and ids that exist again are skipped rather than overwritten,
+  so if the owner re-created something by hand in the meantime, her version
+  wins.
+- `restorableRows()` is defensive by design: unparseable JSON, a non-array, a
+  bad date, a missing id — each is skipped rather than restored wrong. **A
+  silently wrong date in a finance app is worse than a missing row.**
+- **Excluded from backup, and cleared on import** (`restoreBackup` deletes the
+  table): it is a scratch buffer, and resurrecting rows into a restored
+  database would be worse than losing the undo.
+
+Verified in the browser end to end: editing one row of a 4× series with the
+default scope changed exactly that row (1800 → 1950, the other three
+untouched); switching to "All 4 in the series" propagated name, amount and
+category to all four **with each date unchanged** and an unrelated standalone
+entry untouched; deleting the series showed 'Deleted "Aluguel reajustado" and
+3 more.' and Undo restored all four with identical ids, dates, `groupId` and
+`seriesType`; a single delete showed the singular copy; Dismiss left the row
+deleted and consumed the batch; a hand-backdated 45-minute-old batch correctly
+did not appear. Both languages ("Todos os 3 da série", '"Mercado" excluído.',
+Desfazer/Dispensar).
+
+**Still not undoable:** deleting a holding, account, card payment, points
+programme or category. Entries are the bulk-delete risk; the others are
+one-at-a-time and would each need their own payload shape.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

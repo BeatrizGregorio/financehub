@@ -2,10 +2,11 @@
 
 import { useOptimistic, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Plus, Calendar, ChevronDown, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Calendar, ChevronDown, Search, X, ChevronLeft, ChevronRight, Undo2 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { Modal } from "@/components/Modal";
 import { EntryForm, type EditableEntry } from "./EntryForm";
+import { dismissDeletedBatch, undoDelete } from "./actions";
 import { EntryTable } from "./EntryTable";
 import { useT } from "@/components/LanguageProvider";
 
@@ -37,6 +38,7 @@ export function EntriesClient({
   creditCardNames,
   splitCounts,
   tags,
+  deleted,
 }: {
   entries: EditableEntry[];
   months: { key: string; label: string }[];
@@ -53,6 +55,8 @@ export function EntriesClient({
   creditCardNames: string[];
   splitCounts: Record<string, number>;
   tags: string[];
+  /** The last delete, while it is still undoable. */
+  deleted?: { id: string; label: string; count: number } | null;
 }) {
   const { t } = useT();
   const activeAccounts = accounts.filter((a) => !a.archived);
@@ -149,6 +153,7 @@ export function EntriesClient({
           <EntryForm
             key={editing?.id ?? "new"}
             entry={editing ?? undefined}
+            seriesCount={editing?.groupId ? groupCounts[editing.groupId] ?? 0 : 0}
             onDone={closeForm}
             expenseCategories={expenseCategories}
             incomeCategories={incomeCategories}
@@ -157,6 +162,36 @@ export function EntriesClient({
             creditCardNames={creditCardNames}
           />
         </Modal>
+      )}
+
+      {/* Only the most recent delete, and only for a short window — see
+          UNDO_WINDOW_MINUTES. */}
+      {deleted && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-inset)] px-4 py-3">
+          <p className="text-[13px] text-[var(--color-muted)]">
+            {deleted.count === 1
+              ? t.entries.deletedOne(deleted.label)
+              : t.entries.deletedMany(deleted.label, deleted.count)}
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <form action={dismissDeletedBatch.bind(null, deleted.id)}>
+              <button
+                type="submit"
+                className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-[var(--color-muted-2)] transition hover:bg-[var(--color-panel)]"
+              >
+                {t.entries.dismiss}
+              </button>
+            </form>
+            <form action={undoDelete.bind(null, deleted.id)}>
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--color-brand-tint)] px-3.5 py-1.5 text-[12.5px] font-semibold text-[var(--color-brand-text)] transition hover:brightness-105"
+              >
+                <Undo2 size={14} /> {t.entries.undo}
+              </button>
+            </form>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2.5">

@@ -329,6 +329,19 @@ model PointsRedemption {
   @@index([programId])
 }
 
+/// A just-deleted set of entries, kept briefly so the delete can be undone
+/// (V1.36). Deliberately NOT part of backup export/import: it is a scratch
+/// buffer, and resurrecting rows into a restored database would be worse than
+/// losing the undo.
+model DeletedEntryBatch {
+  id        String   @id @default(cuid())
+  label     String
+  count     Int
+  /// The deleted rows as JSON, ids included.
+  payload   String
+  createdAt DateTime @default(now())
+}
+
 model SinkingFund {
   id            String   @id @default(cuid())
   name          String

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { withinUndoWindow } from "@/lib/entryEdits";
 import { getCategories, getCycleStartDay, getPaymentMethods } from "@/lib/data";
 import { cycleKey, cycleLabel, cycleRange } from "@/lib/format";
 import { getLanguage } from "@/lib/data";
@@ -111,6 +112,15 @@ export default async function EntriesPage({
     0,
   );
 
+  // The most recent delete, offered as an undo only while it is fresh. Older
+  // batches are cleared when the next delete records one, so at most one row
+  // ever exists here.
+  const lastDeleted = await prisma.deletedEntryBatch.findFirst({ orderBy: { createdAt: 'desc' } });
+  const deleted =
+    lastDeleted && withinUndoWindow(lastDeleted.createdAt)
+      ? { id: lastDeleted.id, label: lastDeleted.label, count: lastDeleted.count }
+      : null;
+
   return (
     <EntriesClient
       entries={rows}
@@ -123,6 +133,7 @@ export default async function EntriesPage({
       filters={{ q, month, type, account, tag }}
       splitCounts={splitCounts}
       tags={allTags}
+      deleted={deleted}
       accounts={accounts}
       creditCardNames={cardMethods.map((m) => m.name)}
       expenseCategories={expense}
