@@ -12,7 +12,7 @@ import {
 import { cardDebt, isCardPurchase } from "@/lib/cards";
 import { dict } from "@/lib/i18n";
 import { monthlySeries } from "@/lib/aggregate";
-import { currentCycleKey, cycleKey, cycleLabel } from "@/lib/format";
+import { currentCycleKey, cycleEndDate, cycleKey, cycleLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
 import { BudgetsCard } from "@/components/BudgetsCard";
 import { RecentEntriesCard } from "@/components/RecentEntriesCard";
@@ -173,8 +173,14 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-5">
           <BudgetsCard entries={entries} budgets={budgets} cycleStartDay={cycleStartDay} t={t} />
           {funds.length > 0 && <SetAsideCard funds={funds} t={t} lang={lang} />}
-          {/* Real future-dated entries only - see upcomingEntries(). */}
-          <UpcomingCard entries={entries} t={t} lang={lang} />
+          {/* Real future-dated entries only, and only this cycle's — see
+              upcomingEntries(). */}
+          <UpcomingCard
+            entries={entries}
+            until={cycleEndDate(currentCycleKey(cycleStartDay), cycleStartDay)}
+            t={t}
+            lang={lang}
+          />
           <RecentEntriesCard entries={entries} t={t} />
         </div>
 

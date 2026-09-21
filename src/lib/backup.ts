@@ -80,6 +80,7 @@ export type Backup = {
     isCreditCard?: boolean;
     closingDay?: number | null;
     dueDay?: number | null;
+    pointsProgramId?: string | null;
   }[];
   categoryRules?: { pattern: string; type: string; category: string }[];
   sinkingFunds?: {
@@ -91,11 +92,15 @@ export type Backup = {
     category?: string | null;
   }[];
   pointsPrograms?: {
+    id?: string;
     name: string;
     balance: number;
     valuePer1000?: number | null;
     expiresOn?: string | null;
     notes?: string | null;
+    balanceUpdatedAt?: string | null;
+    snapshots?: { date: string; balance: number }[];
+    redemptions?: { date: string; points: number; valueReceived?: number | null; note?: string | null }[];
   }[];
   cardPayments?: {
     id?: string;
@@ -155,7 +160,7 @@ export async function buildBackup() {
       prisma.sinkingFund.findMany(),
       getRemindersEnabled(),
       getPointsEnabled(),
-      prisma.pointsProgram.findMany(),
+      prisma.pointsProgram.findMany({ include: { snapshots: true, redemptions: true } }),
     ]);
 
   return {
@@ -172,6 +177,7 @@ export async function buildBackup() {
       isCreditCard: m.isCreditCard,
       closingDay: m.closingDay,
       dueDay: m.dueDay,
+      pointsProgramId: m.pointsProgramId,
     })),
     investments: investments.map((inv) => ({
       // Ids are kept from V1.28: transfers point at holdings and at the buys
@@ -237,11 +243,22 @@ export async function buildBackup() {
       category: f.category,
     })),
     pointsPrograms: pointsPrograms.map((p) => ({
+      // Ids are kept so a card's pointsProgramId still points somewhere real
+      // after a restore.
+      id: p.id,
       name: p.name,
       balance: p.balance,
       valuePer1000: p.valuePer1000,
       expiresOn: p.expiresOn,
       notes: p.notes,
+      balanceUpdatedAt: p.balanceUpdatedAt,
+      snapshots: p.snapshots.map((s) => ({ date: s.date, balance: s.balance })),
+      redemptions: p.redemptions.map((r) => ({
+        date: r.date,
+        points: r.points,
+        valueReceived: r.valueReceived,
+        note: r.note,
+      })),
     })),
     cardPayments: cardPayments.map((c) => ({
       id: c.id,
@@ -290,10 +307,14 @@ export async function restoreBackup(backup: Backup) {
   await prisma.account.deleteMany();
   await prisma.categoryRule.deleteMany();
   await prisma.sinkingFund.deleteMany();
+  await prisma.pointsSnapshot.deleteMany();
+  await prisma.pointsRedemption.deleteMany();
   await prisma.pointsProgram.deleteMany();
-  if (backup.pointsPrograms?.length) {
-    await prisma.pointsProgram.createMany({
-      data: backup.pointsPrograms.map((p) => ({
+  for (const p of backup.pointsPrograms ?? []) {
+    await prisma.pointsProgram.create({
+      data: {
+        // Keeping the id is what lets a restored card stay linked to it.
+        ...(p.id ? { id: p.id } : {}),
         name: p.name,
         balance: p.balance ?? 0,
         valuePer1000: p.valuePer1000 ?? null,
@@ -301,7 +322,19 @@ export async function restoreBackup(backup: Backup) {
         // that's what they were serialized from, not a "YYYY-MM-DD" input.
         expiresOn: p.expiresOn ? new Date(p.expiresOn) : null,
         notes: p.notes ?? null,
-      })),
+        balanceUpdatedAt: p.balanceUpdatedAt ? new Date(p.balanceUpdatedAt) : null,
+        snapshots: {
+          create: (p.snapshots ?? []).map((s) => ({ date: new Date(s.date), balance: s.balance })),
+        },
+        redemptions: {
+          create: (p.redemptions ?? []).map((r) => ({
+            date: new Date(r.date),
+            points: r.points,
+            valueReceived: r.valueReceived ?? null,
+            note: r.note ?? null,
+          })),
+        },
+      },
     });
   }
   if (backup.sinkingFunds?.length) {
@@ -350,6 +383,8 @@ export async function restoreBackup(backup: Backup) {
         isCreditCard: Boolean(m.isCreditCard),
         closingDay: m.closingDay ?? null,
         dueDay: m.dueDay ?? null,
+        // Points programmes keep their ids on restore, so this still resolves.
+        pointsProgramId: m.pointsProgramId ?? null,
       })),
     });
   }

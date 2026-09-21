@@ -11,10 +11,21 @@ export default async function PointsPage() {
   // owner has switched off.
   if (!(await getPointsEnabled())) notFound();
 
-  const [programs, lang] = await Promise.all([
-    prisma.pointsProgram.findMany(),
+  const [programs, cards, lang] = await Promise.all([
+    prisma.pointsProgram.findMany({
+      include: {
+        snapshots: { orderBy: { date: "asc" } },
+        redemptions: { orderBy: { date: "desc" } },
+      },
+    }),
+    // Only credit cards can earn into a programme, so only they are offered.
+    prisma.paymentMethod.findMany({
+      where: { isCreditCard: true },
+      select: { id: true, name: true, pointsProgramId: true },
+      orderBy: { name: "asc" },
+    }),
     getLanguage(),
   ]);
 
-  return <PointsClient programs={programs} lang={lang} />;
+  return <PointsClient programs={programs} cards={cards} lang={lang} />;
 }

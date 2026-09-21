@@ -6,26 +6,31 @@ import { CARD } from "@/lib/ui";
 import { Icon } from "./CategoryIcon";
 import type { Dict, Language } from "@/lib/i18n";
 
-const WINDOW_DAYS = 30;
-
 /**
- * What is already scheduled in the next 30 days.
+ * What is still to come **in the current budget month**.
  *
  * Every row here is a real entry the owner created — almost always part of a
  * recurring series, which generates twelve future-dated rows. Nothing is
  * predicted or inferred, which is the whole reason this card is allowed to
  * exist where the design handoff's invented "upcoming bills" was not.
+ *
+ * It stops at the cycle's last day rather than running 30 days forward: with a
+ * series, a rolling window kept showing next month's installment as the next
+ * thing due, which is not what "what's left this month" means (V1.35).
  */
 export function UpcomingCard({
   entries,
+  until,
   t,
   lang,
 }: {
   entries: UpcomingEntry[];
+  /** Last day of the current budget cycle — see upcomingEntries(). */
+  until: Date;
   t: Dict;
   lang: Language;
 }) {
-  const upcoming = upcomingEntries(entries, WINDOW_DAYS);
+  const upcoming = upcomingEntries(entries, until);
   const shown = upcoming.slice(0, 5);
 
   // Net of what is scheduled, so a month with a big incoming payment doesn't
@@ -43,13 +48,13 @@ export function UpcomingCard({
           {t.dashboard.upcoming}
         </span>
         <span className="shrink-0 rounded-full bg-[var(--color-brand-tint)] px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap text-[var(--color-brand-text)]">
-          {t.dashboard.nextDays(WINDOW_DAYS)}
+          {t.dashboard.untilDate(formatShortDate(until, lang))}
         </span>
       </div>
 
       {upcoming.length === 0 ? (
         <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">
-          {t.dashboard.nothingScheduled}
+          {t.dashboard.nothingScheduledMonth}
         </p>
       ) : (
         <>

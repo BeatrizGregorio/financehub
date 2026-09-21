@@ -103,7 +103,7 @@ export type UpcomingEntry = EntryLike & {
 };
 
 /**
- * Entries dated after today and within the next `days`.
+ * Entries dated after today, up to and including `until`.
  *
  * The V1.2 design handoff asked for an "Upcoming bills" card and it was
  * deliberately left unbuilt, because the mock filled it with invented
@@ -112,17 +112,25 @@ export type UpcomingEntry = EntryLike & {
  * future-dated rows sharing a groupId, so a genuine answer to "what is coming"
  * is now a query over real entries rather than a fabrication.
  *
+ * **The window is the current budget cycle, not a rolling 30 days** (V1.35).
+ * A series generates a row every month, so a rolling window kept pulling *next*
+ * month's installment into "what's still to come this month" as soon as it fell
+ * inside 30 days — the card answered "what's next" when the owner was asking
+ * "what's left". Callers pass the cycle's last day, so this follows whatever
+ * start day is configured instead of assuming calendar months.
+ *
  * Compares on calendar day, not timestamp, so something dated today is already
- * "now" rather than upcoming, and something dated later today still counts as
- * tomorrow's business would.
+ * "now" rather than upcoming, and something dated on `until` still counts.
  */
 export function upcomingEntries<T extends UpcomingEntry>(
   entries: T[],
-  days = 30,
+  until: Date,
   now: Date = new Date(),
 ): T[] {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days + 1);
+  // Exclusive end at midnight after `until`, so an entry dated on the cycle's
+  // last day is included whatever time of day it carries.
+  const end = new Date(until.getFullYear(), until.getMonth(), until.getDate() + 1);
   return entries
     .filter((e) => e.date >= start && e.date < end)
     .sort((a, b) => a.date.getTime() - b.date.getTime());

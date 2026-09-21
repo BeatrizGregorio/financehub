@@ -116,8 +116,8 @@ const en = {
     paymentMethodsBlurb: "Track which card or account each expense is paid from.",
     manageMethods: "Manage methods",
     upcoming: "Upcoming",
-    nextDays: (n: number) => `next ${n} days`,
-    nothingScheduled: "Nothing scheduled in the next 30 days.",
+    untilDate: (date: string) => `until ${date}`,
+    nothingScheduledMonth: "Nothing else scheduled this month.",
     andMore: (n: number) => `and ${n} more`,
     scheduledNet: "Scheduled net",
     netWorth: "Net worth",
@@ -614,6 +614,30 @@ const en = {
     optional: "Optional",
     pts: "pts",
     totalPoints: "Total points",
+    acrossProgrammes: (n: number) => (n === 1 ? "across 1 programme" : `across ${n} programmes`),
+    expiredExcluded: (points: string) => `${points} expired, not counted`,
+    neverChecked: "Balance never confirmed.",
+    checkedToday: "Balance confirmed today.",
+    checkedDaysAgo: (days: number) => (days === 1 ? "Balance confirmed yesterday." : `Balance confirmed ${days} days ago.`),
+    checkedStale: (days: number) => `Balance is ${days} days old — worth re-checking.`,
+    staleTitle: "Out of date",
+    staleBlurb: (names: string, days: number) =>
+      `${names} — not confirmed in over ${days} days, so the totals may be off.`,
+    perMonth: "/month",
+    redeemed: "Redeemed",
+    measuredRate: (rate: string) => `${rate} per 1000 actual`,
+    recordRedemption: "Record redemption",
+    pointsSpent: "Points spent",
+    valueReceived: "Worth (R$)",
+    whatFor: "What for",
+    whatForPlaceholder: "Flight to Lisbon…",
+    subtractFromBalance: "Subtract these points from the balance",
+    confirmDeleteRedemption: "Delete this redemption?",
+    earningCards: "Cards that earn into it",
+    earningCardsHint: "Optional. Only credit cards appear here — set one up in Settings first.",
+    reportTitle: "Points",
+    reportRedeemed: (n: number) => (n === 1 ? "1 redemption" : `${n} redemptions`),
+    reportNone: "No points redeemed this year.",
     estimatedValue: "Estimated value",
     estimateNote: "Your own estimate, not a quote.",
     programmes: "Programmes",
@@ -658,6 +682,13 @@ const en = {
             ? `${name} bill is due tomorrow`
             : `${name} bill is due in ${days} days`,
     billBody: (amount: string, date: string) => `${amount} left to pay · due ${date}`,
+    pointsTitle: (name: string, days: number) =>
+      days === 0
+        ? `${name} points expire today`
+        : days === 1
+          ? `${name} points expire tomorrow`
+          : `${name} points expire in ${days} days`,
+    pointsBody: (points: string, date: string) => `${points} points · ${date}`,
     fundTitle: (name: string, days: number) =>
       days === 0 ? `${name} is due today` : days === 1 ? `${name} is due tomorrow` : `${name} is due in ${days} days`,
     fundBody: (amount: string, date: string) => `${amount} still to set aside · due ${date}`,
@@ -837,8 +868,8 @@ const pt: Dict = {
     paymentMethodsBlurb: "Acompanhe com qual cartão ou conta cada despesa é paga.",
     manageMethods: "Gerenciar formas",
     upcoming: "A vencer",
-    nextDays: (n: number) => `próximos ${n} dias`,
-    nothingScheduled: "Nada programado nos próximos 30 dias.",
+    untilDate: (date: string) => `até ${date}`,
+    nothingScheduledMonth: "Nada mais programado neste mês.",
     andMore: (n: number) => `e mais ${n}`,
     scheduledNet: "Saldo programado",
     netWorth: "Patrimônio",
@@ -1337,6 +1368,30 @@ const pt: Dict = {
     optional: "Opcional",
     pts: "pts",
     totalPoints: "Total de pontos",
+    acrossProgrammes: (n: number) => (n === 1 ? "em 1 programa" : `em ${n} programas`),
+    expiredExcluded: (points: string) => `${points} expirados, fora da conta`,
+    neverChecked: "Saldo nunca confirmado.",
+    checkedToday: "Saldo confirmado hoje.",
+    checkedDaysAgo: (days: number) => (days === 1 ? "Saldo confirmado ontem." : `Saldo confirmado há ${days} dias.`),
+    checkedStale: (days: number) => `O saldo tem ${days} dias — vale conferir de novo.`,
+    staleTitle: "Desatualizado",
+    staleBlurb: (names: string, days: number) =>
+      `${names} — sem confirmação há mais de ${days} dias, então os totais podem estar errados.`,
+    perMonth: "/mês",
+    redeemed: "Resgates",
+    measuredRate: (rate: string) => `${rate} por 1000 na prática`,
+    recordRedemption: "Registrar resgate",
+    pointsSpent: "Pontos usados",
+    valueReceived: "Valor (R$)",
+    whatFor: "Em quê",
+    whatForPlaceholder: "Passagem para Lisboa…",
+    subtractFromBalance: "Descontar esses pontos do saldo",
+    confirmDeleteRedemption: "Excluir este resgate?",
+    earningCards: "Cartões que acumulam nele",
+    earningCardsHint: "Opcional. Só aparecem cartões de crédito — cadastre um nas Configurações primeiro.",
+    reportTitle: "Pontos",
+    reportRedeemed: (n: number) => (n === 1 ? "1 resgate" : `${n} resgates`),
+    reportNone: "Nenhum ponto resgatado neste ano.",
     estimatedValue: "Valor estimado",
     estimateNote: "Estimativa sua, não uma cotação.",
     programmes: "Programas",
@@ -1381,6 +1436,13 @@ const pt: Dict = {
             ? `Fatura ${name} vence amanhã`
             : `Fatura ${name} vence em ${days} dias`,
     billBody: (amount: string, date: string) => `${amount} a pagar · vence ${date}`,
+    pointsTitle: (name: string, days: number) =>
+      days === 0
+        ? `Pontos ${name} expiram hoje`
+        : days === 1
+          ? `Pontos ${name} expiram amanhã`
+          : `Pontos ${name} expiram em ${days} dias`,
+    pointsBody: (points: string, date: string) => `${points} pontos · ${date}`,
     fundTitle: (name: string, days: number) =>
       days === 0 ? `${name} vence hoje` : days === 1 ? `${name} vence amanhã` : `${name} vence em ${days} dias`,
     fundBody: (amount: string, date: string) => `${amount} ainda a guardar · vence ${date}`,
