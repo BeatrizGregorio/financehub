@@ -9,7 +9,7 @@ import { CouponSection } from "./CouponSection";
 import { TransactionSection } from "./TransactionSection";
 import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
 import { typeLabel, subtypeLabel, showsRateFields } from "@/lib/investmentTypes";
-import { currentValue, monthlyValue, taxBreakdown, type ReferenceRatesLike } from "@/lib/investments";
+import { currentValue, isMatured, monthlyValue, taxBreakdown, type ReferenceRatesLike } from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
 import { useT } from "@/components/LanguageProvider";
 import type { Dict, Language } from "@/lib/i18n";
@@ -111,6 +111,11 @@ export function HoldingDetail({
   const value = currentValue(holding, rates);
   const tax = taxBreakdown(holding, rates);
   const sub = subtypeLabel(holding.type, holding.subtype, t);
+  const matured = isMatured(holding);
+  // Both price blocks below are hidden entirely when nothing has been entered,
+  // rather than showing two empty states — the monthly value chart above still
+  // covers a holding that is valued by accrual alone.
+  const hasPrices = holding.prices.length > 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -119,6 +124,33 @@ export function HoldingDetail({
         {sub ? ` · ${sub}` : ""}
         {holding.institution ? ` · ${holding.institution}` : ""}
       </p>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div>
+          <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">
+            {t.investments.startDate}
+          </p>
+          <p className="font-mono text-sm font-semibold text-[var(--color-ink)]">
+            {formatDate(holding.startDate, lang)}
+          </p>
+        </div>
+        {/* Only shown when there is one: Ação, Cripto and open-ended funds
+            never mature, and an empty "Maturity —" is just noise. */}
+        {holding.maturityDate && (
+          <div>
+            <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">
+              {t.investments.maturity}
+            </p>
+            <p
+              className="font-mono text-sm font-semibold"
+              style={{ color: matured ? "var(--color-rust-text)" : "var(--color-ink)" }}
+            >
+              {formatDate(holding.maturityDate, lang)}
+              {matured ? ` · ${t.investments.matured}` : ""}
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
@@ -209,12 +241,12 @@ export function HoldingDetail({
         </div>
       </div>
 
+      {hasPrices && (
       <div>
         <p className="mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase">
           {t.investments.manualPriceEntries}
         </p>
-        {chartData.length > 0 ? (
-          <div className="h-40 w-full">
+        <div className="h-40 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-track)" />
@@ -249,25 +281,22 @@ export function HoldingDetail({
                 />
               </LineChart>
             </ResponsiveContainer>
-          </div>
-        ) : (
-          <p className="py-6 text-center text-[13px] text-[var(--color-muted-2)]">{t.investments.noPriceHistory}</p>
-        )}
-      </div>
-
-      <div>
-        <p className="mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase">
-          {t.investments.priceHistory}
-        </p>
-        <div className="flex max-h-64 flex-col divide-y divide-black/[0.04] overflow-y-auto">
-          {sortedDesc.map((p) => (
-            <PriceRow key={p.id} id={p.id} date={p.date} price={p.price} t={t} lang={lang} />
-          ))}
-          {sortedDesc.length === 0 && (
-            <p className="py-4 text-center text-[13px] text-[var(--color-muted-2)]">{t.investments.noPricesRecorded}</p>
-          )}
         </div>
       </div>
+      )}
+
+      {hasPrices && (
+        <div>
+          <p className="mb-2 text-[11px] font-bold tracking-wide text-[var(--color-muted-2)] uppercase">
+            {t.investments.priceHistory}
+          </p>
+          <div className="flex max-h-64 flex-col divide-y divide-black/[0.04] overflow-y-auto">
+            {sortedDesc.map((p) => (
+              <PriceRow key={p.id} id={p.id} date={p.date} price={p.price} t={t} lang={lang} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {showsRateFields(holding.type) && <CouponSection holding={holding} />}
 

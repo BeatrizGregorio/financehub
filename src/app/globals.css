@@ -217,3 +217,47 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
 }
+
+/* ── Printing (the Reports page's Print button) ─────────────────────────────
+   Recharts measures its container on screen and writes that width straight
+   onto the <svg> (e.g. width="929"), so on paper — about 718px of usable
+   width on A4 — the chart hangs off the right edge. The svg carries a
+   matching viewBox, so making it fluid scales the drawing to the page.
+
+   Three things here are load-bearing, each found by measuring a print-width
+   layout rather than guessing:
+   - Only the chart's own svg is targeted, via the direct-child selector:
+     Recharts gives legend icons  too, and
+     stretching those would blow up every colour swatch to page width.
+   - The legend is an absolutely positioned HTML div carrying its own inline
+     pixel width — it sits outside the svg, so scaling the svg alone leaves
+     the legend hanging off the edge.
+   - Heights are left exactly as Recharts set them. Forcing height:auto here
+     makes the container measure zero and the chart renders nothing at all. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  /* Recharts v3 puts a deliberately zero-sized holder div between the
+     responsive container and the chart (inline width:0;height:0 with the
+     chart overflowing it). A percentage width below it resolves against that
+     zero, so the holder has to be widened first or everything measures 0. */
+  .recharts-responsive-container > div,
+  .recharts-wrapper,
+  .recharts-wrapper > svg,
+  .recharts-legend-wrapper {
+    width: 100% !important;
+  }
+
+  /* Tables carry a min-width so columns stay readable on screen and scroll
+     sideways when they can't fit. Paper has no scrollbar, so they shrink and
+     wrap instead of running off the page. */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  table {
+    min-width: 0 !important;
+  }
+}
