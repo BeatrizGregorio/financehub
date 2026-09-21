@@ -60,6 +60,9 @@ model PaymentMethod {
   /// 1-28, like the budget cycle start day.
   closingDay   Int?
   dueDay       Int?
+  /// Which points programme this card earns into (V1.34). Free-form id, not a
+  /// relation: deleting a programme should just leave the card unlinked.
+  pointsProgramId String?
 }
 
 model Investment {
@@ -287,8 +290,43 @@ model PointsProgram {
   valuePer1000 Float?
   expiresOn    DateTime?
   notes        String?
+  /// When the BALANCE was last typed in — not the same as updatedAt, which
+  /// moves on any edit. A stale balance is the main way this tab can lie, so
+  /// the page shows this and nudges when it gets old.
+  balanceUpdatedAt DateTime?
+  snapshots    PointsSnapshot[]
+  redemptions  PointsRedemption[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+/// One row per balance change — what the balance WAS on a date. Enough for a
+/// trend without logging every single earn (that would be a full ledger).
+model PointsSnapshot {
+  id        String        @id @default(cuid())
+  programId String
+  program   PointsProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  date      DateTime
+  balance   Float
+  createdAt DateTime      @default(now())
+
+  @@index([programId])
+}
+
+/// What a redemption bought. valueReceived is the owner's own figure for what
+/// the reward was worth, which is what makes a MEASURED value per 1000
+/// possible instead of only the estimate on the programme.
+model PointsRedemption {
+  id            String        @id @default(cuid())
+  programId     String
+  program       PointsProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  date          DateTime
+  points        Float
+  valueReceived Float?
+  note          String?
+  createdAt     DateTime      @default(now())
+
+  @@index([programId])
 }
 
 model SinkingFund {

@@ -17,18 +17,25 @@ import type { SinkingFundLike } from "./sinkingFunds";
  *   that are overdue. The id includes the phase, so an overdue bill gets one
  *   more notification after the "due soon" one.
  * - Yearly bills (sinking funds) due within FUND_DAYS that aren't fully saved.
+ * - Points about to expire, at two ranges: POINTS_DAYS gives enough notice to
+ *   spend or transfer them, and POINTS_URGENT_DAYS is the last call. Each is a
+ *   separate id, so both fire once rather than one replacing the other.
  */
 
 export const BILL_DAYS = 3;
 export const FUND_DAYS = 7;
+export const POINTS_DAYS = 30;
+export const POINTS_URGENT_DAYS = 7;
 
 export type ReminderEntryLike = CardEntryLike & { id: string; name: string };
 export type ReminderFundLike = SinkingFundLike & { id: string; name: string };
+export type ReminderPointsLike = { id: string; name: string; balance: number; expiresOn: Date | null };
 
 export type Reminder =
   | { id: string; kind: "entry"; name: string; amount: number; date: Date; days: number }
   | { id: string; kind: "bill"; name: string; amount: number; date: Date; days: number; overdue: boolean }
-  | { id: string; kind: "fund"; name: string; amount: number; date: Date; days: number };
+  | { id: string; kind: "fund"; name: string; amount: number; date: Date; days: number }
+  | { id: string; kind: "points"; name: string; amount: number; date: Date; days: number };
 
 function dayKey(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -48,6 +55,7 @@ export function buildReminders(
     cards: CardConfig[];
     payments: CardPaymentLike[];
     funds: ReminderFundLike[];
+    points?: ReminderPointsLike[];
   },
   today: Date = new Date(),
 ): Reminder[] {
@@ -79,6 +87,23 @@ export function buildReminders(
     if (left > 0.005 && days >= 0 && days <= FUND_DAYS) {
       out.push({ id: `fund:${f.id}:${dayKey(f.dueDate)}`, kind: "fund", name: f.name, amount: left, date: f.dueDate, days });
     }
+  }
+
+  for (const p of input.points ?? []) {
+    if (!p.expiresOn || p.balance <= 0) continue;
+    const days = daysUntil(today, p.expiresOn);
+    if (days < 0) continue;
+    // The urgent id only once it is urgent, so the two don't fire together.
+    const phase = days <= POINTS_URGENT_DAYS ? POINTS_URGENT_DAYS : days <= POINTS_DAYS ? POINTS_DAYS : null;
+    if (phase === null) continue;
+    out.push({
+      id: `points:${p.id}:${dayKey(p.expiresOn)}:${phase}`,
+      kind: "points",
+      name: p.name,
+      amount: p.balance,
+      date: p.expiresOn,
+      days,
+    });
   }
 
   // Most urgent first: overdue bills, then by due date.

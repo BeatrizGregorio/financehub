@@ -1383,6 +1383,74 @@ English left behind.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.34 (points tab, second pass) added 2026-09-21. The owner asked how the
+V1.31 tab could be better and then to build the whole answer. Everything here
+is still Option A's premise — balances typed by hand, no earn estimates from
+spending — it just stops the tab quietly lying.
+
+**The real flaw was staleness.** A balance typed in March rendered exactly
+like one typed this morning, and the value total is built on it. `updatedAt`
+couldn't answer this (editing a note moved it), so `balanceUpdatedAt` is its
+own column, written **only when the balance actually changes** — plus by
+`setBalance` even when the number is re-typed identically, because there the
+point is "I confirmed this today", not "it changed today". `balanceAge()`
+drives a per-card line and a banner past `STALE_AFTER_DAYS` (45).
+
+**`PointsSnapshot` is not a ledger** — one row per programme per day holding
+what the balance *was*. That's enough for a sparkline and a per-month figure
+without logging every earn. `balanceTrend()` uses **the endpoints, not a
+fitted line**: with a handful of hand-typed checkpoints, "from X to Y over N
+days" is explainable, and a regression would imply precision these numbers
+don't have. It returns null under two snapshots or a span below 14 days,
+rather than annualising noise.
+
+**`PointsRedemption` is what makes the value honest.** `valuePer1000` was a
+guess that nothing ever checked; a redemption records points spent and what
+the reward was worth, giving a measured rate. `redemptionSummary()` weights
+by points rather than averaging the rates, so one tiny redemption at a freak
+rate can't swing it (verified: 50k at R$40 + 10k at R$20 gives **R$ 36,67**,
+not the R$ 30 a flat average would). Subtracting from the balance is a
+ticked-by-default checkbox, not automatic — the balance may already have been
+updated from the statement, and silently double-counting is worse than asking.
+
+**Points expiry now rides the V1.28 reminder pipeline**, at two ranges:
+`POINTS_DAYS` (30) to still act, `POINTS_URGENT_DAYS` (7) as last call. The
+phase is in the id so both fire once instead of one deduping the other, and
+the source is skipped entirely when the tab is off. The body shows a points
+count, not currency — `toMessage` formats it with `Intl.NumberFormat`,
+because every other reminder kind runs through `formatCurrency` and points
+are not money.
+
+Smaller pieces, all asked for: **preset programme names** (Livelo, Smiles,
+LATAM Pass, Esfera, TudoAzul) on the empty state, prefilling the form;
+**cards linked to a programme** via `PaymentMethod.pointsProgramId`, ticked
+in the programme form and shown on its card (only credit cards are offered,
+and deleting a programme unlinks rather than cascades); **redemptions in the
+yearly report**, rendered only when the tab is on and something was redeemed.
+
+**The totals were restructured** because the old framing was misleading:
+50,000 Livelo is not 50,000 Smiles, so estimated **value** is now the primary
+pill and the points count says "across N programmes" underneath. Expired
+programmes are excluded from both totals and reported separately rather than
+silently inflating them.
+
+Verified in the browser against hand-computed figures: trend **+5,870/month**
+((50,000−32,000)/92 days × 30), measured rate **R$ 36,25** after a third
+redemption (2.900 ÷ 80.000 × 1000), a 70-day-old balance flagged and the flag
+clearing on update, a redemption taking 50,000 → 30,000 with the value
+following to R$ 600, card linking, the report block, both languages, no
+overflow at 375px, and a backup carrying ids, snapshots, redemptions and the
+card link (still `version: 3`). 20 assertions on the new maths, 11 on the
+reminder rule.
+
+**A testing trap worth remembering:** `form.querySelector("input")` inside a
+React 19 form action returns React's **hidden `$ACTION_REF_*` field**, not the
+first real input. A test set the balance on that hidden field, the save
+appeared to ignore it, and it looked like an app bug for a minute — always
+select by `[name=...]`.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

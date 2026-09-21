@@ -1,19 +1,29 @@
 import { prisma } from "@/lib/db";
-import { getCycleStartDay, getLanguage, getReferenceRates } from "@/lib/data";
+import { getCycleStartDay, getLanguage, getPointsEnabled, getReferenceRates } from "@/lib/data";
 import { taxSummary, yearReview } from "@/lib/reports";
 import { cycleKey } from "@/lib/format";
+import { redemptionsInYear } from "@/lib/points";
 import { ReportsClient } from "./ReportsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
   const sp = await searchParams;
-  const [entries, investments, rates, cycleStartDay, lang] = await Promise.all([
+  const pointsEnabled = await getPointsEnabled();
+  const [entries, investments, rates, cycleStartDay, lang, redemptions] = await Promise.all([
     prisma.entry.findMany({ select: { amount: true, date: true, type: true, category: true, tags: true } }),
     prisma.investment.findMany({ include: { prices: true, coupons: true, transactions: true } }),
     getReferenceRates(),
     getCycleStartDay(),
     getLanguage(),
+    // Only when the optional tab is on, and only what's needed: the points a
+    // redemption cost and what it was worth.
+    pointsEnabled
+      ? prisma.pointsRedemption.findMany({
+          select: { id: true, date: true, points: true, valueReceived: true, note: true, program: { select: { name: true } } },
+          orderBy: { date: "desc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   // Years that have anything to report, newest first, always including this one.
@@ -38,6 +48,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       years={yearList.includes(year) ? yearList : [year, ...yearList]}
       review={yearReview(entries, year, cycleStartDay)}
       tax={taxSummary(investments, rates, year)}
+      redemptions={redemptionsInYear(redemptions, year).map((r) => ({
+        id: r.id,
+        date: r.date,
+        points: r.points,
+        valueReceived: r.valueReceived,
+        note: r.note,
+        program: r.program.name,
+      }))}
       lang={lang}
     />
   );

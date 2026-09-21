@@ -93,3 +93,95 @@ export function sortPrograms<T extends PointsProgramLike>(programs: T[], today: 
     return b.balance - a.balance;
   });
 }
+
+// ─── Second pass (V1.34): staleness, trend, measured value ──────────────────
+
+/** A balance older than this is worth re-checking before trusting it. */
+export const STALE_AFTER_DAYS = 45;
+
+/** Needs this much span before a trend means anything. */
+const MIN_TREND_DAYS = 14;
+
+export type SnapshotLike = { date: Date; balance: number };
+export type RedemptionLike = { points: number; valueReceived?: number | null; date: Date };
+
+/**
+ * How old the balance is, and whether that's old enough to say so.
+ *
+ * A balance typed six months ago looks exactly as authoritative as one typed
+ * today — that is the main way this tab can quietly mislead, so the age is
+ * surfaced rather than assumed.
+ */
+export function balanceAge(
+  balanceUpdatedAt: Date | null | undefined,
+  today: Date = new Date(),
+  staleAfter: number = STALE_AFTER_DAYS,
+): { days: number | null; stale: boolean } {
+  if (!balanceUpdatedAt) return { days: null, stale: false };
+  const days = Math.max(0, daysUntil(balanceUpdatedAt, today));
+  return { days, stale: days >= staleAfter };
+}
+
+/**
+ * Points per month, from the oldest to the newest snapshot.
+ *
+ * Deliberately the endpoints rather than a fitted line: with a handful of
+ * hand-typed checkpoints, "where it started, where it is now, over how long"
+ * is honest and explainable, and a regression would imply a precision these
+ * numbers don't have. Returns null until there are two snapshots at least
+ * MIN_TREND_DAYS apart — anything shorter annualises noise.
+ */
+export function balanceTrend(snapshots: SnapshotLike[]): { perMonth: number; days: number; from: number; to: number } | null {
+  if (snapshots.length < 2) return null;
+  const sorted = [...snapshots].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const days = daysUntil(first.date, last.date);
+  if (days < MIN_TREND_DAYS) return null;
+  return {
+    perMonth: ((last.balance - first.balance) / days) * 30,
+    days,
+    from: first.balance,
+    to: last.balance,
+  };
+}
+
+/** BRL per 1000 points actually obtained, or null when the reward's value wasn't recorded. */
+export function impliedValuePer1000(redemption: RedemptionLike): number | null {
+  if (redemption.valueReceived == null || redemption.points <= 0) return null;
+  return (redemption.valueReceived / redemption.points) * 1000;
+}
+
+/**
+ * What redemptions actually returned, across however many have a value on
+ * them. The measured rate weights by points rather than averaging the rates,
+ * so one tiny redemption at a freak rate can't swing it.
+ */
+export function redemptionSummary(redemptions: RedemptionLike[]): {
+  count: number;
+  points: number;
+  value: number;
+  measuredPer1000: number | null;
+} {
+  let points = 0;
+  let value = 0;
+  let pricedPoints = 0;
+  for (const r of redemptions) {
+    points += r.points;
+    if (r.valueReceived != null) {
+      value += r.valueReceived;
+      pricedPoints += r.points;
+    }
+  }
+  return {
+    count: redemptions.length,
+    points,
+    value,
+    measuredPer1000: pricedPoints > 0 ? (value / pricedPoints) * 1000 : null,
+  };
+}
+
+/** Redemptions dated inside a calendar year — what the yearly report shows. */
+export function redemptionsInYear<T extends RedemptionLike>(redemptions: T[], year: number): T[] {
+  return redemptions.filter((r) => r.date.getFullYear() === year);
+}

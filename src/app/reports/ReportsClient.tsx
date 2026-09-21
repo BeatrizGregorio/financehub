@@ -22,6 +22,16 @@ import { CARD } from "@/lib/ui";
 import { useT } from "@/components/LanguageProvider";
 import type { Language } from "@/lib/i18n";
 import type { TaxSummary, YearReview } from "@/lib/reports";
+import { impliedValuePer1000, redemptionSummary } from "@/lib/points";
+
+export type ReportRedemption = {
+  id: string;
+  date: Date;
+  points: number;
+  valueReceived: number | null;
+  note: string | null;
+  program: string;
+};
 
 const pct = (n: number | null) => (n === null ? "—" : `${(n * 100).toFixed(1)}%`);
 
@@ -50,12 +60,14 @@ export function ReportsClient({
   years,
   review,
   tax,
+  redemptions,
   lang,
 }: {
   year: number;
   years: number[];
   review: YearReview;
   tax: TaxSummary;
+  redemptions: ReportRedemption[];
   lang: Language;
 }) {
   const { t } = useT();
@@ -65,6 +77,10 @@ export function ReportsClient({
   // one has rendered.
   const [, startTransition] = useTransition();
   const [shownYear, showYear] = useOptimistic(year);
+
+  const points = redemptionSummary(redemptions);
+  const formatPoints = (n: number) =>
+    new Intl.NumberFormat(lang === "pt" ? "pt-BR" : "en-US", { maximumFractionDigits: 0 }).format(Math.round(n));
 
   const chartData = review.months.map((m) => ({
     label: cycleLabel(m.key, lang).split(" ")[0],
@@ -247,6 +263,44 @@ export function ReportsClient({
               </div>
             </div>
           </>
+        )}
+
+        {/* Only rendered when the optional points tab has something to show. */}
+        {redemptions.length > 0 && (
+          <div className={`${CARD} p-5 print:break-inside-avoid print:shadow-none`}>
+            <h3 className="mb-1 text-[17px] font-extrabold tracking-tight">{t.points.reportTitle}</h3>
+            <p className="mb-3 text-[12.5px] text-[var(--color-muted)]">
+              {t.points.reportRedeemed(points.count)} · {formatPoints(points.points)} {t.points.pts}
+              {points.measuredPer1000 !== null
+                ? ` · ${t.points.measuredRate(formatCurrency(points.measuredPer1000))}`
+                : ""}
+            </p>
+            <ul className="flex flex-col divide-y divide-[var(--color-border)]">
+              {redemptions.map((r) => {
+                const rate = impliedValuePer1000(r);
+                return (
+                  <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2">
+                    <span className="w-[92px] shrink-0 font-mono text-[12px] text-[var(--color-muted-2)]">
+                      {formatDate(r.date, lang)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                      {r.program}
+                      {r.note ? ` · ${r.note}` : ""}
+                    </span>
+                    <span className="shrink-0 font-mono text-[13px] tabular-nums">
+                      −{formatPoints(r.points)}
+                      {r.valueReceived != null && (
+                        <span className="ml-2 text-[var(--color-positive-text)]">{formatCurrency(r.valueReceived)}</span>
+                      )}
+                      {rate !== null && (
+                        <span className="ml-2 text-[11.5px] text-[var(--color-muted-2)]">{formatCurrency(rate)}/1k</span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </section>
 
