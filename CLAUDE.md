@@ -1552,6 +1552,74 @@ one-at-a-time and would each need their own payload shape.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.37 (sort the entries table by any column) added 2026-09-21. Every
+column header is now a sort button: Date, Name, Category, Method, Amount.
+
+**The sort lives in the query string**, like the filters have since V1.27 —
+the ordering happens on the server, so it has to survive the round trip, and a
+sorted view stays shareable and back-buttonable. A default sort (date
+descending, what the table has always shown) is left out of the URL entirely,
+so the plain `/entries` link stays clean. `parseSort()` falls back rather than
+throwing, so a hand-edited or stale URL shows the default table, not an error.
+
+**Text does not sort correctly in SQLite, and this is the part worth
+remembering.** The first browser run put *"aluguel minusculo" after "Zebra
+Store"* — SQLite compares raw bytes, so lowercase letters sit above uppercase
+in ASCII, and accented words ("Água") land after both. Prisma can't express
+`COLLATE NOCASE` in `orderBy`, and changing the *column's* collation would
+quietly change every `=` comparison in the app too. So:
+- **Date and Amount still sort in SQL** (`toOrderBy()` → Prisma `orderBy`),
+  where byte order and numeric order already agree.
+- **Name, Category and Method sort in JS** via `sortRowsByText()` with
+  `Intl.Collator`, which is case-insensitive *and* accent-aware in the owner's
+  own language — "Água" lands with the A's, where she'd look for it.
+  `pageByText()` in `entries/page.tsx` reads three short columns for the
+  filtered set, orders them, then fetches only that page's rows. `in` returns
+  rows in the database's order, not the order asked for, so they're put back
+  into the sorted order before rendering. That key query only runs when a text
+  column is actually the sort.
+
+This is the same limitation already documented for the search box (`mode:
+"insensitive"` is Postgres-only) — search still matches only ASCII case; it's
+the *ordering* that's now correct, not the filtering.
+
+**Every order ends in a unique tiebreaker** (`{ id: "asc" }`), and that is not
+cosmetic with server-side paging: rows that compare equal have no defined
+order, so without a stable last key the same entry can appear on two pages or
+on neither as the database re-plans the query. Both paths use the same
+tiebreakers — equal values show newest first, then id — so the SQL and JS
+orderings can't disagree.
+
+**Blanks always sort last, in either direction.** An entry with no payment
+method isn't the "smallest" one, and burying the filled-in rows under a block
+of empties is never what sorting was for.
+
+The arrow appears **only on the active column** — an arrow on every header
+reads as decoration and stops meaning anything — and rides `useOptimistic` for
+the same reason the filters do since V1.30, so it moves on click instead of
+snapping back until the rows arrive (measured: it lands within 30ms). Markup is
+`role="columnheader"` + `aria-sort`, which carries the same fact an arrow glyph
+alone leaves out. First click uses the column's natural direction — date and
+amount open at their biggest, text opens A→Z — and clicking the active column
+flips it. Paging resets on a re-sort, since page 3 of the old order means
+nothing in the new one.
+
+Verified: 34 assertions on `entrySort.ts` standalone, including that paging an
+**all-ties** set (37 rows sharing a name *and* a date, re-shuffled before each
+"request") reproduces the full order exactly with no row on two pages and none
+skipped. Then in the browser with deliberately awkward seeded rows — mixed
+case, an accented name, a null method, a shared date: all five columns sort and
+flip, "Água mineral"/"aluguel minusculo" now sort with the A's and descending
+is the exact reverse, sort composes with the type filter (no income leaked into
+an expenses-only amount sort), real header clicks move the arrow immediately,
+and Method puts its two blanks last. Then in Portuguese ("Ordenar por Nome",
+dd/MM/yyyy dates, blanks still last) and at 375px (page horizontal scroll 0,
+every header button 24px tall — the WCAG 2.2 minimum; the headers reading past
+375px are inside the table's **pre-existing** `overflow-x-auto` wrapper, which
+scrolls sideways on its own, measured 254px visible of 820px). Test rows
+removed afterwards. `tsc --noEmit`, `npm run lint` and a full `next build` all
+clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

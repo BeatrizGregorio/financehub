@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/format";
 import { Modal } from "@/components/Modal";
 import { EntryForm, type EditableEntry } from "./EntryForm";
 import { dismissDeletedBatch, undoDelete } from "./actions";
+import { isDefaultSort, nextSort, type Sort, type SortColumn } from "@/lib/entrySort";
 import { EntryTable } from "./EntryTable";
 import { useT } from "@/components/LanguageProvider";
 
@@ -39,6 +40,7 @@ export function EntriesClient({
   splitCounts,
   tags,
   deleted,
+  sort,
 }: {
   entries: EditableEntry[];
   months: { key: string; label: string }[];
@@ -57,6 +59,7 @@ export function EntriesClient({
   tags: string[];
   /** The last delete, while it is still undoable. */
   deleted?: { id: string; label: string; count: number } | null;
+  sort: Sort;
 }) {
   const { t } = useT();
   const activeAccounts = accounts.filter((a) => !a.archived);
@@ -74,6 +77,9 @@ export function EntriesClient({
   // for the length of the transition, then hands back to the real one —
   // reverting by itself if the navigation never lands.
   const [shownFilters, showFilters] = useOptimistic(filters);
+  // The header arrow moves on click for the same reason the filters do: it is
+  // server state, so without this it would snap back until the rows arrive.
+  const [shownSort, showSort] = useOptimistic(sort);
 
   const [editing, setEditing] = useState<EditableEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -81,7 +87,18 @@ export function EntriesClient({
   // becomes a navigation on submit.
   const [q, setQ] = useState(filters.q);
 
-  function navigate(next: Partial<Filters & { page: number }>) {
+  /** Re-sort by a column: first click uses that column's natural direction,
+      clicking the active column flips it. Paging resets, since page 3 of the
+      old order means nothing in the new one. */
+  function sortBy(column: SortColumn) {
+    const next = nextSort(sort, column);
+    startTransition(() => {
+      showSort(next);
+    });
+    navigate({ sort: next });
+  }
+
+  function navigate(next: Partial<Filters & { page: number; sort: Sort }>) {
     const params = new URLSearchParams();
     const merged = { ...filters, page, ...next };
     if (merged.q) params.set("q", merged.q);
@@ -92,6 +109,13 @@ export function EntriesClient({
     // Any filter change resets to page 1 unless the caller asked for a page.
     const nextPage = "page" in next ? next.page : 1;
     if (nextPage && nextPage > 1) params.set("page", String(nextPage));
+    // A default sort is left out of the URL entirely, so the plain /entries
+    // link stays clean.
+    const nextSortValue = "sort" in next && next.sort ? next.sort : sort;
+    if (!isDefaultSort(nextSortValue)) {
+      params.set("sort", nextSortValue.column);
+      params.set("dir", nextSortValue.dir);
+    }
     const query = params.toString();
     startTransition(() => {
       // Inside the transition on purpose: an optimistic update made outside
@@ -330,7 +354,15 @@ export function EntriesClient({
       </div>
 
       <div style={{ opacity: pending ? 0.6 : 1 }} className="transition-opacity">
-        <EntryTable entries={entries} groupCounts={groupCounts} onEdit={startEdit} accountName={accountName} splitCounts={splitCounts} />
+        <EntryTable
+          entries={entries}
+          groupCounts={groupCounts}
+          onEdit={startEdit}
+          accountName={accountName}
+          splitCounts={splitCounts}
+          sort={shownSort}
+          onSort={sortBy}
+        />
       </div>
 
       {total > pageSize && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Trash2 } from "lucide-react";
 import { deleteEntry, deleteSeries, deleteSplit } from "./actions";
 import { RowAction } from "@/components/RowAction";
 import { tagsOf } from "@/lib/tags";
@@ -9,8 +9,55 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import type { EditableEntry } from "./EntryForm";
 import { useT } from "@/components/LanguageProvider";
 import type { Dict } from "@/lib/i18n";
+import type { Sort, SortColumn } from "@/lib/entrySort";
 
 const GRID_COLS = "90px 1.4fr 1.1fr 1fr 110px 150px";
+
+/**
+ * A column heading that sorts. The arrow only appears on the active column —
+ * an arrow on every header reads as decoration and stops meaning anything.
+ *
+ * `aria-sort` on the header carries the same fact for screen readers, which is
+ * the bit an arrow glyph alone leaves out.
+ */
+function SortableHeader({
+  column,
+  label,
+  sort,
+  onSort,
+  align = "left",
+  t,
+}: {
+  column: SortColumn;
+  label: string;
+  sort: Sort;
+  onSort: (column: SortColumn) => void;
+  align?: "left" | "right";
+  t: Dict;
+}) {
+  const active = sort.column === column;
+  const Arrow = sort.dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <span
+      role="columnheader"
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+      className={align === "right" ? "text-right" : undefined}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        title={t.entries.sortBy(label)}
+        className={`-my-1 inline-flex items-center gap-1 rounded px-1.5 py-1 transition hover:text-[var(--color-ink)] ${
+          align === "right" ? "flex-row-reverse" : ""
+        }`}
+        style={{ color: active ? "var(--color-ink)" : undefined }}
+      >
+        {label}
+        {active && <Arrow size={12} className="shrink-0" />}
+      </button>
+    </span>
+  );
+}
 
 function DeleteButton({ id, t }: { id: string; t: Dict }) {
   return (
@@ -90,6 +137,8 @@ export function EntryTable({
   onEdit,
   accountName,
   splitCounts = {},
+  sort,
+  onSort,
 }: {
   entries: EditableEntry[];
   // A plain object rather than a Map: this crosses the server/client boundary
@@ -98,6 +147,8 @@ export function EntryTable({
   onEdit: (entry: EditableEntry) => void;
   accountName?: (id: string | null) => string | null;
   splitCounts?: Record<string, number>;
+  sort: Sort;
+  onSort: (column: SortColumn) => void;
 }) {
   const { t, lang } = useT();
 
@@ -117,11 +168,11 @@ export function EntryTable({
             className="grid gap-4 border-b border-[var(--color-track)] px-6 py-[15px] font-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]"
             style={{ gridTemplateColumns: GRID_COLS }}
           >
-            <span>{t.common.date}</span>
-            <span>{t.common.name}</span>
-            <span>{t.common.category}</span>
-            <span>{t.entries.method}</span>
-            <span className="text-right">{t.common.amount}</span>
+            <SortableHeader column="date" label={t.common.date} sort={sort} onSort={onSort} t={t} />
+            <SortableHeader column="name" label={t.common.name} sort={sort} onSort={onSort} t={t} />
+            <SortableHeader column="category" label={t.common.category} sort={sort} onSort={onSort} t={t} />
+            <SortableHeader column="method" label={t.entries.method} sort={sort} onSort={onSort} t={t} />
+            <SortableHeader column="amount" label={t.common.amount} sort={sort} onSort={onSort} align="right" t={t} />
             <span className="text-right">{t.common.actions}</span>
           </div>
 
