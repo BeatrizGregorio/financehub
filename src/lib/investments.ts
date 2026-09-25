@@ -624,10 +624,13 @@ function projectedInvestmentValue(
 }
 
 /**
- * Projected total portfolio value at a fixed set of future horizons. An
- * estimate, not a forecast guarantee — it assumes today's rates hold steady
- * (no CDI/SELIC/IPCA drift) and that matured holdings aren't reinvested; see
- * the disclaimer surfaced next to this chart.
+ * Projected total portfolio value at a fixed set of future horizons.
+ *
+ * An estimate, not a forecast guarantee. It assumes today's reference rates
+ * hold steady (no CDI/SELIC/IPCA drift) and that nothing is reinvested once it
+ * matures. See projectedInvestmentValue() for how each holding is carried
+ * forward, and the disclaimer surfaced next to this chart, which has to keep
+ * describing whatever that function actually does.
  */
 export function projectPortfolioValue(
   investments: InvestmentLike[],
