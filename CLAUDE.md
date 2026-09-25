@@ -1700,11 +1700,47 @@ After: y-axis to R$ 120.000, the first eight horizons spread over **76px
 during this check was the documented pane artifact, not a break** — the DOM
 had both charts at 306x256 with all 11 points and a real path.
 
+**Second correction, same day: a contracted rate outranks a realized one.**
+The owner reported the projection still flat and, separately, that a top-up
+wasn't counted. Diagnosed against her **real** database — which is the
+desktop app's (`AppData/Roaming/FinanceHub/financehub.db`), *not* the project's
+`financehub.db`, which is empty. Two separate findings, and only one was a bug:
+
+1. The invested figure was already correct in source. Her two top-ups
+   (R$ 10.000 into a FIRF, R$ 2.172,11 into a FIDC) are recorded as
+   transactions and `portfolioSummary()`/`gainLoss()` read `investedAt()`, so
+   the code counts R$ 91.274,06 against the stored fields' R$ 79.101,95. She
+   was seeing the old number because **the packaged desktop app predates all
+   of this** — nothing in `src/` reaches her until `electron:dist` is re-run.
+   Worth remembering for any future "still broken" report: check which
+   database and which build before touching code.
+
+2. A real design error, and her guess ("because I entered values manually")
+   was right. **All 12 of her holdings have a manual price**, which makes
+   `isAccrualValued()` false for every one — so nine renda-fixa holdings with
+   genuine contracted rates (13.38%–17.58%) and maturities out to 2065 were
+   being treated as hand-priced equities: realized rate, 25% cap, five-year
+   bound. A 59-day-old debenture had no realized rate at all and so sat
+   **completely flat** despite a contracted 13.44% and a 2041 maturity.
+
+   The axis was wrong. It is not "accrual-valued vs hand-priced" but **"has a
+   contracted rate vs doesn't"**. `projectedInvestmentValue()` now: returns
+   early if accrual-valued (`valueAtDate()` already compounded it — growing it
+   again would double-count); else grows from the typed value at
+   `getEffectiveRate()` with **no cap and no five-year bound**, because a
+   contract is not an extrapolation; else falls back to the realized rate with
+   both. Typing a price sets the *starting point*, never a ceiling.
+
+   Her portfolio now projects R$ 100.851 → R$ 331.673 over 20 years, 3.29x
+   across the range with all 11 points distinct — against a flat line before.
+
 Verified: 22 assertions on the compiled module (clamping both ways, the 90-day
 guard, a worthless holding yielding no rate rather than -100%, a loss
 projecting downward, maturity still freezing, and the full top-up arithmetic
 including units and invested six months *before* the buy), plus 5 more for the
-projection bound. Then end to end in
+projection bound and 11 more for the contracted-rate rule (including that an
+accrual holding is not compounded twice, and that a contracted rate beats a
+realized one that disagrees). Then end to end in
 the browser on a seeded stock + CDB: the projection curve rises (11 points,
 strictly monotonic by measured dot `cy`, previously flat), the server rejects a
 unitless buy with the typed amount preserved, a real R$ 750 / 50-unit purchase

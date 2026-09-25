@@ -492,7 +492,7 @@ const en = {
     monthlyValueBlurb: "Total portfolio value at the end of each month.",
     projection: "Projection",
     projectionBlurb: (cap: string, years: string) =>
-      `An estimate, not a forecast. Holdings with a contracted rate grow at it until they mature. Ones you price by hand grow at the return they have actually delivered — capped at ${cap}% p.a., and only for ${years} years, after which they are held flat rather than assumed to keep compounding.`,
+      `An estimate, not a forecast. Anything with a contracted rate grows at it until it matures, starting from the latest value you entered. Holdings without one — funds, stocks, crypto — grow at the return they have actually delivered, capped at ${cap}% p.a. and only for ${years} years, after which they are held flat.`,
     projectionEmpty: "Add a holding to see a projection.",
     viewMore: "View more",
     addCoupon: "Add coupon",
@@ -1259,7 +1259,7 @@ const pt: Dict = {
     monthlyValueBlurb: "Valor total da carteira no fim de cada mês.",
     projection: "Projeção",
     projectionBlurb: (cap: string, years: string) =>
-      `Uma estimativa, não uma previsão. Ativos com taxa contratada rendem por ela até o vencimento. Os que você precifica à mão rendem pelo retorno que já entregaram — limitado a ${cap}% a.a. e só por ${years} anos, depois disso ficam parados em vez de seguir rendendo.`,
+      `Uma estimativa, não uma previsão. Tudo que tem taxa contratada rende por ela até o vencimento, partindo do último valor que você informou. Os que não têm — fundos, ações, cripto — rendem pelo retorno que já entregaram, limitado a ${cap}% a.a. e só por ${years} anos, depois disso ficam parados.`,
     projectionEmpty: "Adicione um ativo para ver a projeção.",
     viewMore: "Ver mais",
     addCoupon: "Adicionar cupom",

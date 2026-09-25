@@ -599,14 +599,28 @@ function projectedInvestmentValue(
   const cap = inv.maturityDate && targetDate.getTime() > inv.maturityDate.getTime() ? inv.maturityDate : targetDate;
   const base = valueAtDate(inv, rates, cap);
 
+  // Accrual-valued holdings are already done: valueAtDate() compounded them to
+  // `cap` itself. Growing them again here would count the same interest twice.
+  if (isAccrualValued(inv, today)) return base;
+
+  const days = daysBetween(today, cap);
+  if (days <= 0) return base;
+
+  // Entering a price by hand switches valuation over to that price, which is
+  // right for "what is it worth today" — but it must not throw away a rate the
+  // holding is contractually earning. A CDB at 13.65% maturing in 2027 keeps
+  // earning 13.65% whether or not its current value was typed in; the typed
+  // value is the starting point, not a ceiling. A contract is not an
+  // extrapolation, so neither the cap nor the five-year bound applies.
+  const contracted = getEffectiveRate(inv, rates);
+  if (contracted > 0) return base * Math.pow(1 + contracted / 100, days / 365);
+
+  // Nothing contractual to go on — funds, stocks, crypto. Fall back to what the
+  // holding has actually returned, capped and time-bounded (see above).
   const rate = realizedAnnualRate(inv, rates, today);
   if (rate === null) return base;
-
-  // Grow at the realized rate for a bounded window, then hold flat — see
-  // MAX_REALIZED_PROJECTION_YEARS.
-  const days = Math.min(daysBetween(today, cap), MAX_REALIZED_PROJECTION_YEARS * 365);
-  if (days <= 0) return base;
-  return base * Math.pow(1 + rate / 100, days / 365);
+  const bounded = Math.min(days, MAX_REALIZED_PROJECTION_YEARS * 365);
+  return base * Math.pow(1 + rate / 100, bounded / 365);
 }
 
 /**
