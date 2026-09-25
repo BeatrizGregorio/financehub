@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { seedOpeningPosition } from "@/lib/holdingTransactions";
 import { prisma } from "@/lib/db";
-import { INVESTMENT_TYPES } from "@/lib/investmentTypes";
+import { INVESTMENT_TYPES, valuation } from "@/lib/investmentTypes";
 
 export type ActionState = { error?: string };
 
@@ -305,13 +305,25 @@ export async function addTransaction(
     return { error: "Enter an amount greater than 0." };
   }
 
-  // Optional: only holdings priced per unit have a meaningful quantity.
+  // Only holdings priced per unit have a meaningful quantity — but for those
+  // it is required, not optional. Their value is units x price, so a buy with
+  // no units recorded raises the invested figure while leaving the value
+  // untouched: the holding reports a loss exactly the size of the purchase.
   const quantityRaw = formData.get("quantity");
   let quantity: number | null = null;
   if (quantityRaw !== null && String(quantityRaw).trim() !== "") {
     const q = Number(quantityRaw);
     if (Number.isNaN(q) || q <= 0) return { error: "Enter a quantity greater than 0." };
     quantity = q;
+  }
+
+  const holding = await prisma.investment.findUnique({
+    where: { id: investmentId },
+    select: { type: true, subtype: true },
+  });
+  if (!holding) return { error: "That holding no longer exists." };
+  if (quantity === null && valuation(holding.type, holding.subtype).mode === "unit") {
+    return { error: "Enter how many units this buy or sell was for." };
   }
 
   await prisma.$transaction(async (tx) => {

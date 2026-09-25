@@ -8,6 +8,7 @@ import {
 } from "@/lib/format";
 import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
 import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
+import { xirr } from "@/lib/goal";
 import { cashPosition, type AccountEntryLike, type AccountLike, type TransferLike } from "@/lib/accounts";
 
 export type PricePointLike = { date: Date; price: number };
@@ -493,17 +494,103 @@ function addHorizon(base: Date, h: { days?: number; months?: number }): Date {
 }
 
 /**
- * A single holding's projected value at a future date — reuses valueAtDate()
- * so accrual, coupon deduction, and the "no data = stay flat" behavior for
- * ação/cripto/priced holdings all fall out of that one function for free.
- * The only projection-specific rule is capping at the maturity date: past
- * maturity, a bond isn't accruing anymore, so its value freezes there rather
- * than projecting further (matches "freeze at maturity", not "assume
- * automatic reinvestment").
+ * Below this much history, annualizing is noise rather than a rate — a 2% move
+ * over a week annualizes to nearly 180% a year. Such a holding is projected
+ * flat, which is what the whole projection used to do.
  */
-function projectedInvestmentValue(inv: InvestmentLike, rates: ReferenceRatesLike, targetDate: Date): number {
+export const MIN_REALIZED_DAYS = 90;
+
+/**
+ * Ceiling and floor on a projected rate, % p.a.
+ *
+ * A holding that doubled in a year has really delivered 100%, but compounding
+ * that for twenty years produces a number with no relationship to anything.
+ * The cap keeps an unusually good (or bad) run from turning the chart into
+ * fiction; it bites only at the extremes.
+ */
+export const MAX_PROJECTED_RATE = 25;
+
+/**
+ * The annual return a holding has actually delivered so far, in % p.a., or
+ * null when there is no honest way to say.
+ *
+ * Only for holdings valued from a price typed in by hand. Accrual holdings
+ * already carry a contracted rate, and getEffectiveRate() is the right answer
+ * for those — asking this of a CDB would replace its known rate with a guess.
+ *
+ * This is money-weighted (XIRR over the real dated flows), not a simple
+ * value/invested ratio, so a top-up halfway through the period doesn't read as
+ * though it had been there from the start. That is the same calculation the
+ * goal card already shows as the portfolio's real return, applied to one
+ * holding.
+ */
+export function realizedAnnualRate(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike,
+  asOfDate: Date = new Date(),
+): number | null {
+  if (isAccrualValued(inv, asOfDate)) return null;
+
+  const txs = txThrough(inv, asOfDate);
+  // A buy is cash leaving the owner, so it enters XIRR negative; a sell
+  // positive. With no transactions on file the holding still has exactly one
+  // known dated purchase.
+  const flows = txs.length
+    ? txs.map((tx) => ({ date: tx.date, amount: -txSign(tx.kind) * tx.amount }))
+    : [{ date: inv.startDate, amount: -inv.amountInvested }];
+
+  const key = dateKey(asOfDate);
+  for (const c of inv.coupons) {
+    if (dateKey(c.date) <= key) flows.push({ date: c.date, amount: c.amount });
+  }
+
+  const value = valueAtDate(inv, rates, asOfDate);
+  if (value <= 0) return null;
+  flows.push({ date: asOfDate, amount: value });
+  flows.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  if (daysBetween(flows[0].date, asOfDate) < MIN_REALIZED_DAYS) return null;
+
+  const rate = xirr(flows);
+  // xirr returns null when the flows can't bracket a root — no answer beats a
+  // wrong one, and the holding just stays flat.
+  if (rate === null || !Number.isFinite(rate)) return null;
+  return Math.max(-MAX_PROJECTED_RATE, Math.min(MAX_PROJECTED_RATE, rate * 100));
+}
+
+/**
+ * A single holding's projected value at a future date.
+ *
+ * valueAtDate() does the work for anything with a contracted rate: called with
+ * a future date it accrues forward on its own. What it cannot do is project a
+ * holding whose value is a price someone typed in — there is no future price
+ * point to look up, so it comes back flat.
+ *
+ * Flat was the original behaviour for those, deliberately: better than
+ * inventing a growth rate for a stock. But a holding that has been priced by
+ * hand is not without information — it has delivered a real return, and that
+ * is what it grows at here. Accrual holdings are untouched by this; so are
+ * ones too new to annualize honestly.
+ *
+ * Capping at the maturity date stays: past maturity a bond isn't earning, so
+ * its value freezes rather than projecting on ("freeze at maturity", not
+ * "assume automatic reinvestment").
+ */
+function projectedInvestmentValue(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike,
+  today: Date,
+  targetDate: Date,
+): number {
   const cap = inv.maturityDate && targetDate.getTime() > inv.maturityDate.getTime() ? inv.maturityDate : targetDate;
-  return valueAtDate(inv, rates, cap);
+  const base = valueAtDate(inv, rates, cap);
+
+  const rate = realizedAnnualRate(inv, rates, today);
+  if (rate === null) return base;
+
+  const days = daysBetween(today, cap);
+  if (days <= 0) return base;
+  return base * Math.pow(1 + rate / 100, days / 365);
 }
 
 /**
@@ -524,7 +611,10 @@ export function projectPortfolioValue(
   const today = new Date();
   return PROJECTION_HORIZONS.map((h) => {
     const targetDate = addHorizon(today, h);
-    const value = investments.reduce((sum, inv) => sum + projectedInvestmentValue(inv, rates, targetDate), 0);
+    const value = investments.reduce(
+      (sum, inv) => sum + projectedInvestmentValue(inv, rates, today, targetDate),
+      0,
+    );
     return { label: horizonLabel(h, units), days: daysBetween(today, targetDate), value };
   });
 }

@@ -1620,6 +1620,76 @@ scrolls sideways on its own, measured 254px visible of 820px). Test rows
 removed afterwards. `tsc --noEmit`, `npm run lint` and a full `next build` all
 clean.
 
+V1.38 (projection follows a hand-typed price; buying more of a holding)
+added 2026-09-25, two owner-reported bugs in Investments. Both reproduced
+against the real compiled module before anything was changed.
+
+**(1) The projection sat flat for anything priced by hand.** A stock bought at
+R$ 1.000 and priced at R$ 1.500 projected R$ 1.500 at every horizon out to 20
+years, despite having delivered 50%. That was V1.10's deliberate "hold flat
+rather than guess a growth rate" decision, which the owner has now seen on a
+real timeline and reversed — the same shape of correction as V1.11 → V1.12.
+
+`realizedAnnualRate()` in `investments.ts` answers what a holding has actually
+returned, and `projectedInvestmentValue()` grows it at that rate.
+- **It is money-weighted (XIRR over the real dated flows), not value/invested.**
+  A top-up halfway through the period would otherwise read as though it had
+  been there from the start, which is the exact error the transaction log
+  exists to prevent. `xirr` is imported from `goal.ts` — already written and
+  asserted for the goal card, and `goal.ts` imports only `format.ts`, so there
+  is no cycle. Verified: a mid-period top-up reports **more** than the naive
+  ratio, and a top-up made today doesn't dilute the rate at all.
+- **Accrual holdings are untouched.** The guard is `isAccrualValued()` — a CDB
+  keeps projecting at its contracted rate, and asking XIRR would replace a
+  known rate with a guess. Verified a CDB's projection is bit-identical to what
+  `valueAtDate()` says.
+- **Two guards, both deliberate.** `MIN_REALIZED_DAYS = 90`: a 2% move over a
+  week annualizes to ~180%, so below that the holding projects flat, exactly as
+  before. `MAX_PROJECTED_RATE = 25` (% p.a., floor and ceiling): a holding that
+  doubled in a year really did return 100%, but compounding that for 20 years
+  produces fiction. It bites only at the extremes. Both numbers are
+  **interpolated into the chart's blurb** rather than restated in prose, so the
+  copy can't drift from the constants.
+- Untouched on purpose: `valueAtDate()`, current value, gains, tax and the
+  monthly charts. Only the projection changed — a holding's *stated* value is
+  still whatever was typed.
+
+**(2) Buying more of a holding.** The buy/sell log (V1.27 item 7) already did
+this correctly — invested and units rise from the buy date, and a purchase at
+today's price correctly adds no gain. Two things made it look broken:
+- **A per-unit buy with the units box left blank was accepted**, and it is
+  worse than useless: value is units x price, so the invested figure rose while
+  the value didn't, reporting a **loss exactly the size of the purchase**
+  (R$ -250 on the reproduction). Units are now required when
+  `valuation().mode === "unit"` — server-side in `addTransaction`, with
+  `required` on the input as well. Gated on the valuation mode, **not**
+  `showsPosition()`, which is also true for Fundo, where units don't drive the
+  value and requiring them would be wrong.
+- **The edit form silently stopped mattering.** Once a holding has any
+  transactions, `investedAt()` reads the log and ignores `amountInvested`, so
+  editing that field looked like a save that did nothing — almost certainly
+  what "it isn't taken into consideration" meant. `HoldingForm` now says where
+  the number comes from and points at View more → Buys and sells. The field is
+  still submitted (`parseHoldingForm` requires it), just no longer silent.
+
+Left alone, and worth knowing: `quantityAt()` sums a mixed set of transactions
+treating a null quantity as 0. The validation above stops new ones, but any row
+already stored that way would undercount. Nothing in the dev database had it;
+the owner's desktop install is a separate file.
+
+Verified: 22 assertions on the compiled module (clamping both ways, the 90-day
+guard, a worthless holding yielding no rate rather than -100%, a loss
+projecting downward, maturity still freezing, and the full top-up arithmetic
+including units and invested six months *before* the buy). Then end to end in
+the browser on a seeded stock + CDB: the projection curve rises (11 points,
+strictly monotonic by measured dot `cy`, previously flat), the server rejects a
+unitless buy with the typed amount preserved, a real R$ 750 / 50-unit purchase
+moves invested to R$ 1.750 and units to 150 with **gain unchanged at
+R$ 1.100**, the opening buy was seeded automatically so nothing was lost, and
+the edit-form note appears for the holding with a log and not for the one
+without. Both languages. Test data removed. `tsc --noEmit`, `npm run lint` and
+a full `next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

@@ -476,6 +476,8 @@ const en = {
     noTransactions: "No buys or sells recorded.",
     netInvested: "Net invested",
     units: "units",
+    amountFromLog:
+      "This holding is valued from its buys and sells. To record buying more, add it under View more \u2192 Buys and sells \u2014 changing this field won't move the totals.",
     kind: "Type",
     buy: "Buy",
     sell: "Sell",
@@ -489,8 +491,8 @@ const en = {
     monthlyValue: "Monthly value",
     monthlyValueBlurb: "Total portfolio value at the end of each month.",
     projection: "Projection",
-    projectionBlurb:
-      "An estimate, not a forecast — assumes today's rates hold steady and each holding stops growing at its maturity date rather than being automatically reinvested.",
+    projectionBlurb: (cap: string, days: string) =>
+      `An estimate, not a forecast. Holdings with a contracted rate grow at it; ones you price by hand grow at the return they have actually delivered, capped at ${cap}% p.a. and only once there is ${days} days of history. Nothing is reinvested past its maturity date.`,
     projectionEmpty: "Add a holding to see a projection.",
     viewMore: "View more",
     addCoupon: "Add coupon",
@@ -1239,6 +1241,8 @@ const pt: Dict = {
     noTransactions: "Nenhuma compra ou venda registrada.",
     netInvested: "Investido líquido",
     units: "cotas",
+    amountFromLog:
+      "Este ativo é calculado pelas compras e vendas registradas. Para registrar uma nova compra, use Ver mais \u2192 Compras e vendas \u2014 alterar este campo não muda os totais.",
     kind: "Tipo",
     buy: "Compra",
     sell: "Venda",
@@ -1254,8 +1258,8 @@ const pt: Dict = {
     monthlyValue: "Valor mensal",
     monthlyValueBlurb: "Valor total da carteira no fim de cada mês.",
     projection: "Projeção",
-    projectionBlurb:
-      "Uma estimativa, não uma previsão — assume que as taxas de hoje se mantêm e que cada ativo para de render no vencimento, sem reinvestimento automático.",
+    projectionBlurb: (cap: string, days: string) =>
+      `Uma estimativa, não uma previsão. Ativos com taxa contratada rendem por ela; os que você precifica à mão rendem pelo retorno que já entregaram, limitado a ${cap}% a.a. e só a partir de ${days} dias de histórico. Nada é reinvestido depois do vencimento.`,
     projectionEmpty: "Adicione um ativo para ver a projeção.",
     viewMore: "Ver mais",
     addCoupon: "Adicionar cupom",
