@@ -2535,6 +2535,45 @@ doesn't trust them — it actually `require()`s the binary under the relevant ru
 each step and fails loudly if that fails, rather than silently shipping a broken
 binary. Keep that verification if you ever rewrite this script.
 
+### App icon
+
+Until 2026-09-25 no icon was configured at all, so the desktop app shipped with
+Electron's default. `build/icon.svg` is now the source: the same mark as the
+sidebar logo in `Nav.tsx` — a rounded square with the brand gradient and
+lucide's `ChartPie` glyph in white. It uses the **default green**, not whichever
+accent is selected in Settings, because an icon is baked into the executable at
+build time and can't follow a runtime setting.
+
+`npm run icons` (`scripts/make-icons.js`) rasterizes it to `build/icon.ico`
+(16/24/32/48/64/128/256) and `build/icon.png` (512, which electron-builder
+converts to `.icns` for macOS and uses directly on Linux).
+
+- **It renders through Electron, not an image library.** Rasterizing an SVG
+  needs a real renderer and this project already ships one; adding `sharp` for
+  a file that changes once a year would fight the "keep the dependency list
+  small" rule. The window is `show: false`. One catch worth knowing if you
+  touch it: the page must be a blank **HTML** document, because loading the SVG
+  directly gives an XML document where `document.createElement("canvas")`
+  returns a plain `Element` with no `getContext`.
+- **The .ico is packed by hand** (~30 lines). An .ico is a header, one 16-byte
+  directory entry per image, then the payloads — and since Vista those payloads
+  can be PNGs as-is, which is exactly what the canvas produced, so there is no
+  bitmap re-encoding. A side of 256 is stored as 0, the field being one byte.
+- **All three files are committed, and generation is deliberately NOT chained
+  into `electron:build`.** Packaging must never depend on a renderer being
+  available — the Windows CI build is fragile enough already. Re-run
+  `npm run icons` by hand after editing the SVG.
+- `.gitignore` needed `/build` changed to `/build/*` for the three
+  `!/build/icon.*` exceptions to work: **git will not re-include a file whose
+  parent directory is excluded.**
+- `main.cjs` sets the `BrowserWindow` icon only when **not** packaged. A
+  packaged build takes its icon from the `.exe` on Windows and the bundle on
+  macOS, and `build/` is not shipped inside the app, so setting it there would
+  name a file that does not exist.
+
+The web favicon (`src/app/favicon.ico`) was left alone — this was scoped to the
+desktop icon.
+
 ### Packaging quirks (electron-builder — also non-obvious)
 
 `package.json`'s `"build"` key configures `electron-builder`. Two things here exist
