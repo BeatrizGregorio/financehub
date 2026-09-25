@@ -1706,14 +1706,26 @@ wasn't counted. Diagnosed against her **real** database — which is the
 desktop app's (`AppData/Roaming/FinanceHub/financehub.db`), *not* the project's
 `financehub.db`, which is empty. Two separate findings, and only one was a bug:
 
-1. The invested figure was already correct in source. Her two top-ups
+1. **`HoldingDetail` showed the stale stored field.** The totals and the gain
+   have read `investedAt()` since V1.27, but the "Invested" figure in the
+   View-more panel was `holding.amountInvested` — which never moves once a
+   holding has a buy/sell log. So her FIRF read **R$ 8.056,18 invested beside a
+   +R$ 543,90 gain**, two numbers that cannot both be true (8.056 → 18.600
+   would be a gain of 10.544). Fixed to `investedAt(holding)`; a sweep found
+   this was the only display of the stored field left, the rest being the edit
+   form's default, backup, and opening-position seeding, all correct.
+
+   The rest of the invested chain was already right. Her two top-ups
    (R$ 10.000 into a FIRF, R$ 2.172,11 into a FIDC) are recorded as
    transactions and `portfolioSummary()`/`gainLoss()` read `investedAt()`, so
    the code counts R$ 91.274,06 against the stored fields' R$ 79.101,95. She
-   was seeing the old number because **the packaged desktop app predates all
-   of this** — nothing in `src/` reaches her until `electron:dist` is re-run.
-   Worth remembering for any future "still broken" report: check which
-   database and which build before touching code.
+   was *also* running a desktop build from 13:47 that predates the later
+   fixes — `BUILD_ID` on the installed app differed from the repo's, and the
+   commit times bracket it. **Nothing in `src/` reaches her until
+   `electron:dist:win` is re-run and the installer re-run.** Worth remembering
+   for any future "still broken" report: check which database and which build
+   before touching code — but check for a real bug too, because here there was
+   one behind the stale build.
 
 2. A real design error, and her guess ("because I entered values manually")
    was right. **All 12 of her holdings have a manual price**, which makes
