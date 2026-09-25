@@ -1677,10 +1677,34 @@ treating a null quantity as 0. The validation above stops new ones, but any row
 already stored that way would undercount. Nothing in the dev database had it;
 the owner's desktop install is a separate file.
 
+**Correction, same day, after the owner reported "the projection graphic is
+not working".** It rendered fine and threw no errors — it had become
+unreadable, and the number behind it was wrong. Capping the *rate* at 25% was
+not enough, because nothing capped the *duration*: a hand-priced stock with no
+maturity date compounded for the full 20 years, so a R$ 12.400 position
+reached ~R$ 1,08M and dominated everything. Measured: the y-axis ran to
+R$ 1.000.000 and the first eight horizons (30d–5y) sat within **10px of each
+other on a 256px chart** — 3.9% of its height for every horizon a person
+actually reads.
+
+Fixed at the maths, not the axis: `MAX_REALIZED_PROJECTION_YEARS = 5` bounds
+how far a realized return is carried before the holding is held flat. A rate
+measured from the past is evidence about the near future and very little about
+the far one — the same principle the maturity cap already applies to bonds,
+which is why it belongs in `projectedInvestmentValue()` next to it rather than
+in the chart. Accrual holdings are untouched: a bond maturing in 2040 still
+compounds the whole way, asserted explicitly.
+
+After: y-axis to R$ 120.000, the first eight horizons spread over **76px
+(29.7%)**, and a deliberately flat tail past five years. **A blank screenshot
+during this check was the documented pane artifact, not a break** — the DOM
+had both charts at 306x256 with all 11 points and a real path.
+
 Verified: 22 assertions on the compiled module (clamping both ways, the 90-day
 guard, a worthless holding yielding no rate rather than -100%, a loss
 projecting downward, maturity still freezing, and the full top-up arithmetic
-including units and invested six months *before* the buy). Then end to end in
+including units and invested six months *before* the buy), plus 5 more for the
+projection bound. Then end to end in
 the browser on a seeded stock + CDB: the projection curve rises (11 points,
 strictly monotonic by measured dot `cy`, previously flat), the server rejects a
 unitless buy with the typed amount preserved, a real R$ 750 / 50-unit purchase

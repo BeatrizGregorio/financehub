@@ -14,7 +14,7 @@ import type { GoalLike } from "./GoalForm";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
 import {
   MAX_PROJECTED_RATE,
-  MIN_REALIZED_DAYS,
+  MAX_REALIZED_PROJECTION_YEARS,
   currentValue,
   isAccrualValued,
   isMatured,
@@ -256,7 +256,7 @@ export function InvestmentsClient({
             </span>
           </div>
           <p className="mb-3 text-[12.5px] text-[var(--color-muted)]">
-            {t.investments.projectionBlurb(String(MAX_PROJECTED_RATE), String(MIN_REALIZED_DAYS))}
+            {t.investments.projectionBlurb(String(MAX_PROJECTED_RATE), String(MAX_REALIZED_PROJECTION_YEARS))}
           </p>
           <ProjectionChart data={projection} />
         </div>

@@ -511,6 +511,20 @@ export const MIN_REALIZED_DAYS = 90;
 export const MAX_PROJECTED_RATE = 25;
 
 /**
+ * How far a realized return is carried forward before the holding is simply
+ * held flat.
+ *
+ * A rate measured from the past is evidence about the near future and very
+ * little about the far one. Compounding it for twenty years also lets a single
+ * holding swamp the whole chart: a R$ 12.400 position at the 25% ceiling
+ * reaches R$ 1,08M, which buries every horizon anyone actually reads.
+ *
+ * This is the same principle the maturity cap already applies to bonds — stop
+ * where the justification stops, rather than assuming it continues.
+ */
+export const MAX_REALIZED_PROJECTION_YEARS = 5;
+
+/**
  * The annual return a holding has actually delivered so far, in % p.a., or
  * null when there is no honest way to say.
  *
@@ -588,7 +602,9 @@ function projectedInvestmentValue(
   const rate = realizedAnnualRate(inv, rates, today);
   if (rate === null) return base;
 
-  const days = daysBetween(today, cap);
+  // Grow at the realized rate for a bounded window, then hold flat — see
+  // MAX_REALIZED_PROJECTION_YEARS.
+  const days = Math.min(daysBetween(today, cap), MAX_REALIZED_PROJECTION_YEARS * 365);
   if (days <= 0) return base;
   return base * Math.pow(1 + rate / 100, days / 365);
 }

@@ -491,8 +491,8 @@ const en = {
     monthlyValue: "Monthly value",
     monthlyValueBlurb: "Total portfolio value at the end of each month.",
     projection: "Projection",
-    projectionBlurb: (cap: string, days: string) =>
-      `An estimate, not a forecast. Holdings with a contracted rate grow at it; ones you price by hand grow at the return they have actually delivered, capped at ${cap}% p.a. and only once there is ${days} days of history. Nothing is reinvested past its maturity date.`,
+    projectionBlurb: (cap: string, years: string) =>
+      `An estimate, not a forecast. Holdings with a contracted rate grow at it until they mature. Ones you price by hand grow at the return they have actually delivered — capped at ${cap}% p.a., and only for ${years} years, after which they are held flat rather than assumed to keep compounding.`,
     projectionEmpty: "Add a holding to see a projection.",
     viewMore: "View more",
     addCoupon: "Add coupon",
@@ -1258,8 +1258,8 @@ const pt: Dict = {
     monthlyValue: "Valor mensal",
     monthlyValueBlurb: "Valor total da carteira no fim de cada mês.",
     projection: "Projeção",
-    projectionBlurb: (cap: string, days: string) =>
-      `Uma estimativa, não uma previsão. Ativos com taxa contratada rendem por ela; os que você precifica à mão rendem pelo retorno que já entregaram, limitado a ${cap}% a.a. e só a partir de ${days} dias de histórico. Nada é reinvestido depois do vencimento.`,
+    projectionBlurb: (cap: string, years: string) =>
+      `Uma estimativa, não uma previsão. Ativos com taxa contratada rendem por ela até o vencimento. Os que você precifica à mão rendem pelo retorno que já entregaram — limitado a ${cap}% a.a. e só por ${years} anos, depois disso ficam parados em vez de seguir rendendo.`,
     projectionEmpty: "Adicione um ativo para ver a projeção.",
     viewMore: "Ver mais",
     addCoupon: "Adicionar cupom",
