@@ -567,9 +567,8 @@ const en = {
     useAsRate: "Use as the projection rate",
     actualReturnFootnote:
       "Money-weighted, from your contributions and today's value — each purchase counts from its holding's start date, so a top-up on an existing holding is attributed to that original date.",
-    previewingAt: (rate: string) => `Previewing at ${rate}% p.a. — `,
     reset: "reset",
-    orSaveVia: "or save it via Edit goal to keep it.",
+    unsavedPreview: "Previewing these numbers — save to keep them.",
     empty:
       "No goal set yet. Add one to see how far along you are and what monthly contribution gets you there.",
     by: "by",
@@ -1346,9 +1345,8 @@ const pt: Dict = {
     useAsRate: "Usar como taxa da projeção",
     actualReturnFootnote:
       "Ponderada pelo dinheiro, a partir dos seus aportes e do valor de hoje — cada compra conta a partir da data de início do ativo, então um reforço em um ativo existente é atribuído àquela data original.",
-    previewingAt: (rate: string) => `Simulando com ${rate}% a.a. — `,
     reset: "desfazer",
-    orSaveVia: "ou salve em Editar meta para manter.",
+    unsavedPreview: "Simulando com estes números — salve para mantê-los.",
     empty:
       "Nenhuma meta definida ainda. Adicione uma para ver o quanto já avançou e qual aporte mensal te leva até lá.",
     by: "até",

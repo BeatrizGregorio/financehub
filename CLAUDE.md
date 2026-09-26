@@ -1762,6 +1762,85 @@ the edit-form note appears for the holding with a log and not for the one
 without. Both languages. Test data removed. `tsc --noEmit`, `npm run lint` and
 a full `next build` all clean.
 
+V1.39 (performance comparison chart; goal numbers edited in place) added
+2026-09-26, two owner requests on the Investments page.
+
+**(1) Performance comparison** (`PerformanceChart.tsx`, `performanceComparison()`
+in `investments.ts`) — a ranked horizontal bar chart, **first content block on
+the page** at the owner's request, with a switcher over four metrics:
+return after tax, gross return, vs the contracted rate, and gain in reais.
+**Matured holdings are excluded**, matching `portfolioSummary()` and
+`allocationByType()`.
+
+The switcher exists because the four answers *reorder each other*, which the
+owner's real portfolio demonstrates: an IR-exempt CRA returning 15,30% beats a
+taxable debenture returning 18,02% once IR is taken off, and the CDB that is
+middling on percentage produced R$ 7.702 of a R$ 10.128 total gain. Any one of
+those shown alone reads as the whole story.
+
+Three decisions worth keeping:
+- **The three rate metrics share one axis domain.** Letting Recharts fit each
+  metric separately made bars *grow* when switching to after-tax — the values
+  shrank but the axis shrank further. An axis that hides the tax bite is worse
+  than no chart. Money keeps its own scale.
+- **Unanswerable rates are omitted and the holdings named underneath**, never
+  drawn as a zero bar. A holding bought three weeks ago has no annualizable
+  history (`MIN_REALIZED_DAYS`), and a zero would read as "returned nothing".
+  Gain in reais is always answerable, which is why it is offered as a metric.
+- **The name axis takes a share of the width** (`min(132, max(70, w * 0.32))`)
+  via a ResizeObserver. A fixed 132px left **14px for the bars at 375px** —
+  labels legible, data not. The observer only subscribes in the effect; the
+  state is set from its callback, which is not what the set-state-in-effect
+  lint rule forbids.
+
+`annualizedReturn()` was split out of `realizedAnnualRate()`: same XIRR over
+the same flows, but **unclamped and without the accrual-valued skip**, plus an
+optional `closingValue` so the after-tax figure is the same flows with a
+smaller final inflow rather than the rate scaled by the surviving fraction of
+gain — tax lands on the gain, and scaling a rate is a different operation.
+`realizedAnnualRate()` keeps the clamp and the skip, because those exist to
+stop a *projection* running away; reporting what happened should report what
+happened.
+
+**(2) Goal & projection is edited in place.** The owner did not want to open a
+modal to try a different rate. The four numbers that drive the projection —
+target amount, target date, expected return, monthly contribution — are now
+inputs above the chart. Typing recalculates the chart and both solvers live
+(`goal.ts` is pure and runs in the browser); nothing is written until Save,
+which appears only when the draft differs from what is stored.
+
+- **The card is keyed on a signature of the saved goal**, so a save remounts it
+  and the draft reseeds from the new values. `useState` ignores a changed
+  initial value, and the alternative is a setState-in-effect. Same pattern as
+  `CategoryChip` in V1.27.
+- **Each field falls back to the saved value while empty or mid-edit**, so a
+  half-typed figure blanks the chart for one keystroke instead of throwing.
+- **The old `rateOverride` preview is gone**, folded into the same draft:
+  "Use as the projection rate" now fills the rate box. One number being
+  previewed, in one place. `previewingAt`/`orSaveVia` were removed from both
+  dictionaries rather than left as dead copy.
+- **The name stays in the modal** — it changes once, and a text field among
+  four numbers would bury them. It rides along as a hidden field so saving the
+  numbers can't blank it. The modal opens on the *shown* values, so it agrees
+  with the inputs rather than snapping back.
+- `parseDateInput()` parses the date field as a **local** calendar date;
+  `new Date("2029-06-15")` is UTC midnight and shows the 14th in Brazil.
+
+Verified: 56 assertions on `investments.ts` (including that matured holdings
+are dropped, an exempt holding's net equals its gross while a taxable one's
+does not, a too-new holding yields null rates but a real gain, and the
+regression that the projection still clamps to 25% and still skips
+accrual-valued holdings). Then in the browser against seeded holdings shaped
+like the owner's: the metric switcher reorders exactly as predicted
+(Caramuru overtakes SIMPAR after tax), bars shrink rather than grow when tax
+is applied, the matured holding never appears, and the too-new one is named
+underneath. For the goal: the solvers move monotonically with the inputs
+(6% needs R$ 2.838,71/month, 25% needs R$ 1.600,69), Save persists with the
+rate stored as a decimal and the name preserved, Reset restores, and the Save
+button disappears after a save. Both languages, 375px (four inputs stack, no
+overflow). Test data removed. `tsc --noEmit`, `npm run lint` and a full
+`next build` all clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
