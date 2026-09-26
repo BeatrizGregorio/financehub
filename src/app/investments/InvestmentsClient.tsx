@@ -12,9 +12,11 @@ import { ProjectionChart } from "@/components/ProjectionChart";
 import { GoalProjectionCard } from "./GoalProjectionCard";
 import type { GoalLike } from "./GoalForm";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
+import { PerformanceChart } from "@/components/PerformanceChart";
 import {
   MAX_PROJECTED_RATE,
   MAX_REALIZED_PROJECTION_YEARS,
+  performanceComparison,
   currentValue,
   isAccrualValued,
   isMatured,
@@ -114,6 +116,7 @@ export function InvestmentsClient({
   const [couponForId, setCouponForId] = useState<string | null>(null);
 
   const summary = portfolioSummary(holdings, rates);
+  const performance = performanceComparison(holdings, rates);
   const maturedHoldings = holdings.filter((h) => isMatured(h));
   // Only worth mentioning the reference rates when something actually depends
   // on them — a portfolio of stocks with manual prices doesn't use them at all.
@@ -234,6 +237,19 @@ export function InvestmentsClient({
               : t.investments.ratesNeverUpdated}
           </span>
         </p>
+      )}
+
+      {/* First content block on the page, per the owner's request: the
+          question "which of these is actually working" comes before the
+          timeline charts and the holdings list. */}
+      {performance.length > 0 && (
+        <div className={`${CARD} p-5`}>
+          <h2 className="text-[17px] font-extrabold tracking-tight">{t.investments.performance}</h2>
+          <p className="mt-1 mb-3 text-[12.5px] text-[var(--color-muted)]">
+            {t.investments.performanceBlurb}
+          </p>
+          <PerformanceChart rows={performance} cdi={rates.cdi} />
+        </div>
       )}
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">

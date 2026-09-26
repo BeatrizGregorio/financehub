@@ -6,7 +6,7 @@ import {
   cycleLabel,
   toDateInputValue,
 } from "@/lib/format";
-import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
+import { valuation, iofRate as iofRateFor, irRate as irRateFor, isIrExempt } from "@/lib/investmentTypes";
 import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
 import { xirr } from "@/lib/goal";
 import { cashPosition, type AccountEntryLike, type AccountLike, type TransferLike } from "@/lib/accounts";
@@ -538,13 +538,29 @@ export const MAX_REALIZED_PROJECTION_YEARS = 5;
  * goal card already shows as the portfolio's real return, applied to one
  * holding.
  */
-export function realizedAnnualRate(
+/**
+ * Money-weighted annual return (XIRR) over a holding's own dated flows.
+ *
+ * `closingValue` replaces what the holding is worth today, which is how the
+ * after-tax figure is produced: same flows, smaller final inflow. Tax lands on
+ * the *gain*, so scaling the rate by the surviving fraction would be a
+ * different operation and a worse answer.
+ *
+ * Returns null rather than a wrong number when there is no honest answer: too
+ * little history to annualize, a non-positive closing value, or flows XIRR
+ * cannot bracket a root for.
+ *
+ * Unlike realizedAnnualRate() this does **not** skip accrual-valued holdings
+ * and does **not** clamp. A CDB has a real return worth comparing; the clamp
+ * exists only to stop a projection running away, and reporting what actually
+ * happened should report what actually happened.
+ */
+export function annualizedReturn(
   inv: InvestmentLike,
   rates: ReferenceRatesLike,
   asOfDate: Date = new Date(),
+  closingValue?: number,
 ): number | null {
-  if (isAccrualValued(inv, asOfDate)) return null;
-
   const txs = txThrough(inv, asOfDate);
   // A buy is cash leaving the owner, so it enters XIRR negative; a sell
   // positive. With no transactions on file the holding still has exactly one
@@ -558,7 +574,7 @@ export function realizedAnnualRate(
     if (dateKey(c.date) <= key) flows.push({ date: c.date, amount: c.amount });
   }
 
-  const value = valueAtDate(inv, rates, asOfDate);
+  const value = closingValue ?? valueAtDate(inv, rates, asOfDate);
   if (value <= 0) return null;
   flows.push({ date: asOfDate, amount: value });
   flows.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -567,9 +583,82 @@ export function realizedAnnualRate(
 
   const rate = xirr(flows);
   // xirr returns null when the flows can't bracket a root — no answer beats a
-  // wrong one, and the holding just stays flat.
+  // wrong one.
   if (rate === null || !Number.isFinite(rate)) return null;
-  return Math.max(-MAX_PROJECTED_RATE, Math.min(MAX_PROJECTED_RATE, rate * 100));
+  return rate * 100;
+}
+
+/**
+ * The realized rate as the *projection* wants it: only for holdings priced by
+ * hand, and clamped so an exceptional run can't compound into fiction.
+ * See annualizedReturn() for the unguarded figure the comparison chart uses.
+ */
+export function realizedAnnualRate(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike,
+  asOfDate: Date = new Date(),
+): number | null {
+  if (isAccrualValued(inv, asOfDate)) return null;
+  const rate = annualizedReturn(inv, rates, asOfDate);
+  if (rate === null) return null;
+  return Math.max(-MAX_PROJECTED_RATE, Math.min(MAX_PROJECTED_RATE, rate));
+}
+
+export type PerformanceRow = {
+  id: string;
+  name: string;
+  type: string;
+  /** Contracted % p.a., or null when the holding has no contractual rate. */
+  contracted: number | null;
+  /** What it has actually returned, % p.a. Null when too new to annualize. */
+  realized: number | null;
+  /** The same after the estimated IOF/IR. Null whenever realized is. */
+  netRealized: number | null;
+  /** Realized return as a percentage of CDI — how Brazilians read a rate. */
+  pctOfCdi: number | null;
+  /** Gain in reais, coupons included. Always answerable, unlike the rates. */
+  gain: number;
+  /** True when IR is zero for this subtype, which is why net can equal gross. */
+  irExempt: boolean;
+};
+
+/**
+ * Side-by-side performance of every *active* holding.
+ *
+ * Matured holdings are excluded, matching the summary totals and the
+ * allocation donut — money already paid back isn't a position you can act on.
+ *
+ * Every rate here can be null and the UI has to say so rather than draw a zero
+ * bar: a holding bought three weeks ago has no annualizable history, and
+ * pretending otherwise would put a confident number next to nine real ones.
+ * `gain` is never null, which is why the chart offers it as a metric — it is
+ * the one comparison that always has an answer.
+ */
+export function performanceComparison(
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  asOfDate: Date = new Date(),
+): PerformanceRow[] {
+  return investments
+    .filter((inv) => !isMatured(inv, asOfDate))
+    .map((inv) => {
+      const tax = taxBreakdown(inv, rates, asOfDate);
+      const realized = annualizedReturn(inv, rates, asOfDate);
+      const value = valueAtDate(inv, rates, asOfDate);
+      const netRealized = annualizedReturn(inv, rates, asOfDate, value - tax.iof - tax.ir);
+      const contracted = getEffectiveRate(inv, rates);
+      return {
+        id: inv.id,
+        name: inv.name,
+        type: inv.type,
+        contracted: contracted > 0 ? contracted : null,
+        realized,
+        netRealized,
+        pctOfCdi: realized === null || rates.cdi <= 0 ? null : (realized / rates.cdi) * 100,
+        gain: tax.grossGain,
+        irExempt: isIrExempt(inv.type, inv.subtype),
+      };
+    });
 }
 
 /**

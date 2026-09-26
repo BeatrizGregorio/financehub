@@ -490,6 +490,19 @@ const en = {
       "These are no longer counted in your totals below. They stay here until you delete them, so nothing is lost.",
     monthlyValue: "Monthly value",
     monthlyValueBlurb: "Total portfolio value at the end of each month.",
+    performance: "Performance",
+    performanceBlurb:
+      "How each active holding is actually doing. Matured holdings are left out — that money is already back.",
+    performanceEmpty: "No holdings to compare yet.",
+    metricNet: "Return after tax",
+    metricGross: "Return",
+    metricContracted: "vs contracted",
+    metricGain: "Gain in reais",
+    contractedRate: "Contracted",
+    noHistoryYet: (names: string) =>
+      `Not enough history to annualize yet: ${names}.`,
+    netEstimateNote:
+      "After the estimated IOF/IR — an estimate for personal reference, not tax filing guidance.",
     projection: "Projection",
     projectionBlurb: (cap: string, years: string) =>
       `An estimate, not a forecast. Anything with a contracted rate grows at it until it matures, starting from the latest value you entered. Holdings without one — funds, stocks, crypto — grow at the return they have actually delivered, capped at ${cap}% p.a. and only for ${years} years, after which they are held flat.`,
@@ -1257,6 +1270,19 @@ const pt: Dict = {
       "Eles não entram mais nos totais abaixo. Continuam aqui até você excluí-los, então nada se perde.",
     monthlyValue: "Valor mensal",
     monthlyValueBlurb: "Valor total da carteira no fim de cada mês.",
+    performance: "Desempenho",
+    performanceBlurb:
+      "Como cada investimento em carteira está indo de fato. Vencidos ficam de fora — esse dinheiro já voltou.",
+    performanceEmpty: "Nenhum ativo para comparar ainda.",
+    metricNet: "Retorno após impostos",
+    metricGross: "Retorno",
+    metricContracted: "vs contratado",
+    metricGain: "Ganho em reais",
+    contractedRate: "Contratado",
+    noHistoryYet: (names: string) =>
+      `Histórico ainda insuficiente para anualizar: ${names}.`,
+    netEstimateNote:
+      "Após IOF/IR estimados — uma estimativa para referência pessoal, não orientação para declaração.",
     projection: "Projeção",
     projectionBlurb: (cap: string, years: string) =>
       `Uma estimativa, não uma previsão. Tudo que tem taxa contratada rende por ela até o vencimento, partindo do último valor que você informou. Os que não têm — fundos, ações, cripto — rendem pelo retorno que já entregaram, limitado a ${cap}% a.a. e só por ${years} anos, depois disso ficam parados.`,
