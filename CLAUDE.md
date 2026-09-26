@@ -2718,6 +2718,43 @@ for reasons that took real trial and error to find, in case they need touching:
   one-time nuisance for personal use; only worth fixing with a real Developer ID
   if the owner starts distributing this to other people.
 
+### The symlink that empties itself (2026-09-25)
+
+A seventh instance of the native-module bug, and the first one where the
+**binary was missing entirely** rather than being the wrong ABI.
+
+`.next/standalone/.next/node_modules/better-sqlite3-<hash>` is a symlink to
+the root `node_modules/better-sqlite3`, and on this Windows machine Next wrote
+it as an **absolute** path into the project. `after-pack.js` dereferences it,
+so whatever the root package contains *at packaging time* is what ships at that
+path. `rebuild-native-for-electron.js` deletes the root `build/` directory
+before rebuilding (line ~73) — so when the rebuild then fails, the root package
+has no binary at all, and a package built from that state ships the hashed path
+**empty**. The app starts, `waitForServer()` is satisfied, and every page
+answers 500 on its first query.
+
+Two lessons, both already half-written elsewhere in this file and both violated
+again here:
+- **`find` does not follow symlinks without `-L`.** A check that "found one
+  binary and it loads" concluded the package was sound when the second location
+  did not exist. `verify-packaged-native-module.js` has the same blind spot: it
+  verifies the binaries it *finds*, and cannot see one that is absent.
+- **The only check that catches this is running the app.**
+  `scripts/smoke-test-packaged-app.js` (added here) boots
+  `resources/standalone/server.js` under the packaged Electron against a temp
+  copy of `financehub.db` and requests every route, failing on any non-200 or
+  any `bindings`/`DLOPEN`/`NODE_MODULE_VERSION` text in the server log. Run it
+  after every packaging run; it is the last step before believing a build.
+
+**Local Windows packaging needs Python.** `electron-rebuild` compiles
+better-sqlite3 from source and there is no prebuilt Electron binary for this ABI
+(checked: 404). Without Python the rebuild fails, `electron-builder` never runs
+because of the `&&` chain, and **a stale installer sits in `release/` looking
+exactly like a fresh one** — which is how old code got installed three times in
+one evening under a new timestamp. The failure message now says so. Recovering
+`npm run dev` afterwards does *not* need Python: `npx prebuild-install` inside
+`node_modules/better-sqlite3` fetches the Node-ABI prebuild, which does exist.
+
 ### Verifying a change to any of this
 
 Because this whole area is native-module/packaging plumbing that fails in ways
