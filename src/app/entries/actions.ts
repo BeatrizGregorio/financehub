@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { addMonthsClamped } from "@/lib/format";
 import { parseTags, serializeTags } from "@/lib/tags";
+import { restorableRows, sharedSeriesFields } from "@/lib/entryEdits";
 
 export type ActionState = { error?: string };
 
@@ -154,23 +155,93 @@ export async function updateEntry(
   const parsed = parseEntryForm(formData);
   if (parsed.error || !parsed.data) return { error: parsed.error };
 
+  // "Apply to the whole series" is opt-in per save: the form defaults to this
+  // entry alone, so an ordinary edit can never quietly rewrite twelve rows.
+  const wholeSeries = formData.get("scope") === "series";
+  const current = await prisma.entry.findUnique({ where: { id }, select: { groupId: true } });
+
   await prisma.entry.update({ where: { id }, data: parsed.data });
+
+  if (wholeSeries && current?.groupId) {
+    // Everything but the date — see sharedSeriesFields() for why.
+    await prisma.entry.updateMany({
+      where: { groupId: current.groupId, id: { not: id } },
+      data: sharedSeriesFields(parsed.data),
+    });
+  }
 
   revalidateAll();
   return {};
 }
 
+/**
+ * Keep the rows that are about to be deleted, so the banner on the entries
+ * page can put them back. Only the newest batch is ever offered, so the older
+ * ones are cleared here rather than accumulating forever.
+ */
+async function recordDeletion(rows: { id: string; name: string }[]) {
+  if (rows.length === 0) return;
+  await prisma.deletedEntryBatch.deleteMany();
+  await prisma.deletedEntryBatch.create({
+    data: {
+      label: rows[0].name,
+      count: rows.length,
+      payload: JSON.stringify(rows),
+    },
+  });
+}
+
 export async function deleteEntry(id: string) {
+  const row = await prisma.entry.findUnique({ where: { id } });
+  if (!row) return;
+  await recordDeletion([row]);
   await prisma.entry.delete({ where: { id } });
   revalidateAll();
 }
 
 export async function deleteSplit(splitId: string) {
+  const rows = await prisma.entry.findMany({ where: { splitId }, orderBy: { date: "asc" } });
+  await recordDeletion(rows);
   await prisma.entry.deleteMany({ where: { splitId } });
   revalidateAll();
 }
 
 export async function deleteSeries(groupId: string) {
+  const rows = await prisma.entry.findMany({ where: { groupId }, orderBy: { date: "asc" } });
+  await recordDeletion(rows);
   await prisma.entry.deleteMany({ where: { groupId } });
+  revalidateAll();
+}
+
+/**
+ * Put the last deleted batch back, exactly as it was — same ids, so a restored
+ * split or series is still the same group.
+ *
+ * Ids that exist again are skipped rather than overwritten: if the owner
+ * re-created something by hand in the meantime, her version wins and undo
+ * restores only what is genuinely missing.
+ */
+export async function undoDelete(batchId: string) {
+  const batch = await prisma.deletedEntryBatch.findUnique({ where: { id: batchId } });
+  if (!batch) return;
+
+  const rows = restorableRows(batch.payload);
+  if (rows.length > 0) {
+    const existing = await prisma.entry.findMany({
+      where: { id: { in: rows.map((r) => r.id) } },
+      select: { id: true },
+    });
+    const taken = new Set(existing.map((e) => e.id));
+    const missing = rows.filter((r) => !taken.has(r.id));
+    if (missing.length > 0) await prisma.entry.createMany({ data: missing });
+  }
+
+  await prisma.deletedEntryBatch.delete({ where: { id: batchId } });
+  revalidateAll();
+}
+
+/** Dismiss the banner without restoring — the rows stay deleted. */
+export async function dismissDeletedBatch(batchId: string) {
+  await prisma.deletedEntryBatch.deleteMany({ where: { id: batchId } });
   revalidateAll();
 }

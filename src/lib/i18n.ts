@@ -151,6 +151,16 @@ const en = {
     editEntry: "Edit entry",
     method: "Method",
     series: "Series",
+    applyTo: "Apply this change to",
+    applyToOne: "Only this entry",
+    applyToSeries: (n: number) => `All ${n} in the series`,
+    applyToSeriesHint:
+      "Every entry in the series gets these details. Dates stay as they are, and each entry gets this amount — for instalments that means per instalment, not split again.",
+    deletedOne: (name: string) => `Deleted "${name}".`,
+    deletedMany: (name: string, n: number) => `Deleted "${name}" and ${n - 1} more.`,
+    undo: "Undo",
+    sortBy: (column: string) => `Sort by ${column}`,
+    dismiss: "Dismiss",
     recurring: "recurring",
     installment: "installment",
     noneMatch: "No entries match these filters yet.",
@@ -466,6 +476,8 @@ const en = {
     noTransactions: "No buys or sells recorded.",
     netInvested: "Net invested",
     units: "units",
+    amountFromLog:
+      "This holding is valued from its buys and sells. To record buying more, add it under View more \u2192 Buys and sells \u2014 changing this field won't move the totals.",
     kind: "Type",
     buy: "Buy",
     sell: "Sell",
@@ -478,9 +490,22 @@ const en = {
       "These are no longer counted in your totals below. They stay here until you delete them, so nothing is lost.",
     monthlyValue: "Monthly value",
     monthlyValueBlurb: "Total portfolio value at the end of each month.",
+    performance: "Performance",
+    performanceBlurb:
+      "How each active holding is actually doing. Matured holdings are left out — that money is already back.",
+    performanceEmpty: "No holdings to compare yet.",
+    metricNet: "Return after tax",
+    metricGross: "Return",
+    metricContracted: "vs contracted",
+    metricGain: "Gain in reais",
+    contractedRate: "Contracted",
+    noHistoryYet: (names: string) =>
+      `Not enough history to annualize yet: ${names}.`,
+    netEstimateNote:
+      "After the estimated IOF/IR — an estimate for personal reference, not tax filing guidance.",
     projection: "Projection",
-    projectionBlurb:
-      "An estimate, not a forecast — assumes today's rates hold steady and each holding stops growing at its maturity date rather than being automatically reinvested.",
+    projectionBlurb: (cap: string, years: string) =>
+      `An estimate, not a forecast. Anything with a contracted rate grows at it until it matures, starting from the latest value you entered. Holdings without one — funds, stocks, crypto — grow at the return they have actually delivered, capped at ${cap}% p.a. and only for ${years} years, after which they are held flat.`,
     projectionEmpty: "Add a holding to see a projection.",
     viewMore: "View more",
     addCoupon: "Add coupon",
@@ -542,9 +567,8 @@ const en = {
     useAsRate: "Use as the projection rate",
     actualReturnFootnote:
       "Money-weighted, from your contributions and today's value — each purchase counts from its holding's start date, so a top-up on an existing holding is attributed to that original date.",
-    previewingAt: (rate: string) => `Previewing at ${rate}% p.a. — `,
     reset: "reset",
-    orSaveVia: "or save it via Edit goal to keep it.",
+    unsavedPreview: "Previewing these numbers — save to keep them.",
     empty:
       "No goal set yet. Add one to see how far along you are and what monthly contribution gets you there.",
     by: "by",
@@ -903,6 +927,16 @@ const pt: Dict = {
     editEntry: "Editar lançamento",
     method: "Forma",
     series: "Série",
+    applyTo: "Aplicar esta mudança a",
+    applyToOne: "Só este lançamento",
+    applyToSeries: (n: number) => `Todos os ${n} da série`,
+    applyToSeriesHint:
+      "Todos os lançamentos da série recebem estes dados. As datas ficam como estão, e cada lançamento fica com este valor — nas parcelas, isso é por parcela, não dividido de novo.",
+    deletedOne: (name: string) => `"${name}" excluído.`,
+    deletedMany: (name: string, n: number) => `"${name}" e mais ${n - 1} excluídos.`,
+    undo: "Desfazer",
+    sortBy: (column: string) => `Ordenar por ${column}`,
+    dismiss: "Dispensar",
     recurring: "recorrente",
     installment: "parcelado",
     noneMatch: "Nenhum lançamento corresponde a esses filtros.",
@@ -1219,6 +1253,8 @@ const pt: Dict = {
     noTransactions: "Nenhuma compra ou venda registrada.",
     netInvested: "Investido líquido",
     units: "cotas",
+    amountFromLog:
+      "Este ativo é calculado pelas compras e vendas registradas. Para registrar uma nova compra, use Ver mais \u2192 Compras e vendas \u2014 alterar este campo não muda os totais.",
     kind: "Tipo",
     buy: "Compra",
     sell: "Venda",
@@ -1233,9 +1269,22 @@ const pt: Dict = {
       "Eles não entram mais nos totais abaixo. Continuam aqui até você excluí-los, então nada se perde.",
     monthlyValue: "Valor mensal",
     monthlyValueBlurb: "Valor total da carteira no fim de cada mês.",
+    performance: "Desempenho",
+    performanceBlurb:
+      "Como cada investimento em carteira está indo de fato. Vencidos ficam de fora — esse dinheiro já voltou.",
+    performanceEmpty: "Nenhum ativo para comparar ainda.",
+    metricNet: "Retorno após impostos",
+    metricGross: "Retorno",
+    metricContracted: "vs contratado",
+    metricGain: "Ganho em reais",
+    contractedRate: "Contratado",
+    noHistoryYet: (names: string) =>
+      `Histórico ainda insuficiente para anualizar: ${names}.`,
+    netEstimateNote:
+      "Após IOF/IR estimados — uma estimativa para referência pessoal, não orientação para declaração.",
     projection: "Projeção",
-    projectionBlurb:
-      "Uma estimativa, não uma previsão — assume que as taxas de hoje se mantêm e que cada ativo para de render no vencimento, sem reinvestimento automático.",
+    projectionBlurb: (cap: string, years: string) =>
+      `Uma estimativa, não uma previsão. Tudo que tem taxa contratada rende por ela até o vencimento, partindo do último valor que você informou. Os que não têm — fundos, ações, cripto — rendem pelo retorno que já entregaram, limitado a ${cap}% a.a. e só por ${years} anos, depois disso ficam parados.`,
     projectionEmpty: "Adicione um ativo para ver a projeção.",
     viewMore: "Ver mais",
     addCoupon: "Adicionar cupom",
@@ -1296,9 +1345,8 @@ const pt: Dict = {
     useAsRate: "Usar como taxa da projeção",
     actualReturnFootnote:
       "Ponderada pelo dinheiro, a partir dos seus aportes e do valor de hoje — cada compra conta a partir da data de início do ativo, então um reforço em um ativo existente é atribuído àquela data original.",
-    previewingAt: (rate: string) => `Simulando com ${rate}% a.a. — `,
     reset: "desfazer",
-    orSaveVia: "ou salve em Editar meta para manter.",
+    unsavedPreview: "Simulando com estes números — salve para mantê-los.",
     empty:
       "Nenhuma meta definida ainda. Adicione uma para ver o quanto já avançou e qual aporte mensal te leva até lá.",
     by: "até",

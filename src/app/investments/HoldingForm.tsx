@@ -75,6 +75,11 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
   );
   const [amountTouched, setAmountTouched] = useState(false);
 
+  // Once a holding has a buy/sell log, investedAt() reads the log and ignores
+  // this field — so editing it here looks like a save that did nothing. Say
+  // where the number actually comes from instead of letting it look broken.
+  const fromLog = (holding?.transactions?.length ?? 0) > 0;
+
   const subtypes = subtypesForType(type);
   const labels = positionLabels(type, t);
 
@@ -364,6 +369,9 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
         <label htmlFor={`${formId}-amountInvested`} className={LABEL}>
           {t.investments.amountInvested}
         </label>
+        {fromLog && (
+          <p className="mb-1 text-[12px] text-[var(--color-muted)]">{t.investments.amountFromLog}</p>
+        )}
         <input
           id={`${formId}-amountInvested`}
           name="amountInvested"

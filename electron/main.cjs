@@ -290,6 +290,11 @@ async function createWindow() {
     minHeight: 600,
     title: "FinanceHub",
     backgroundColor: "#e9e9ec",
+    // Only for the unpackaged run (npm run electron:start). A packaged build
+    // takes its icon from the .exe on Windows and the bundle on macOS, and
+    // build/ is not shipped inside the app, so pointing at it there would name
+    // a file that does not exist.
+    ...(app.isPackaged ? {} : { icon: path.join(projectRoot, "build", "icon.png") }),
   });
 
   try {

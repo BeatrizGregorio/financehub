@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { withinUndoWindow } from "@/lib/entryEdits";
+import { isTextColumn, parseSort, sortRowsByText, toOrderBy, type Sort } from "@/lib/entrySort";
 import { getCategories, getCycleStartDay, getPaymentMethods } from "@/lib/data";
 import { cycleKey, cycleLabel, cycleRange } from "@/lib/format";
 import { getLanguage } from "@/lib/data";
@@ -15,7 +17,46 @@ export const dynamic = "force-dynamic";
  */
 export const PAGE_SIZE = 50;
 
-type Search = { q?: string; month?: string; type?: string; page?: string; account?: string; tag?: string };
+type Search = {
+  q?: string;
+  month?: string;
+  type?: string;
+  page?: string;
+  account?: string;
+  tag?: string;
+  sort?: string;
+  dir?: string;
+};
+
+/**
+ * One page of entries ordered by a *text* column.
+ *
+ * SQLite can't order text the way a person reads it (see sortRowsByText), so
+ * the ordering happens here instead: read the sort keys for the whole filtered
+ * set, order them properly, then fetch only the rows this page shows. The key
+ * query is three short columns and only runs when a text column is the sort —
+ * dates and amounts still sort in the database, where they already sort right.
+ */
+async function pageByText(
+  where: Prisma.EntryWhereInput,
+  sort: Sort,
+  lang: string,
+  page: number,
+) {
+  const keys = await prisma.entry.findMany({
+    where,
+    select: { id: true, date: true, name: true, category: true, method: true },
+  });
+  const ids = sortRowsByText(keys, sort, lang === "pt" ? "pt-BR" : "en-US")
+    .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    .map((row) => row.id);
+
+  const rows = await prisma.entry.findMany({ where: { id: { in: ids } } });
+  // `in` returns rows in the database's order, not the order asked for, so put
+  // them back into the sorted order before rendering.
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.map((id) => byId.get(id)).filter((row) => row !== undefined);
+}
 
 export default async function EntriesPage({
   searchParams,
@@ -23,7 +64,9 @@ export default async function EntriesPage({
   searchParams: Promise<Search>;
 }) {
   const sp = await searchParams;
-  const cycleStartDay = await getCycleStartDay();
+  // Both are needed before the queries below: the cycle to build the date
+  // range, the language to collate a text sort.
+  const [cycleStartDay, lang] = await Promise.all([getCycleStartDay(), getLanguage()]);
 
   const q = (sp.q ?? "").trim();
   const month = sp.month && sp.month !== "all" ? sp.month : "all";
@@ -32,6 +75,7 @@ export default async function EntriesPage({
   // "none" = entries not assigned to any account; otherwise an account id.
   const account = sp.account ?? "all";
   const tag = sp.tag ?? "all";
+  const sort = parseSort(sp.sort, sp.dir);
 
   const where: Prisma.EntryWhereInput = {};
   if (type !== "all") where.type = type;
@@ -55,14 +99,16 @@ export default async function EntriesPage({
     where.OR = [{ name: { contains: q } }, { note: { contains: q } }];
   }
 
-  const [rows, total, sums, allDates, { expense, income }, paymentMethods, lang, accounts, cardMethods] =
+  const [rows, total, sums, allDates, { expense, income }, paymentMethods, accounts, cardMethods] =
     await Promise.all([
-      prisma.entry.findMany({
-        where,
-        orderBy: { date: "desc" },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-      }),
+      isTextColumn(sort.column)
+        ? pageByText(where, sort, lang, page)
+        : prisma.entry.findMany({
+            where,
+            orderBy: toOrderBy(sort),
+            skip: (page - 1) * PAGE_SIZE,
+            take: PAGE_SIZE,
+          }),
       prisma.entry.count({ where }),
       // Net is for the whole filtered set, not just the visible page — a total
       // that changed as you paged would be worse than useless.
@@ -73,7 +119,6 @@ export default async function EntriesPage({
       prisma.entry.findMany({ select: { date: true, tags: true } }),
       getCategories(),
       getPaymentMethods(),
-      getLanguage(),
       prisma.account.findMany({ select: { id: true, name: true, archived: true }, orderBy: { name: "asc" } }),
       prisma.paymentMethod.findMany({ where: { isCreditCard: true }, select: { name: true } }),
     ]);
@@ -111,6 +156,15 @@ export default async function EntriesPage({
     0,
   );
 
+  // The most recent delete, offered as an undo only while it is fresh. Older
+  // batches are cleared when the next delete records one, so at most one row
+  // ever exists here.
+  const lastDeleted = await prisma.deletedEntryBatch.findFirst({ orderBy: { createdAt: 'desc' } });
+  const deleted =
+    lastDeleted && withinUndoWindow(lastDeleted.createdAt)
+      ? { id: lastDeleted.id, label: lastDeleted.label, count: lastDeleted.count }
+      : null;
+
   return (
     <EntriesClient
       entries={rows}
@@ -123,6 +177,8 @@ export default async function EntriesPage({
       filters={{ q, month, type, account, tag }}
       splitCounts={splitCounts}
       tags={allTags}
+      deleted={deleted}
+      sort={sort}
       accounts={accounts}
       creditCardNames={cardMethods.map((m) => m.name)}
       expenseCategories={expense}

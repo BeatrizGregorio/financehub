@@ -9,7 +9,14 @@ import { CouponSection } from "./CouponSection";
 import { TransactionSection } from "./TransactionSection";
 import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
 import { typeLabel, subtypeLabel, showsRateFields } from "@/lib/investmentTypes";
-import { currentValue, isMatured, monthlyValue, taxBreakdown, type ReferenceRatesLike } from "@/lib/investments";
+import {
+  currentValue,
+  investedAt,
+  isMatured,
+  monthlyValue,
+  taxBreakdown,
+  type ReferenceRatesLike,
+} from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
 import { useT } from "@/components/LanguageProvider";
 import type { Dict, Language } from "@/lib/i18n";
@@ -159,8 +166,13 @@ export function HoldingDetail({
         </div>
         <div>
           <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.invested}</p>
+          {/* investedAt(), not holding.amountInvested: once there are buys and
+              sells on file they are the invested figure, and the stored field
+              stays at whatever the holding was first created with. Showing the
+              stale one here put it next to a gain computed from the real one,
+              so the two disagreed on screen. */}
           <p className="font-mono text-sm font-semibold text-[var(--color-ink)]">
-            {formatCurrency(holding.amountInvested)}
+            {formatCurrency(investedAt(holding))}
           </p>
         </div>
         <div>

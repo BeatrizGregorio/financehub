@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Trash2 } from "lucide-react";
 import { addTransaction, deleteTransaction, type ActionState } from "./actions";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
-import { showsPosition } from "@/lib/investmentTypes";
+import { showsPosition, valuation } from "@/lib/investmentTypes";
 import { investedAt, quantityAt } from "@/lib/investments";
 import { useT } from "@/components/LanguageProvider";
 import { useKeepTypedValues } from "@/components/useKeepTypedValues";
@@ -36,6 +36,9 @@ export function TransactionSection({ holding }: { holding: Holding }) {
   // Same rule the add/edit form uses for showing quantity fields, so the units
   // input appears exactly where a unit count is meaningful.
   const perUnit = showsPosition(holding.type, holding.subtype);
+  // Units drive the value for these, so a buy without them is meaningless —
+  // the server rejects it too, this just stops it being submitted at all.
+  const unitsRequired = valuation(holding.type, holding.subtype).mode === "unit";
   const invested = investedAt(holding);
   const units = quantityAt(holding);
 
@@ -108,6 +111,7 @@ export function TransactionSection({ holding }: { holding: Holding }) {
               name="quantity"
               step="any"
               min="0"
+              required={unitsRequired}
               placeholder="0"
               className={`${inputClass} w-[100px]`}
             />
