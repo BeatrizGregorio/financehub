@@ -41,7 +41,10 @@ function unpackedDir() {
   return found;
 }
 
-async function waitForServer(url, child, timeoutMs = 60000) {
+// 90s rather than something tighter: a cold CI runner scanning freshly written
+// files has been seen to take ~17s just to log "Ready" on a real install, and a
+// timeout here would read as a packaging failure when nothing is wrong.
+async function waitForServer(url, child, timeoutMs = 90000) {
   const deadline = Date.now() + timeoutMs;
   let exited = null;
   child.on("exit", (code) => {
