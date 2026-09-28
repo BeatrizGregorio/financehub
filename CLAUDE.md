@@ -1841,6 +1841,72 @@ button disappears after a save. Both languages, 375px (four inputs stack, no
 overflow). Test data removed. `tsc --noEmit`, `npm run lint` and a full
 `next build` all clean.
 
+V1.40 (a typed price is a reading, not a freeze; performance by month)
+added 2026-09-28, both from the owner.
+
+**(1) The bug: value stopped moving after Update Prices.** `valueAtDate()`
+returned the manual price unchanged for every date after it, so a holding sat
+perfectly still between price entries. For a stock that is right — today's
+price is not knowable here. For a CDB at 13,65% it is wrong: the bond goes on
+paying whether or not anyone typed a number yesterday.
+
+A marked holding is now carried forward from its reading at
+`getEffectiveRate()`. Holdings with nothing contractual to earn at — a stock, a
+fund with no rate — have a rate of 0 and so still sit exactly where they were
+put, which needed no special-casing. Coupons paid *after* the reading are
+subtracted (cash that has since left); ones before it are already in the price.
+
+This is the same insight as V1.39's projection fix, applied one level down, and
+it **simplified `projectedInvestmentValue()`**: it no longer re-applies the
+contracted rate itself, because `valueAtDate()` now does. Re-applying it would
+have compounded twice — there is an assertion pinning that.
+
+`isAccrualValued()` gained a `rates` argument and now answers **"does this
+figure depend on the reference rates?"** for marked holdings too, since they
+keep earning at an indexador-derived rate. Without that the "these rates are
+stale" note would have stopped covering most of the portfolio.
+
+**(2) The chart the owner actually wanted.** V1.39's ranked bar chart with a
+metric switcher was rejected on sight — *"I think it's more useful if it shows
+the performance throughout the months"*. Replaced by `monthlyPerformance()` +
+a rewritten `PerformanceChart`: one line per active holding, cumulative return
+in percent, month by month, on the same cycle checkpoints every other monthly
+chart uses. `performanceComparison()`/`PerformanceRow` were **deleted rather
+than left unused**, as with `portfolioValueOverTime()` in V1.12.
+
+- **Percent, not reais**, so a R$ 3.000 debenture and a R$ 24.000 CDB share an
+  axis — the question is which is performing, not which is biggest. Coupons are
+  added back so a bond that pays out doesn't look like it lost value.
+- **Months before a holding was bought are `null`, not 0**, with
+  `connectNulls={false}`, so its line simply starts later instead of plunging
+  to the axis. Verified: a holding bought last month starts at x=839 of 930.
+- **Colours walk the palette by index.** `categoryColor()` hashes the name, and
+  with five holdings two already collided on the same purple — two identical
+  lines are two you cannot tell apart. `PALETTE` is now exported for this.
+- **Clicking a legend entry isolates that line** (the rest drop to 0.15
+  opacity, clicking again restores). With a dozen holdings that is the
+  difference between a chart and a plate of spaghetti.
+
+A useful thing the shape reveals: for months before a price was ever entered
+the line follows accrual, then steps to the real price when one exists. On the
+owner's CRAs that is a visible drop — the market price is below what the
+contracted rate predicted — which is exactly the divergence a single ranked
+number was hiding.
+
+Verified: 56 assertions on the compiled module. New ones cover the reading
+behaviour (value equals the typed price on its day, grows at the contracted
+rate after, a stock stays flat, maturity still freezes, a later coupon comes
+off, and the projection applies the rate once rather than twice) and the
+series (matured excluded, 13 checkpoints, nulls before purchase, the plotted
+figure equals the cumulative return, and an accruing line only rises — even
+one that paid a coupon). **Several older assertions had to be repaired for
+clock drift**, not for behaviour: they pinned a fixture date while
+`projectPortfolioValue()` reads the real clock, so each passing day moved them
+by a few days' accrual. Those now use a relative tolerance, which still fails
+loudly on flatness or double-compounding. Then in the browser: 5 distinct
+colours, months on the axis, legend isolation, both languages and 375px.
+Test data removed. `tsc --noEmit`, `npm run lint` and `next build` clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

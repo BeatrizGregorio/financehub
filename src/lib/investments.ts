@@ -6,7 +6,7 @@ import {
   cycleLabel,
   toDateInputValue,
 } from "@/lib/format";
-import { valuation, iofRate as iofRateFor, irRate as irRateFor, isIrExempt } from "@/lib/investmentTypes";
+import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
 import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
 import { xirr } from "@/lib/goal";
 import { cashPosition, type AccountEntryLike, type AccountLike, type TransferLike } from "@/lib/accounts";
@@ -223,12 +223,22 @@ export function isMatured(inv: InvestmentLike, asOfDate: Date = new Date()): boo
  * by hand and have no editor: a number derived from a stale rate should say so
  * rather than presenting itself as firm.
  */
-export function isAccrualValued(inv: InvestmentLike, asOfDate: Date = new Date()): boolean {
+export function isAccrualValued(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike | null = null,
+  asOfDate: Date = new Date(),
+): boolean {
   const { fallback } = valuation(inv.type, inv.subtype);
   if (inv.maturityDate && dateKey(asOfDate) > dateKey(inv.maturityDate)) {
     asOfDate = inv.maturityDate;
   }
-  if (latestPriceOnOrBefore(inv, asOfDate)) return false;
+  if (latestPriceOnOrBefore(inv, asOfDate)) {
+    // Since a marked holding goes on earning at its contracted rate, its value
+    // depends on the reference rates just as much as a pure accrual one — so
+    // the "these rates are stale" note has to cover it. Without rates to
+    // resolve an indexador against, fall back to the old answer.
+    return rates ? getEffectiveRate(inv, rates) > 0 : false;
+  }
   return fallback !== "amountInvested";
 }
 
@@ -247,7 +257,27 @@ export function valueAtDate(inv: InvestmentLike, rates: ReferenceRatesLike, asOf
   if (manual) {
     // quantityAt() rather than inv.quantity: on a historical date the position
     // may have been smaller (or not held at all).
-    return mode === "unit" ? quantityAt(inv, asOfDate) * manual.price : manual.price;
+    const marked = mode === "unit" ? quantityAt(inv, asOfDate) * manual.price : manual.price;
+
+    // A typed-in price is a reading taken on a day, not a value frozen until
+    // the next reading. Anything with a contracted rate goes on earning from
+    // that reading — a CDB at 13.65% does not stop paying because nobody
+    // updated a number. Without this the value sat still between price
+    // entries, which is what "it stopped increasing after I updated the
+    // prices" means.
+    //
+    // Holdings with nothing contractual to earn at — a stock, a fund with no
+    // rate — have getEffectiveRate() of 0 and so stay exactly where they were
+    // put, which is still the right answer for them: today's price is not
+    // something this app can know.
+    const rate = getEffectiveRate(inv, rates);
+    const days = daysBetween(manual.date, asOfDate);
+    if (rate <= 0 || days <= 0) return marked;
+
+    // Coupons paid *after* the reading are cash that has since left the
+    // holding; ones before it are already reflected in the price itself.
+    const couponsSince = totalCoupons(inv, asOfDate) - totalCoupons(inv, manual.date);
+    return marked * Math.pow(1 + rate / 100, days / 365) - couponsSince;
   }
 
   if (fallback === "amountInvested") return investedAt(inv, asOfDate);
@@ -441,6 +471,48 @@ export function monthlyValue(
   }));
 }
 
+/** One row per month, holding ids as keys — the shape a line chart wants. */
+export type MonthlyPerformancePoint = { label: string } & Record<string, number | string | null>;
+
+/**
+ * Each active holding's cumulative return, month by month.
+ *
+ * Percent rather than reais so a R$ 3.000 debenture and a R$ 24.000 CDB can be
+ * read on the same axis — the question is which is *performing*, not which is
+ * biggest. Coupons are added back, so a bond that pays out cash doesn't look
+ * like it lost value the month it paid.
+ *
+ * A holding contributes null for months before it was bought, which Recharts
+ * draws as a line that simply starts later rather than a plunge to zero.
+ * Matured holdings are left out entirely, as everywhere else.
+ */
+export function monthlyPerformance(
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  monthsBack = 12,
+  startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
+): { points: MonthlyPerformancePoint[]; holdings: { id: string; name: string }[] } {
+  const active = investments.filter((inv) => !isMatured(inv));
+
+  const points = monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => {
+    const row: MonthlyPerformancePoint = { label: cycleLabel(key, lang) };
+    for (const inv of active) {
+      const invested = investedAt(inv, date);
+      // Nothing in yet means there is no return to speak of — not a zero.
+      if (invested <= 0 || dateKey(date) < dateKey(inv.startDate)) {
+        row[inv.id] = null;
+        continue;
+      }
+      const value = valueAtDate(inv, rates, date) + totalCoupons(inv, date);
+      row[inv.id] = (value / invested - 1) * 100;
+    }
+    return row;
+  });
+
+  return { points, holdings: active.map((inv) => ({ id: inv.id, name: inv.name })) };
+}
+
 /** Total portfolio value at the end of each of the last `monthsBack` months. */
 export function monthlyPortfolioValue(
   investments: InvestmentLike[],
@@ -598,68 +670,12 @@ export function realizedAnnualRate(
   rates: ReferenceRatesLike,
   asOfDate: Date = new Date(),
 ): number | null {
-  if (isAccrualValued(inv, asOfDate)) return null;
+  if (isAccrualValued(inv, rates, asOfDate)) return null;
   const rate = annualizedReturn(inv, rates, asOfDate);
   if (rate === null) return null;
   return Math.max(-MAX_PROJECTED_RATE, Math.min(MAX_PROJECTED_RATE, rate));
 }
 
-export type PerformanceRow = {
-  id: string;
-  name: string;
-  type: string;
-  /** Contracted % p.a., or null when the holding has no contractual rate. */
-  contracted: number | null;
-  /** What it has actually returned, % p.a. Null when too new to annualize. */
-  realized: number | null;
-  /** The same after the estimated IOF/IR. Null whenever realized is. */
-  netRealized: number | null;
-  /** Realized return as a percentage of CDI — how Brazilians read a rate. */
-  pctOfCdi: number | null;
-  /** Gain in reais, coupons included. Always answerable, unlike the rates. */
-  gain: number;
-  /** True when IR is zero for this subtype, which is why net can equal gross. */
-  irExempt: boolean;
-};
-
-/**
- * Side-by-side performance of every *active* holding.
- *
- * Matured holdings are excluded, matching the summary totals and the
- * allocation donut — money already paid back isn't a position you can act on.
- *
- * Every rate here can be null and the UI has to say so rather than draw a zero
- * bar: a holding bought three weeks ago has no annualizable history, and
- * pretending otherwise would put a confident number next to nine real ones.
- * `gain` is never null, which is why the chart offers it as a metric — it is
- * the one comparison that always has an answer.
- */
-export function performanceComparison(
-  investments: InvestmentLike[],
-  rates: ReferenceRatesLike,
-  asOfDate: Date = new Date(),
-): PerformanceRow[] {
-  return investments
-    .filter((inv) => !isMatured(inv, asOfDate))
-    .map((inv) => {
-      const tax = taxBreakdown(inv, rates, asOfDate);
-      const realized = annualizedReturn(inv, rates, asOfDate);
-      const value = valueAtDate(inv, rates, asOfDate);
-      const netRealized = annualizedReturn(inv, rates, asOfDate, value - tax.iof - tax.ir);
-      const contracted = getEffectiveRate(inv, rates);
-      return {
-        id: inv.id,
-        name: inv.name,
-        type: inv.type,
-        contracted: contracted > 0 ? contracted : null,
-        realized,
-        netRealized,
-        pctOfCdi: realized === null || rates.cdi <= 0 ? null : (realized / rates.cdi) * 100,
-        gain: tax.grossGain,
-        irExempt: isIrExempt(inv.type, inv.subtype),
-      };
-    });
-}
 
 /**
  * A single holding's projected value at a future date.
@@ -690,19 +706,16 @@ function projectedInvestmentValue(
 
   // Accrual-valued holdings are already done: valueAtDate() compounded them to
   // `cap` itself. Growing them again here would count the same interest twice.
-  if (isAccrualValued(inv, today)) return base;
+  if (isAccrualValued(inv, rates, today)) return base;
 
   const days = daysBetween(today, cap);
   if (days <= 0) return base;
 
-  // Entering a price by hand switches valuation over to that price, which is
-  // right for "what is it worth today" — but it must not throw away a rate the
-  // holding is contractually earning. A CDB at 13.65% maturing in 2027 keeps
-  // earning 13.65% whether or not its current value was typed in; the typed
-  // value is the starting point, not a ceiling. A contract is not an
-  // extrapolation, so neither the cap nor the five-year bound applies.
-  const contracted = getEffectiveRate(inv, rates);
-  if (contracted > 0) return base * Math.pow(1 + contracted / 100, days / 365);
+  // A holding with a contracted rate is already carried forward by
+  // valueAtDate() above — whether its value came from accrual or from a typed
+  // price, the rate is applied there. Re-applying it here would compound it
+  // twice.
+  if (getEffectiveRate(inv, rates) > 0) return base;
 
   // Nothing contractual to go on — funds, stocks, crypto. Fall back to what the
   // holding has actually returned, capped and time-bounded (see above).

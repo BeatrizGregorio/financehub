@@ -16,7 +16,7 @@ import { PerformanceChart } from "@/components/PerformanceChart";
 import {
   MAX_PROJECTED_RATE,
   MAX_REALIZED_PROJECTION_YEARS,
-  performanceComparison,
+  monthlyPerformance,
   currentValue,
   isAccrualValued,
   isMatured,
@@ -116,11 +116,11 @@ export function InvestmentsClient({
   const [couponForId, setCouponForId] = useState<string | null>(null);
 
   const summary = portfolioSummary(holdings, rates);
-  const performance = performanceComparison(holdings, rates);
+  const performance = monthlyPerformance(holdings, rates, 12, cycleStartDay, lang);
   const maturedHoldings = holdings.filter((h) => isMatured(h));
   // Only worth mentioning the reference rates when something actually depends
   // on them — a portfolio of stocks with manual prices doesn't use them at all.
-  const hasAccrualHoldings = holdings.some((h) => !isMatured(h) && isAccrualValued(h));
+  const hasAccrualHoldings = holdings.some((h) => !isMatured(h) && isAccrualValued(h, rates));
   const projection = projectPortfolioValue(holdings, rates, t.charts);
   const monthly = monthlyPortfolioValue(holdings, rates, 12, cycleStartDay, lang);
   // Derive from the live `holdings` prop (not a frozen snapshot) so editing or
@@ -242,13 +242,13 @@ export function InvestmentsClient({
       {/* First content block on the page, per the owner's request: the
           question "which of these is actually working" comes before the
           timeline charts and the holdings list. */}
-      {performance.length > 0 && (
+      {performance.holdings.length > 0 && (
         <div className={`${CARD} p-5`}>
           <h2 className="text-[17px] font-extrabold tracking-tight">{t.investments.performance}</h2>
           <p className="mt-1 mb-3 text-[12.5px] text-[var(--color-muted)]">
             {t.investments.performanceBlurb}
           </p>
-          <PerformanceChart rows={performance} cdi={rates.cdi} />
+          <PerformanceChart points={performance.points} holdings={performance.holdings} />
         </div>
       )}
 
