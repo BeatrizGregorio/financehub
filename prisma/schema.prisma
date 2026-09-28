@@ -207,6 +207,8 @@ model InvestmentGoal {
   targetDate         DateTime
   expectedAnnualRate Float    @default(0.1)
   monthlyContribution Float?
+  /// Null means "start from the live portfolio value" — see the migration.
+  startingValue      Float?
   updatedAt          DateTime @updatedAt
 }
 

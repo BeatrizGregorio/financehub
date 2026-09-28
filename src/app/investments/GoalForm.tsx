@@ -13,6 +13,8 @@ export type GoalLike = {
   targetDate: Date;
   expectedAnnualRate: number;
   monthlyContribution: number | null;
+  /** Null = start from the live portfolio value. */
+  startingValue: number | null;
 };
 
 const FIELD =

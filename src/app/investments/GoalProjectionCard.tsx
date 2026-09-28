@@ -44,6 +44,7 @@ type Draft = {
   targetDate: string;
   ratePercent: string;
   monthly: string;
+  startingValue: string;
 };
 
 function draftOf(goal: GoalLike): Draft {
@@ -54,6 +55,7 @@ function draftOf(goal: GoalLike): Draft {
     // form boundary and must not leak inward (see goal.ts).
     ratePercent: (goal.expectedAnnualRate * 100).toFixed(2),
     monthly: goal.monthlyContribution != null ? String(goal.monthlyContribution) : "",
+    startingValue: goal.startingValue != null ? String(goal.startingValue) : "",
   };
 }
 
@@ -130,7 +132,13 @@ export function GoalProjectionCard(props: {
 }) {
   const g = props.goal;
   const signature = g
-    ? `${g.targetAmount}|${g.targetDate.getTime()}|${g.expectedAnnualRate}|${g.monthlyContribution ?? ""}`
+    ? [
+        g.targetAmount,
+        g.targetDate.getTime(),
+        g.expectedAnnualRate,
+        g.monthlyContribution ?? "",
+        g.startingValue ?? "",
+      ].join("|")
     : "none";
   return <GoalCard key={signature} {...props} />;
 }
@@ -175,6 +183,7 @@ function GoalCard({
   const collapsedProgress =
     goal && goal.targetAmount > 0 ? currentValue / goal.targetAmount : null;
 
+
   const averageContribution = useMemo(
     () => averageMonthlyContribution(holdings, 6),
     [holdings],
@@ -197,6 +206,7 @@ function GoalCard({
     const amount = Number(draft.targetAmount);
     const rate = Number(draft.ratePercent);
     const monthly = draft.monthly.trim() === "" ? null : Number(draft.monthly);
+    const start = draft.startingValue.trim() === "" ? null : Number(draft.startingValue);
     return {
       ...goal,
       targetAmount: Number.isFinite(amount) && amount > 0 ? amount : goal.targetAmount,
@@ -204,8 +214,17 @@ function GoalCard({
       expectedAnnualRate: Number.isFinite(rate) ? rate / 100 : goal.expectedAnnualRate,
       monthlyContribution:
         monthly !== null && Number.isFinite(monthly) && monthly >= 0 ? monthly : null,
+      startingValue: start !== null && Number.isFinite(start) && start >= 0 ? start : null,
     };
   }, [goal, draft]);
+
+  /**
+   * Where the projection starts. A pinned startingValue is a what-if — "if I
+   * had R$ X today" — and blank means track the portfolio, which is what
+   * should normally happen: a number typed once would quietly stop matching
+   * reality as holdings move under it.
+   */
+  const startFrom = shown?.startingValue ?? currentValue;
 
   const expectedAnnualRate = shown?.expectedAnnualRate ?? 0.1;
   const monthlyContribution = shown?.monthlyContribution ?? averageContribution;
@@ -214,13 +233,13 @@ function GoalCard({
   const projection = useMemo(() => {
     if (!shown) return null;
     return goalProjection({
-      currentValue,
+      currentValue: startFrom,
       monthlyContribution,
       expectedAnnualRate,
       targetAmount: shown.targetAmount,
       targetDate: shown.targetDate,
     });
-  }, [shown, currentValue, monthlyContribution, expectedAnnualRate]);
+  }, [shown, startFrom, monthlyContribution, expectedAnnualRate]);
 
   return (
     <div className={`${CARD} p-5`}>
@@ -317,6 +336,13 @@ function GoalCard({
             <input type="hidden" name="name" value={goal.name} />
             <div className="flex flex-wrap items-end gap-2.5">
               <NumberField
+                label={t.goal.startingValue}
+                name="startingValue"
+                value={draft.startingValue}
+                placeholder={currentValue.toFixed(0)}
+                onChange={(v) => set("startingValue", v)}
+              />
+              <NumberField
                 label={t.goal.targetAmount}
                 name="targetAmount"
                 value={draft.targetAmount}
@@ -366,6 +392,11 @@ function GoalCard({
                 </div>
               )}
             </div>
+            {shown?.startingValue != null && (
+              <p className="mt-2 text-[12px] text-[var(--color-muted-2)]">
+                {t.goal.startingValuePinned(formatCurrency(currentValue))}
+              </p>
+            )}
             {dirty && (
               <p className="mt-2 text-[12px] text-[var(--color-muted-2)]">{t.goal.unsavedPreview}</p>
             )}
@@ -392,7 +423,7 @@ function GoalCard({
         ) : (
           <GoalBody
             goal={shown ?? goal}
-            currentValue={currentValue}
+            currentValue={startFrom}
             expectedAnnualRate={expectedAnnualRate}
             monthlyContribution={monthlyContribution}
             projection={projection}

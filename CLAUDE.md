@@ -1907,6 +1907,39 @@ loudly on flatness or double-compounding. Then in the browser: 5 distinct
 colours, months on the axis, legend isolation, both languages and 375px.
 Test data removed. `tsc --noEmit`, `npm run lint` and `next build` clean.
 
+V1.41 (the goal projection can start from a pinned amount) added 2026-09-28.
+A fifth inline input beside the four from V1.39: **Starting from**, the value
+the projection begins at.
+
+`InvestmentGoal.startingValue` is **nullable, and null is the normal state**
+(`prisma/migrations/20260928120000_add_goal_starting_value`). Blank means
+"follow the portfolio", which is what should usually happen — a figure typed
+once would quietly stop matching reality as holdings move under it, the same
+staleness problem the points tab was rebuilt around in V1.34. The input's
+placeholder is the live portfolio value, so the default is visible without
+being stored, and when a value *is* pinned the card says so and names the real
+figure: "Clear it to follow your portfolio, currently R$ 44.511,78."
+
+**The actual-return line deliberately keeps using the real portfolio value.**
+`buildCashFlows(holdings, currentValue)` feeds the XIRR of what the portfolio
+has genuinely done; a what-if starting point has no business changing it.
+Everything that describes progress *toward* the goal — the projection, both
+solvers, the progress bar — follows the pinned value, because that is the
+question being asked.
+
+Verified in the browser: blank by default with the live value as placeholder,
+pinning R$ 100.000 drops the required contribution from R$ 2.414,45/month to
+R$ 395,73 and pulls the arrival from October 2029 to January 2028, saving
+persists it, clearing it saves NULL and the notice disappears. Both languages,
+and all five inputs stack inside 375px — an "off the right edge" reading there
+was the **documented sidebar-transition artifact**, confirmed by killing
+transitions and re-measuring (nav settles at 47px, every field ends by 283 of
+375). `tsc --noEmit`, `npm run lint` and `next build` clean.
+
+**Pre-existing gap noticed, not fixed here: the investment goal is not in the
+backup at all.** `lib/backup.ts` has no `investmentGoal` key, so exporting and
+restoring loses it. Out of scope for this change, but it is a real hole.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

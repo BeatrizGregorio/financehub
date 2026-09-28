@@ -580,6 +580,9 @@ const en = {
     goalLine: "Goal",
     goalName: "Goal name",
     goalNamePlaceholder: "Emergency fund",
+    startingValue: "Starting from (R$)",
+    startingValuePinned: (actual: string) =>
+      `Starting from a fixed amount. Clear it to follow your portfolio, currently ${actual}.`,
     targetAmount: "Target amount (R$)",
     emergencyFund: "Emergency fund",
     emergencyFundHint: (monthly: string) =>
@@ -1351,6 +1354,9 @@ const pt: Dict = {
     goalLine: "Meta",
     goalName: "Nome da meta",
     goalNamePlaceholder: "Reserva de emergência",
+    startingValue: "Partindo de (R$)",
+    startingValuePinned: (actual: string) =>
+      `Partindo de um valor fixo. Limpe o campo para acompanhar a carteira, hoje ${actual}.`,
     targetAmount: "Valor da meta (R$)",
     emergencyFund: "Reserva de emergência",
     emergencyFundHint: (monthly: string) =>

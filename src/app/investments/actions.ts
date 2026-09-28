@@ -248,6 +248,9 @@ export async function saveInvestmentGoal(
   const targetDate = parseLocalDate(formData.get("targetDate"));
   const ratePercent = Number(formData.get("expectedAnnualRate"));
   const monthlyContribution = parseOptionalNumber(formData.get("monthlyContribution"));
+  // Blank means "track the portfolio", which is why this is optional rather
+  // than defaulted to today's value — a number typed once would go stale.
+  const startingValue = parseOptionalNumber(formData.get("startingValue"));
 
   if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
     return { error: "Enter a target amount greater than 0." };
@@ -261,6 +264,9 @@ export async function saveInvestmentGoal(
   if (monthlyContribution !== null && monthlyContribution < 0) {
     return { error: "The monthly contribution can't be negative." };
   }
+  if (startingValue !== null && startingValue < 0) {
+    return { error: "The starting value can't be negative." };
+  }
 
   const data = {
     name,
@@ -268,6 +274,7 @@ export async function saveInvestmentGoal(
     targetDate,
     expectedAnnualRate: ratePercent / 100,
     monthlyContribution,
+    startingValue,
   };
 
   await prisma.investmentGoal.upsert({
