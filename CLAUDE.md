@@ -1940,6 +1940,58 @@ transitions and re-measuring (nav settles at 47px, every field ends by 283 of
 backup at all.** `lib/backup.ts` has no `investmentGoal` key, so exporting and
 restoring loses it. Out of scope for this change, but it is a real hole.
 
+V1.42 (the performance chart picks its own window) added 2026-09-28.
+Range pills above the chart — 3m / 6m / 1y / 2y / all — replacing the
+hardcoded 12 months. Default is still 1y, so nothing moved for anyone who
+doesn't touch it.
+
+**The chart now owns its data, not just its rendering.** It takes
+`investments`/`rates`/`cycleStartDay` and calls `monthlyPerformance()` itself
+in a `useMemo`, rather than being handed finished points. Changing the window
+is then instant and local — no server round trip, no state lifted into
+`InvestmentsClient` just to be passed back down. Typed against
+`InvestmentLike` from the lib rather than the `Holding` type exported from
+`app/investments/`, so a component under `components/` doesn't reach into
+`app/`.
+
+**"All" is computed, not a big number.** `monthsOfHistory()` in
+`investments.ts` measures from the oldest *active* holding — matured ones are
+excluded, so a holding that matured in 2020 can't stretch the axis to cover
+six empty years. It floors at 3 (a two-point chart is not a chart) and caps at
+240. Ranges longer than the available history are **hidden**, so a portfolio
+four months old offers "3m" and "all" and nothing that would draw a
+three-quarters-empty chart.
+
+**The selection is clamped rather than validated**: `range === "all" ?
+maxMonths : Math.min(range, maxMonths)`. Nothing to reset when the history
+grows or a holding matures, and no state that can disagree with the data.
+
+**`Date.now()` inside a `useMemo` trips `react-hooks/purity`** — correctly,
+it is a clock read during render. That is why the measurement lives in
+`investments.ts` beside `monthlyCheckpoints()`, which already reads the clock,
+rather than in the component. Worth remembering for any future "how long
+since…" in a component.
+
+Year labels are built from the number plus the translated unit
+(`1``` → "1y"/"1a"), the same way projection horizons are, so pt shows
+3m/6m/1a/2a/tudo. `allRange` is a new key in both dictionaries rather than
+borrowing `t.entries.all`, which belongs to the type filter.
+
+Verified: 7 more assertions on `monthsOfHistory()` (empty list falls back to a
+year, three years reads as ~37 months, a week-old holding floors at 3, the
+oldest holding wins, a long-matured one does **not** stretch it, the 240 cap,
+and that a 3-month window really returns 4 checkpoints against a 12-month
+one's 13) — 63 in the file overall. Then in the browser across all five
+ranges: the plotted vertex count steps 10 → 19 → 37 → 73 → 106 and the axis
+follows exactly (3m = Jun→Sep 2026, all = Sep 2023→Sep 2026, matching the
+oldest seeded holding), with exactly one pill active throughout. Portuguese
+shows 3m/6m/1a/2a/tudo with pt month ticks. At 375px the pills wrap, stay
+31px tall and nothing leaves the viewport. **A "chart renders nothing at
+375px" reading was the documented ResponsiveContainer artifact** — container
+209x300 but svg 41px wide with `document.hidden === true`; a screenshot plus a
+resize event brought it back to 209px with all five lines. Test data removed.
+`tsc --noEmit`, `npm run lint` and `next build` clean.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -14,7 +14,17 @@ import {
 } from "recharts";
 import { PALETTE } from "@/lib/categories";
 import { useT } from "@/components/LanguageProvider";
-import type { MonthlyPerformancePoint } from "@/lib/investments";
+import { monthlyPerformance, monthsOfHistory } from "@/lib/investments";
+import type { InvestmentLike, ReferenceRatesLike } from "@/lib/investments";
+
+/**
+ * Windows offered above the chart. "All" is computed from the oldest holding
+ * rather than fixed, so it always means "everything you have" — and ranges
+ * longer than the history are hidden, since a chart that is three-quarters
+ * empty is worse than not offering the option.
+ */
+const RANGES = [3, 6, 12, 24] as const;
+const DEFAULT_MONTHS = 12;
 
 /**
  * Each holding's cumulative return, month by month.
@@ -29,13 +39,37 @@ import type { MonthlyPerformancePoint } from "@/lib/investments";
  * held".
  */
 export function PerformanceChart({
-  points,
-  holdings,
+  investments,
+  rates,
+  cycleStartDay,
 }: {
-  points: MonthlyPerformancePoint[];
-  holdings: { id: string; name: string }[];
+  investments: InvestmentLike[];
+  rates: ReferenceRatesLike;
+  cycleStartDay: number;
 }) {
   const { t, lang } = useT();
+  const [range, setRange] = useState<number | "all">(DEFAULT_MONTHS);
+
+  // How much history there actually is, from the oldest active holding.
+  const maxMonths = useMemo(() => monthsOfHistory(investments), [investments]);
+
+  // Clamping rather than validating the state: if the selected window is
+  // longer than the history, show the history. Nothing to reset, nothing to
+  // get out of sync.
+  const months = range === "all" ? maxMonths : Math.min(range, maxMonths);
+
+  const { points, holdings } = useMemo(
+    () => monthlyPerformance(investments, rates, months, cycleStartDay, lang),
+    [investments, rates, months, cycleStartDay, lang],
+  );
+
+  const rangeLabel = (value: number | "all") => {
+    if (value === "all") return t.investments.allRange;
+    return value % 12 === 0
+      ? `${value / 12}${t.charts.horizonYears}`
+      : `${value}${t.charts.horizonMonths}`;
+  };
+  const options: (number | "all")[] = [...RANGES.filter((m) => m < maxMonths), "all"];
   // Clicking a legend entry isolates that holding; clicking it again brings
   // the rest back. With a dozen lines that is the difference between a chart
   // and a plate of spaghetti.
@@ -61,6 +95,29 @@ export function PerformanceChart({
 
   return (
     <div>
+      {options.length > 1 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {options.map((option) => {
+            const active = option === range || (range !== "all" && option === "all" && range >= maxMonths);
+            return (
+              <button
+                key={String(option)}
+                type="button"
+                onClick={() => setRange(option)}
+                aria-pressed={active}
+                className="rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition"
+                style={
+                  active
+                    ? { background: "var(--gradient-brand)", color: "#fff" }
+                    : { background: "var(--color-inset)", color: "var(--color-muted)" }
+                }
+              >
+                {rangeLabel(option)}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={points} margin={{ top: 6, right: 20, bottom: 4, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />

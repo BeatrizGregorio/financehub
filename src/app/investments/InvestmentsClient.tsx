@@ -16,7 +16,6 @@ import { PerformanceChart } from "@/components/PerformanceChart";
 import {
   MAX_PROJECTED_RATE,
   MAX_REALIZED_PROJECTION_YEARS,
-  monthlyPerformance,
   currentValue,
   isAccrualValued,
   isMatured,
@@ -116,7 +115,6 @@ export function InvestmentsClient({
   const [couponForId, setCouponForId] = useState<string | null>(null);
 
   const summary = portfolioSummary(holdings, rates);
-  const performance = monthlyPerformance(holdings, rates, 12, cycleStartDay, lang);
   const maturedHoldings = holdings.filter((h) => isMatured(h));
   // Only worth mentioning the reference rates when something actually depends
   // on them — a portfolio of stocks with manual prices doesn't use them at all.
@@ -242,13 +240,13 @@ export function InvestmentsClient({
       {/* First content block on the page, per the owner's request: the
           question "which of these is actually working" comes before the
           timeline charts and the holdings list. */}
-      {performance.holdings.length > 0 && (
+      {holdings.length > 0 && (
         <div className={`${CARD} p-5`}>
           <h2 className="text-[17px] font-extrabold tracking-tight">{t.investments.performance}</h2>
           <p className="mt-1 mb-3 text-[12.5px] text-[var(--color-muted)]">
             {t.investments.performanceBlurb}
           </p>
-          <PerformanceChart points={performance.points} holdings={performance.holdings} />
+          <PerformanceChart investments={holdings} rates={rates} cycleStartDay={cycleStartDay} />
         </div>
       )}
 

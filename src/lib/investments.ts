@@ -471,6 +471,26 @@ export function monthlyValue(
   }));
 }
 
+/**
+ * How many monthly checkpoints it takes to cover every active holding.
+ *
+ * Answers "what does *all* mean" for a range picker, so the longest option is
+ * the owner's actual history rather than an arbitrary number. Floors at 3 (a
+ * two-point chart is not a chart) and caps at 240, so one very old holding
+ * can't ask for hundreds of checkpoints.
+ */
+export function monthsOfHistory(
+  investments: InvestmentLike[],
+  asOfDate: Date = new Date(),
+): number {
+  const active = investments.filter((inv) => !isMatured(inv, asOfDate));
+  if (active.length === 0) return 12;
+  const earliest = Math.min(...active.map((inv) => inv.startDate.getTime()));
+  // +1 so the month of purchase itself is included.
+  const elapsed = Math.ceil((asOfDate.getTime() - earliest) / (1000 * 60 * 60 * 24 * 30.44)) + 1;
+  return Math.min(Math.max(elapsed, 3), 240);
+}
+
 /** One row per month, holding ids as keys — the shape a line chart wants. */
 export type MonthlyPerformancePoint = { label: string } & Record<string, number | string | null>;
 
