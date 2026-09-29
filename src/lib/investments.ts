@@ -152,6 +152,31 @@ export function accrualValue(inv: InvestmentLike, rates: ReferenceRatesLike, asO
   return inv.amountInvested * Math.pow(1 + rate / 100, days / 365);
 }
 
+/**
+ * Money withdrawn between two dates, carried to `asOfDate` at `rate`.
+ *
+ * A withdrawal is cash that left the holding, so the balance since then has
+ * been earning on less. Compounding each one from its own date mirrors what
+ * accrualValue() already does with sells, so the manual-price branch and the
+ * accrual branch can't disagree about what a withdrawal costs.
+ */
+function withdrawnBetween(
+  inv: InvestmentLike,
+  afterDate: Date,
+  asOfDate: Date,
+  rate: number,
+): number {
+  const after = dateKey(afterDate);
+  const until = dateKey(asOfDate);
+  return (inv.transactions ?? [])
+    .filter((tx) => tx.kind === "sell" && dateKey(tx.date) > after && dateKey(tx.date) <= until)
+    .reduce((sum, tx) => {
+      const days = daysBetween(tx.date, asOfDate);
+      const grown = days <= 0 || rate <= 0 ? tx.amount : tx.amount * Math.pow(1 + rate / 100, days / 365);
+      return sum + grown;
+    }, 0);
+}
+
 /** Sum of coupon payments received on or before a given date. */
 export function totalCoupons(inv: InvestmentLike, throughDate: Date = new Date()): number {
   const key = dateKey(throughDate);
@@ -272,12 +297,23 @@ export function valueAtDate(inv: InvestmentLike, rates: ReferenceRatesLike, asOf
     // something this app can know.
     const rate = getEffectiveRate(inv, rates);
     const days = daysBetween(manual.date, asOfDate);
-    if (rate <= 0 || days <= 0) return marked;
 
-    // Coupons paid *after* the reading are cash that has since left the
-    // holding; ones before it are already reflected in the price itself.
-    const couponsSince = totalCoupons(inv, asOfDate) - totalCoupons(inv, manual.date);
-    return marked * Math.pow(1 + rate / 100, days / 365) - couponsSince;
+    // Cash that has left the holding *since* the reading. Anything before it is
+    // already reflected in the price someone typed, so counting it again would
+    // take it twice. This is applied whether or not the holding earns a rate —
+    // a fund with no contracted rate still gets smaller when money is taken out
+    // of it, and an early return here used to skip the subtraction entirely.
+    //
+    // Withdrawals only count for MTM holdings: where the price is per unit, the
+    // withdrawal already showed up as a smaller quantity in `marked` above, and
+    // subtracting the money as well would remove it twice.
+    const cashOut =
+      totalCoupons(inv, asOfDate) -
+      totalCoupons(inv, manual.date) +
+      (mode === "unit" ? 0 : withdrawnBetween(inv, manual.date, asOfDate, rate));
+
+    if (rate <= 0 || days <= 0) return marked - cashOut;
+    return marked * Math.pow(1 + rate / 100, days / 365) - cashOut;
   }
 
   if (fallback === "amountInvested") return investedAt(inv, asOfDate);

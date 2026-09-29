@@ -469,6 +469,11 @@ const en = {
     ratesUpdated: (date: string) => `Reference rates last updated ${date}.`,
     ratesNeverUpdated: "These reference rates have never been updated — treat accrual figures as rough.",
     transactions: "Buys and sells",
+    withdraw: "Withdraw",
+    withdrawAmount: "Amount taken out",
+    withdrawHint:
+      "Record money you took out of this holding. It comes off the value and the amount invested, and leaves the gain alone — taking money out is neither a profit nor a loss.",
+    noWithdrawals: "Nothing withdrawn yet.",
     transactionsEmptyHint:
       "Optional. Recording the first one also saves this holding's current position as an opening buy on its start date, so nothing is lost; each later buy or sell then counts from the day it happened.",
     transactionsActiveHint:
@@ -480,7 +485,7 @@ const en = {
       "This holding is valued from its buys and sells. To record buying more, add it under View more \u2192 Buys and sells \u2014 changing this field won't move the totals.",
     kind: "Type",
     buy: "Buy",
-    sell: "Sell",
+    sell: "Sell / withdrawal",
     deleteTransaction: "Delete transaction",
     maturedBanner: (n: number) =>
       n === 1 ? "Your investment is finalized — you have " : `${n} investments are finalized — you have `,
@@ -1243,6 +1248,11 @@ const pt: Dict = {
     ratesNeverUpdated:
       "Estas taxas de referência nunca foram atualizadas — trate os valores por rendimento como aproximados.",
     transactions: "Compras e vendas",
+    withdraw: "Retirada",
+    withdrawAmount: "Valor retirado",
+    withdrawHint:
+      "Registre o dinheiro que você tirou deste ativo. Ele sai do valor e do total investido, e não mexe no ganho — retirar dinheiro não é lucro nem prejuízo.",
+    noWithdrawals: "Nenhuma retirada ainda.",
     transactionsEmptyHint:
       "Opcional. Ao registrar a primeira, a posição atual deste ativo também é salva como uma compra inicial na data de início, então nada se perde; cada compra ou venda depois conta a partir do dia em que aconteceu.",
     transactionsActiveHint:
@@ -1254,7 +1264,7 @@ const pt: Dict = {
       "Este ativo é calculado pelas compras e vendas registradas. Para registrar uma nova compra, use Ver mais \u2192 Compras e vendas \u2014 alterar este campo não muda os totais.",
     kind: "Tipo",
     buy: "Compra",
-    sell: "Venda",
+    sell: "Venda / resgate",
     deleteTransaction: "Excluir transação",
     maturedBanner: (n: number) =>
       n === 1

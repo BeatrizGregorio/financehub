@@ -42,12 +42,14 @@ export function HoldingsTable({
   rates,
   onEdit,
   onView,
+  onWithdraw,
   onAddCoupon,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
   onEdit: (holding: Holding) => void;
   onView: (holding: Holding) => void;
+  onWithdraw: (holding: Holding) => void;
   onAddCoupon: (holding: Holding) => void;
 }) {
   const { t, lang } = useT();
@@ -171,6 +173,15 @@ export function HoldingsTable({
                       {t.investments.addCoupon}
                     </button>
                   )}
+                  {/* Every holding can have money taken out of it, so unlike
+                      coupons this isn't gated by type. */}
+                  <button
+                    type="button"
+                    onClick={() => onWithdraw(holding)}
+                    className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-brand-text)]"
+                  >
+                    {t.investments.withdraw}
+                  </button>
                   <RowAction label={t.common.edit} icon={Pencil} onClick={() => onEdit(holding)} />
                   <DeleteButton id={holding.id} t={t} />
                 </div>

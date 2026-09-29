@@ -1992,6 +1992,65 @@ shows 3m/6m/1a/2a/tudo with pt month ticks. At 375px the pills wrap, stay
 resize event brought it back to 209px with all five lines. Test data removed.
 `tsc --noEmit`, `npm run lint` and `next build` clean.
 
+V1.43 (withdrawals — "retirada") added 2026-09-29. The owner asked to record
+money taken out of a holding. The mechanism half-existed as a `sell` in the
+buy/sell log, and **it was wrong for most of her portfolio**.
+
+**The bug.** `valueAtDate()`'s manual-price branch returns the typed figure —
+for an MTM holding that figure *is* the whole value, so a sell reduced
+`investedAt()` and left the value untouched. Reproduced: a fund marked at
+R$ 22.000 against R$ 20.000 invested, withdraw R$ 5.000, and the **gain jumped
+from R$ 2.000 to R$ 7.000**. The withdrawal was counted as pure profit. The
+accrual branch was already correct (`accrualValue()` compounds each sell from
+its own date), so this only hit holdings priced by hand — which is all twelve
+of hers.
+
+Fixed by subtracting, from a marked value, the cash that left *after* the
+reading — exactly parallel to the coupon rule already there, and for the same
+reason: a price typed after a withdrawal already reflects it, so counting it
+again would take it twice. `withdrawnBetween()` compounds each withdrawal from
+its own date at the contracted rate, mirroring `accrualValue()` so the two
+branches can't disagree about what a withdrawal costs.
+
+**Withdrawals are skipped for unit-priced holdings** (`mode === "unit"`): there
+the sale already showed up as a smaller `quantityAt()`, and deducting the money
+as well would remove it twice. Asserted.
+
+**A second latent bug in the same branch:** `if (rate <= 0 || days <= 0) return
+marked` returned *before* the coupon subtraction, so a coupon paid after a
+reading on a **rate-0 holding** was silently ignored too — which is her FIDCs
+and FIRF, all of which resolve to 0%. The cash-out is now computed before that
+branch and applied either way.
+
+**UI.** A `Withdraw` row action on every holding — unlike Add coupon it isn't
+gated by type, since anything can have money taken out of it. It opens
+`TransactionSection` in a new `mode="withdraw"`: kind fixed to `sell` via a
+hidden field, no Buy/Sell selector, the amount labelled "Amount taken out",
+and the list filtered to withdrawals. **A presentation over the same wiring,
+not a second component** — a separate withdrawal form would have meant a second
+copy of the add/delete plumbing to drift, which is exactly what `CouponSection`
+was extracted to prevent in V1.19.
+
+The `sell` label became "Sell / withdrawal" / "Venda / resgate", because
+"Venda" alone reads wrong for a CRA and the log has to be obviously the same
+thing the Withdraw button writes.
+
+Verified: 11 more assertions (value falls by the withdrawal while **gain stays
+put** — taking money out is neither profit nor loss; invested falls; a rate-0
+holding still shrinks; a coupon on a rate-0 holding is subtracted; a withdrawal
+made *before* the reading is not; a unit-priced holding is quantity x price
+with no second deduction; withdrawing the whole balance leaves ~0) — 74 in the
+file. Then end to end in the browser on an MTM debenture with a contracted
+rate: value R$ 44.525,68 → R$ 43.525,68, invested R$ 34.676,00 → R$ 33.676,00,
+**gain unchanged at +R$ 9.849,68**, the opening buy auto-seeded and preserved,
+and the withdrawal listed. Both languages ("Retirada", "Valor retirado").
+Test data removed. `tsc --noEmit`, `npm run lint` and `next build` clean.
+
+**Not done, and worth knowing:** a withdrawal is not an `Entry`, so the money
+does not appear as income on the dashboard or in an account balance. Matching
+it to a deposit would need the transfer machinery from V1.28 pointed the other
+way. Nothing here blocks that.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI

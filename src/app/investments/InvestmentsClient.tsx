@@ -6,6 +6,7 @@ import { Modal } from "@/components/Modal";
 import { HoldingForm } from "./HoldingForm";
 import { HoldingsTable } from "./HoldingsTable";
 import { CouponSection } from "./CouponSection";
+import { TransactionSection } from "./TransactionSection";
 import { UpdatePricesModal } from "./UpdatePricesModal";
 import { HoldingDetail } from "./HoldingDetail";
 import { ProjectionChart } from "@/components/ProjectionChart";
@@ -113,6 +114,7 @@ export function InvestmentsClient({
   const [showPrices, setShowPrices] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [couponForId, setCouponForId] = useState<string | null>(null);
+  const [withdrawForId, setWithdrawForId] = useState<string | null>(null);
 
   const summary = portfolioSummary(holdings, rates);
   const maturedHoldings = holdings.filter((h) => isMatured(h));
@@ -128,6 +130,9 @@ export function InvestmentsClient({
   // object, so a coupon added in the modal shows up immediately — same
   // reasoning as `viewing` above.
   const couponFor = couponForId ? (holdings.find((h) => h.id === couponForId) ?? null) : null;
+  // Derived from the live list by id, like couponFor — so a withdrawal
+  // recorded inside the modal shows up in its own list without closing it.
+  const withdrawFor = withdrawForId ? (holdings.find((h) => h.id === withdrawForId) ?? null) : null;
 
   function startEdit(holding: Holding) {
     setEditing(holding);
@@ -308,12 +313,21 @@ export function InvestmentsClient({
         </Modal>
       )}
 
+      {withdrawFor && (
+        <Modal title={`${t.investments.withdraw} — ${withdrawFor.name}`} onClose={() => setWithdrawForId(null)}>
+          {/* The same component the detail view uses, in its withdraw
+              presentation — one set of add/delete wiring, two framings. */}
+          <TransactionSection holding={withdrawFor} mode="withdraw" />
+        </Modal>
+      )}
+
       <HoldingsTable
         holdings={holdings}
         rates={rates}
         onEdit={startEdit}
         onView={(h) => setViewingId(h.id)}
         onAddCoupon={(h) => setCouponForId(h.id)}
+        onWithdraw={(h) => setWithdrawForId(h.id)}
       />
     </div>
   );
