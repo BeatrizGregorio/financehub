@@ -502,6 +502,10 @@ const en = {
     performanceHint:
       "Cumulative return since purchase, coupons included. Click a name to isolate it.",
     allRange: "all",
+    rangeFrom: "From",
+    rangeTo: "To",
+    rangeClear: "Clear dates",
+    rangeInvalid: "The start date is after the end date — showing the preset range.",
     projection: "Projection",
     projectionBlurb: (cap: string, years: string) =>
       `An estimate, not a forecast. Anything with a contracted rate grows at it until it matures, starting from the latest value you entered. Holdings without one — funds, stocks, crypto — grow at the return they have actually delivered, capped at ${cap}% p.a. and only for ${years} years, after which they are held flat.`,
@@ -1283,6 +1287,10 @@ const pt: Dict = {
     performanceHint:
       "Retorno acumulado desde a compra, cupons incluídos. Clique em um nome para isolá-lo.",
     allRange: "tudo",
+    rangeFrom: "De",
+    rangeTo: "Até",
+    rangeClear: "Limpar datas",
+    rangeInvalid: "A data inicial é depois da final — mostrando o período predefinido.",
     projection: "Projeção",
     projectionBlurb: (cap: string, years: string) =>
       `Uma estimativa, não uma previsão. Tudo que tem taxa contratada rende por ela até o vencimento, partindo do último valor que você informou. Os que não têm — fundos, ações, cripto — rendem pelo retorno que já entregaram, limitado a ${cap}% a.a. e só por ${years} anos, depois disso ficam parados.`,

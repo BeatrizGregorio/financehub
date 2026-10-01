@@ -7,7 +7,7 @@ import { GoalProjectionChart } from "@/components/GoalProjectionChart";
 import { GoalForm, type GoalLike } from "./GoalForm";
 import { saveInvestmentGoal, updateGoalCardOpen, type ActionState } from "./actions";
 import { CARD } from "@/lib/ui";
-import { formatCurrency, toDateInputValue } from "@/lib/format";
+import { formatCurrency, parseDateInput, toDateInputValue } from "@/lib/format";
 import { localeOf } from "@/lib/i18n";
 import {
   SPREAD,
@@ -24,20 +24,6 @@ import {
 import type { Holding } from "./InvestmentsClient";
 import { useT } from "@/components/LanguageProvider";
 import type { Language } from "@/lib/i18n";
-
-/**
- * Parse an <input type="date"> value as a local calendar date.
- *
- * new Date("2027-06-15") parses as UTC midnight and shows the 14th in a
- * negative-offset timezone, which is Brazil. Every other date in this app is
- * built the same way; see the date-handling note in CLAUDE.md.
- */
-function parseDateInput(value: string): Date | null {
-  const m = /^(d{4})-(d{2})-(d{2})$/.exec(value);
-  if (!m) return null;
-  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 type Draft = {
   targetAmount: string;

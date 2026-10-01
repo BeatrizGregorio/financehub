@@ -14,7 +14,8 @@ import {
 } from "recharts";
 import { PALETTE } from "@/lib/categories";
 import { useT } from "@/components/LanguageProvider";
-import { monthlyPerformance, monthsOfHistory } from "@/lib/investments";
+import { monthlyPerformance, monthlyPerformanceBetween, monthsOfHistory } from "@/lib/investments";
+import { parseDateInput, toDateInputValue } from "@/lib/format";
 import type { InvestmentLike, ReferenceRatesLike } from "@/lib/investments";
 
 /**
@@ -58,10 +59,31 @@ export function PerformanceChart({
   // get out of sync.
   const months = range === "all" ? maxMonths : Math.min(range, maxMonths);
 
-  const { points, holdings } = useMemo(
-    () => monthlyPerformance(investments, rates, months, cycleStartDay, lang),
-    [investments, rates, months, cycleStartDay, lang],
-  );
+  /**
+   * An explicit range overrides the preset when either end is filled in.
+   *
+   * Either end alone is enough — "since March" and "up to June" are both real
+   * questions, so a missing `from` means the whole history and a missing `to`
+   * means today, rather than demanding both before anything happens.
+   */
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const custom = from !== "" || to !== "";
+  const fromDate = parseDateInput(from);
+  const toDate = parseDateInput(to);
+  // Reversed dates describe an empty span. Saying so beats silently swapping
+  // them, which would answer a question that wasn't asked.
+  const reversed = fromDate !== null && toDate !== null && fromDate.getTime() > toDate.getTime();
+
+  const { points, holdings } = useMemo(() => {
+    // A null end is resolved inside the lib, which is also where the clock is
+    // allowed to be read.
+    if (custom && !reversed) {
+      return monthlyPerformanceBetween(investments, rates, fromDate, toDate, cycleStartDay, lang);
+    }
+    return monthlyPerformance(investments, rates, months, cycleStartDay, lang);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [investments, rates, months, cycleStartDay, lang, custom, reversed, from, to]);
 
   const rangeLabel = (value: number | "all") => {
     if (value === "all") return t.investments.allRange;
@@ -70,6 +92,8 @@ export function PerformanceChart({
       : `${value}${t.charts.horizonMonths}`;
   };
   const options: (number | "all")[] = [...RANGES.filter((m) => m < maxMonths), "all"];
+  const dateField =
+    "rounded-[10px] bg-[var(--color-inset)] px-2.5 py-1.5 text-[12.5px] text-[var(--color-ink)] outline-none focus:ring-1 focus:ring-[var(--color-ink)]";
   // Clicking a legend entry isolates that holding; clicking it again brings
   // the rest back. With a dozen lines that is the difference between a chart
   // and a plate of spaghetti.
@@ -98,7 +122,9 @@ export function PerformanceChart({
       {options.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-1.5">
           {options.map((option) => {
-            const active = option === range || (range !== "all" && option === "all" && range >= maxMonths);
+            // A custom range owns the chart, so no preset is the active one.
+            const active =
+              !custom && (option === range || (range !== "all" && option === "all" && range >= maxMonths));
             return (
               <button
                 key={String(option)}
@@ -116,7 +142,44 @@ export function PerformanceChart({
               </button>
             );
           })}
+
+          <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[var(--color-muted-2)]">
+            {t.investments.rangeFrom}
+            <input
+              type="date"
+              value={from}
+              max={to || toDateInputValue(new Date())}
+              onChange={(e) => setFrom(e.target.value)}
+              className={dateField}
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted-2)]">
+            {t.investments.rangeTo}
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              className={dateField}
+            />
+          </label>
+          {custom && (
+            <button
+              type="button"
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+              className="text-[12px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
+            >
+              {t.investments.rangeClear}
+            </button>
+          )}
         </div>
+      )}
+
+      {reversed && (
+        <p className="mb-3 text-[12.5px] text-[var(--color-rust-text)]">{t.investments.rangeInvalid}</p>
       )}
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={points} margin={{ top: 6, right: 20, bottom: 4, left: 0 }}>

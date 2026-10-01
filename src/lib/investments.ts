@@ -1,5 +1,6 @@
 import {
   CYCLE_START_DAY,
+  cycleKey,
   addCycles,
   currentCycleKey,
   cycleEndDate,
@@ -542,16 +543,42 @@ export type MonthlyPerformancePoint = { label: string } & Record<string, number 
  * draws as a line that simply starts later rather than a plunge to zero.
  * Matured holdings are left out entirely, as everywhere else.
  */
-export function monthlyPerformance(
+/**
+ * Monthly checkpoints across an explicit range, rather than N months back from
+ * today.
+ *
+ * The last point is `to` itself when the range ends mid-cycle, so "up to the
+ * 20th" plots the 20th and not the whole month around it. Cycle keys are
+ * `YYYY-MM` and sort lexicographically (see V1.14), which is what lets the
+ * loop compare them directly. The iteration cap is a guard against a
+ * nonsensical range, not an expected limit.
+ */
+function checkpointsBetween(
+  from: Date,
+  to: Date,
+  startDay: number,
+): { date: Date; key: string }[] {
+  const endKey = cycleKey(to, startDay);
+  const out: { date: Date; key: string }[] = [];
+  let key = cycleKey(from, startDay);
+  for (let guard = 0; guard < 1200 && key <= endKey; guard++) {
+    const end = cycleEndDate(key, startDay);
+    out.push({ key, date: end.getTime() > to.getTime() ? to : end });
+    key = addCycles(key, 1);
+  }
+  return out;
+}
+
+/** The per-checkpoint work, shared by both windows. */
+function performanceAt(
   investments: InvestmentLike[],
   rates: ReferenceRatesLike,
-  monthsBack = 12,
-  startDay: number = CYCLE_START_DAY,
-  lang: Language = DEFAULT_LANGUAGE,
+  checkpoints: { date: Date; key: string }[],
+  lang: Language,
 ): { points: MonthlyPerformancePoint[]; holdings: { id: string; name: string }[] } {
   const active = investments.filter((inv) => !isMatured(inv));
 
-  const points = monthlyCheckpoints(monthsBack, startDay).map(({ date, key }) => {
+  const points = checkpoints.map(({ date, key }) => {
     const row: MonthlyPerformancePoint = { label: cycleLabel(key, lang) };
     for (const inv of active) {
       const invested = investedAt(inv, date);
@@ -567,6 +594,41 @@ export function monthlyPerformance(
   });
 
   return { points, holdings: active.map((inv) => ({ id: inv.id, name: inv.name })) };
+}
+
+export function monthlyPerformance(
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  monthsBack = 12,
+  startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
+) {
+  return performanceAt(investments, rates, monthlyCheckpoints(monthsBack, startDay), lang);
+}
+
+/**
+ * The same series across a range the owner picked, start and end inclusive.
+ *
+ * Either end may be null, because "since March" and "up to June" are both real
+ * questions: a null `to` means today and a null `from` means the whole
+ * history. **Both defaults read the clock, which is why they are resolved here
+ * rather than by the caller** — a component computing them would be doing it
+ * inside a render, which react-hooks/purity rejects, and rightly.
+ */
+export function monthlyPerformanceBetween(
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  from: Date | null,
+  to: Date | null,
+  startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
+) {
+  const end = to ?? new Date();
+  // Any date inside the opening cycle will do — checkpointsBetween only reads
+  // its cycle key — so the cycle's own end date is the simplest one to hand it.
+  const openingKey = addCycles(cycleKey(end, startDay), -(monthsOfHistory(investments, end) - 1));
+  const start = from ?? cycleEndDate(openingKey, startDay);
+  return performanceAt(investments, rates, checkpointsBetween(start, end, startDay), lang);
 }
 
 /** Total portfolio value at the end of each of the last `monthsBack` months. */

@@ -2051,6 +2051,78 @@ does not appear as income on the dashboard or in an account balance. Matching
 it to a deposit would need the transfer machinery from V1.28 pointed the other
 way. Nothing here blocks that.
 
+V1.44 (the second income saved as an expense; a date range on the
+performance chart) added 2026-09-30.
+
+**(1) The bug, and it was silent.** Adding one income after another saved the
+second as an **expense, under an income category** — reproduced before
+touching anything, and confirmed in the database. `form.reset()` restores
+every control to what React rendered on **mount**, not to what React is
+holding now, and because no state changes nothing re-renders to correct it.
+React writes the `checked` attribute on first render, so the reset default is
+whichever type the form opened with. Measured: after the first save the radio
+read `expense:true income:false` while the pill still highlighted **income**.
+The form lied and only the database knew.
+
+The same applies to `method`, `seriesType` and the `split` checkbox — each
+would have reverted to its mount value with the UI showing otherwise.
+`restoreControlledFields()` puts them all back after the reset. **A new
+controlled field must be added there**, which is why that function carries the
+warning rather than a bare list: forgetting one means a stale value submitted
+silently, which is exactly the failure it exists to prevent.
+
+This is the third distinct consequence of React 19's form-reset behaviour in
+this project (V1.28 item 8, V1.30 item 2, now this), and the first where the
+form kept *looking* correct.
+
+**(2) A custom date range** on the performance chart, beside the V1.42 pills:
+**From** and **To**. Either end alone works — "since March" and "up to June"
+are both real questions — so a null `from` means the whole history and a null
+`to` means today. **Both defaults are resolved inside
+`monthlyPerformanceBetween()`, not the component**, because they read the
+clock and `react-hooks/purity` rejects that during render (same lesson as
+V1.42's `monthsOfHistory`). Filling either end deactivates the preset pills; a
+Clear button returns to them. Reversed dates say so and fall back to the
+preset rather than silently swapping, which would answer a question that
+wasn't asked. The last checkpoint is the end date itself, so "up to the 20th"
+plots the 20th rather than the whole month around it.
+
+`performanceAt()` was split out so the rolling window and the explicit range
+share the per-checkpoint work and cannot drift.
+
+**A real bug found while building it, in code shipped two sessions ago.**
+`parseDateInput` read `/^(d{4})-(d{2})-(d{2})$/` — the backslashes had been
+eaten by an edit script's escaping, so it matched the literal text "dddd-dd-dd"
+and **returned null for every real date**. The new range silently fell back to
+the whole history, which is how it was caught. The same damaged copy was in
+`GoalProjectionCard` from **V1.41**, meaning the goal's inline *target date*
+has never applied since it shipped — V1.41's verification covered the amount,
+rate and contribution fields but not the date, and the fallback-to-saved-value
+masked it. Both now use one copy in `format.ts`, with **8 assertions** on it,
+including that "2025-06-10" parses as local 10 June and not the 9th. Confirmed
+in the browser: moving the goal's target date from June 2029 to June 2027
+moves the required contribution from R$ 2.413,44 to R$ 12.328,32.
+
+The lesson worth keeping: **a parser that returns null on failure degrades
+quietly.** It needed its own assertions precisely because nothing upstream
+throws.
+
+Verified: 86 assertions in `investments.ts` (a four-cycle range, the end date
+honoured rather than its cycle end, a single-cycle range, a reversed range
+yielding nothing, matured holdings still excluded, and both ends open) plus 8
+on `parseDateInput`. Then in the browser: preset Oct 2025–Sep 2026 → from-only
+runs to today → both set gives exactly Jun–Dec 2025 → Clear returns to the 1y
+preset, with no pill active while a custom range is in force. Portuguese shows
+De / Até / Limpar datas with pt month ticks. Three consecutive incomes all save
+as income, name and amount still clear between them, and a recurring expense
+still creates its twelve rows with the right method. Test data removed.
+`tsc --noEmit`, `npm run lint` and `next build` clean.
+
+**Tooling note:** `next build` failed once with `unlink` on
+`.next/standalone/release` — a stray directory left inside the standalone
+output by the earlier Electron packaging work. Deleting it fixed the build; it
+is not a code problem.
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
