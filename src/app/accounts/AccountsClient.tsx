@@ -33,7 +33,8 @@ type TransferRow = {
   id: string;
   date: Date;
   amount: number;
-  fromAccountId: string;
+  fromAccountId: string | null;
+  fromInvestmentId: string | null;
   toAccountId: string | null;
   toInvestmentId: string | null;
   investmentTransactionId: string | null;
@@ -236,7 +237,9 @@ export function AccountsClient({
                   {formatDate(tr.date, lang)}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-[13px] font-semibold text-[var(--color-ink)]">
-                  <span className="truncate">{accountName(tr.fromAccountId)}</span>
+                  <span className="truncate">
+                    {tr.fromAccountId ? accountName(tr.fromAccountId) : investmentName(tr.fromInvestmentId)}
+                  </span>
                   <ArrowRight size={13} className="shrink-0 text-[var(--color-muted-2)]" />
                   <span className="truncate">
                     {tr.toAccountId ? accountName(tr.toAccountId) : investmentName(tr.toInvestmentId)}

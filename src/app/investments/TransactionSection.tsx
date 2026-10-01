@@ -30,9 +30,11 @@ import type { Holding } from "./InvestmentsClient";
 export function TransactionSection({
   holding,
   mode = "full",
+  accounts = [],
 }: {
   holding: Holding;
   mode?: "full" | "withdraw";
+  accounts?: { id: string; name: string }[];
 }) {
   const withdrawOnly = mode === "withdraw";
   const { t, lang } = useT();
@@ -122,6 +124,26 @@ export function TransactionSection({
             className={`${inputClass} w-[120px]`}
           />
         </label>
+        {/* Where the money landed. Only for a sell, and only when there is an
+            account to pick — on a fresh install there is nothing to offer, and
+            an empty dropdown would just raise a question with no answer.
+            Optional on purpose: leaving it alone records the withdrawal
+            exactly as it did before accounts came into it. */}
+        {accounts.length > 0 && (withdrawOnly || kind === "sell") && (
+          <label className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
+              {t.investments.depositInto}
+            </span>
+            <select name="toAccountId" defaultValue="" className={inputClass}>
+              <option value="">{t.investments.dontRecordDeposit}</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {perUnit && (
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">

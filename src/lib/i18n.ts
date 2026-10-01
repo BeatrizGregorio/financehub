@@ -474,6 +474,8 @@ const en = {
     withdrawHint:
       "Record money you took out of this holding. It comes off the value and the amount invested, and leaves the gain alone — taking money out is neither a profit nor a loss.",
     noWithdrawals: "Nothing withdrawn yet.",
+    depositInto: "Deposit into",
+    dontRecordDeposit: "Don't record it",
     transactionsEmptyHint:
       "Optional. Recording the first one also saves this holding's current position as an opening buy on its start date, so nothing is lost; each later buy or sell then counts from the day it happened.",
     transactionsActiveHint:
@@ -493,6 +495,9 @@ const en = {
     maturedOn: "matured",
     maturedFootnote:
       "These are no longer counted in your totals below. They stay here until you delete them, so nothing is lost.",
+    moveToAccount: "Move to account",
+    moveToAccountFor: (name: string) => `Account to move ${name} into`,
+    chooseAccount: "Choose an account",
     monthlyValue: "Monthly value",
     monthlyValueBlurb: "Total portfolio value at the end of each month.",
     performance: "Performance",
@@ -1257,6 +1262,8 @@ const pt: Dict = {
     withdrawHint:
       "Registre o dinheiro que você tirou deste ativo. Ele sai do valor e do total investido, e não mexe no ganho — retirar dinheiro não é lucro nem prejuízo.",
     noWithdrawals: "Nenhuma retirada ainda.",
+    depositInto: "Depositar em",
+    dontRecordDeposit: "Não registrar",
     transactionsEmptyHint:
       "Opcional. Ao registrar a primeira, a posição atual deste ativo também é salva como uma compra inicial na data de início, então nada se perde; cada compra ou venda depois conta a partir do dia em que aconteceu.",
     transactionsActiveHint:
@@ -1278,6 +1285,9 @@ const pt: Dict = {
     maturedOn: "venceu em",
     maturedFootnote:
       "Eles não entram mais nos totais abaixo. Continuam aqui até você excluí-los, então nada se perde.",
+    moveToAccount: "Mover para conta",
+    moveToAccountFor: (name: string) => `Conta para onde mover ${name}`,
+    chooseAccount: "Escolha uma conta",
     monthlyValue: "Valor mensal",
     monthlyValueBlurb: "Valor total da carteira no fim de cada mês.",
     performance: "Desempenho",

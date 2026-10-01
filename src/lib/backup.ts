@@ -131,7 +131,8 @@ export type Backup = {
     id?: string;
     date: string;
     amount: number;
-    fromAccountId: string;
+    fromAccountId?: string | null;
+    fromInvestmentId?: string | null;
     toAccountId?: string | null;
     toInvestmentId?: string | null;
     investmentTransactionId?: string | null;
@@ -228,6 +229,7 @@ export async function buildBackup() {
       date: t.date,
       amount: t.amount,
       fromAccountId: t.fromAccountId,
+      fromInvestmentId: t.fromInvestmentId,
       toAccountId: t.toAccountId,
       toInvestmentId: t.toInvestmentId,
       investmentTransactionId: t.investmentTransactionId,
@@ -476,7 +478,8 @@ export async function restoreBackup(backup: Backup) {
         ...(t.id ? { id: t.id } : {}),
         date: new Date(t.date),
         amount: t.amount,
-        fromAccountId: t.fromAccountId,
+        fromAccountId: t.fromAccountId ?? null,
+        fromInvestmentId: t.fromInvestmentId ?? null,
         toAccountId: t.toAccountId ?? null,
         toInvestmentId: t.toInvestmentId ?? null,
         investmentTransactionId: t.investmentTransactionId ?? null,

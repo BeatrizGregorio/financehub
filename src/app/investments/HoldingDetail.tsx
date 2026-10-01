@@ -101,10 +101,12 @@ export function HoldingDetail({
   holding,
   rates,
   cycleStartDay,
+  accounts,
 }: {
   holding: Holding;
   rates: ReferenceRatesLike;
   cycleStartDay: number;
+  accounts: { id: string; name: string }[];
 }) {
   const { t, lang } = useT();
   const chartData = [...holding.prices]
@@ -312,7 +314,7 @@ export function HoldingDetail({
 
       {/* Applies to every type: renda fixa gets topped up too, and that is the
           case where attributing money to the original startDate is wrong. */}
-      <TransactionSection holding={holding} />
+      <TransactionSection holding={holding} accounts={accounts} />
     </div>
   );
 }

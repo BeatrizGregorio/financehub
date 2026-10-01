@@ -5,6 +5,8 @@ import { parseMoney } from "@/lib/money";
 import { seedOpeningPosition } from "@/lib/holdingTransactions";
 import { prisma } from "@/lib/db";
 import { INVESTMENT_TYPES, valuation } from "@/lib/investmentTypes";
+import { currentValue, isMatured } from "@/lib/investments";
+import { getReferenceRates } from "@/lib/data";
 
 export type ActionState = { error?: string };
 
@@ -340,12 +342,97 @@ export async function addTransaction(
     return { error: "Enter how many units this buy or sell was for." };
   }
 
+  // Money taken out has to land somewhere, or it leaves the holding and
+  // vanishes from net worth entirely. Optional: with no accounts set up, or
+  // with "Don't record it" chosen, this behaves exactly as it did before.
+  const toAccountId = String(formData.get("toAccountId") ?? "") || null;
+  if (toAccountId) {
+    if (kind !== "sell") return { error: "Only money taken out can be deposited into an account." };
+    if (!(await prisma.account.findUnique({ where: { id: toAccountId } }))) {
+      return { error: "That account no longer exists." };
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     // Carry the existing position across before the first transaction takes
     // over valuation — see seedOpeningPosition().
     await seedOpeningPosition(tx, investmentId);
-    await tx.investmentTransaction.create({
+    const created = await tx.investmentTransaction.create({
       data: { investmentId, date, kind, amount, quantity },
+    });
+    if (toAccountId) {
+      // The mirror image of an account paying into a holding: one Transfer
+      // carrying the same investmentTransactionId, so deleting it from the
+      // accounts page takes the sell with it.
+      await tx.transfer.create({
+        data: {
+          date,
+          amount,
+          fromInvestmentId: investmentId,
+          toAccountId,
+          investmentTransactionId: created.id,
+        },
+      });
+    }
+  });
+
+  revalidateAll();
+  return {};
+}
+
+/**
+ * Redeem a matured holding into an account.
+ *
+ * A holding past its maturity date is money already paid back, and since V1.20
+ * it is excluded from the portfolio totals and contributes nothing to net
+ * worth. Until that cash is recorded somewhere it has simply disappeared from
+ * the app — which is what this closes.
+ *
+ * Deliberately an explicit action rather than something that happens on its
+ * own when a date rolls past: only the owner knows which account the money
+ * actually landed in, and a wrong guess is worse than no guess. It records a
+ * sell for the final value, so the holding's own history says what became of
+ * it, plus the Transfer that credits the account.
+ */
+export async function redeemToAccount(
+  investmentId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const toAccountId = String(formData.get("toAccountId") ?? "");
+  if (!toAccountId) return { error: "Choose the account the money landed in." };
+  if (!(await prisma.account.findUnique({ where: { id: toAccountId } }))) {
+    return { error: "That account no longer exists." };
+  }
+
+  const holding = await prisma.investment.findUnique({
+    where: { id: investmentId },
+    include: { prices: true, coupons: true, transactions: true },
+  });
+  if (!holding) return { error: "That holding no longer exists." };
+  if (!isMatured(holding)) return { error: "That holding hasn't matured yet." };
+
+  const rates = await getReferenceRates();
+  // Its value is already frozen at the maturity date (valueAtDate caps there),
+  // so this is the redemption figure the banner is showing.
+  const amount = Math.round(currentValue(holding, rates) * 100) / 100;
+  if (amount <= 0) return { error: "There is nothing left to move." };
+
+  const date = holding.maturityDate ?? new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await seedOpeningPosition(tx, investmentId);
+    const created = await tx.investmentTransaction.create({
+      data: { investmentId, date, kind: "sell", amount, quantity: null },
+    });
+    await tx.transfer.create({
+      data: {
+        date,
+        amount,
+        fromInvestmentId: investmentId,
+        toAccountId,
+        investmentTransactionId: created.id,
+      },
     });
   });
 

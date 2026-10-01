@@ -241,7 +241,10 @@ model Transfer {
   id                      String   @id @default(cuid())
   date                    DateTime
   amount                  Float
-  fromAccountId           String
+  /// Exactly one side is set per direction: an account pays into a holding, or
+  /// a holding pays out into an account (a withdrawal or a redemption).
+  fromAccountId           String?
+  fromInvestmentId        String?
   toAccountId             String?
   toInvestmentId          String?
   investmentTransactionId String?

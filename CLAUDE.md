@@ -2123,6 +2123,119 @@ still creates its twelve rows with the right method. Test data removed.
 output by the earlier Electron packaging work. Deleting it fixed the build; it
 is not a code problem.
 
+V1.45 (money typed by hand; money leaving a holding lands in an account)
+added 2026-09-30, from two owner reports in one message.
+
+**(1) "I'm not being able to input values manually."** Typing 25.500,75 into a
+price field stored **25,50**. Every money field was `<input type="number">`,
+which takes a *comma* decimal happily enough — 1234,56 and 13,65 were both
+fine, which is why the bug read as intermittent — but a **thousands separator
+is taken as the decimal point and the comma is then dropped**. No error, no
+warning, and a figure nobody re-reads once saved. Measured directly before
+changing anything: `{ typed: "25.500,75", value: "25.50075" }`.
+
+Money fields are now `type="text" inputMode="decimal"` (`components/MoneyInput`),
+parsed by one rule in **`lib/money.ts`** — which is the CSV importer's
+`parseAmount`, **moved and renamed `parseMoney`**, with `csv.ts` importing it.
+Deliberately shared: a figure typed into the app and the same figure imported
+from a statement have to mean the same thing, or the two halves of the app
+disagree about the owner's money. Both conventions parse, so 25.500,75 and
+25,500.75 are the same amount.
+
+**`toMoneyInputValue()` seeds those fields, and the two decimals are
+load-bearing, not cosmetic**: `String(44511.785)` is `"44511.785"`, which
+`parseMoney` reads back as **44,511,785** under the three-digits-means-thousands
+rule. Opening a form and saving it unchanged had to stay safe. `toFixed(2)`
+cannot produce three decimals, so the round trip is closed. Anywhere a stored
+number is put into a money field — `HoldingForm`'s controlled state,
+`GoalProjectionCard`'s draft — goes through it.
+
+**Day, percentage and quantity fields stay `type="number"`** (cycle start day,
+card closing/due days, backup retention, installment count, annualRate/spread/
+adminFee/perfFee/expectedReturn, units). They never carry a thousands
+separator and the spinner is useful. The sweep named its targets per file with
+expected counts, so converting the wrong field would have thrown.
+
+**The cost is the browser's own `min`/`step` validation**, which never applied
+to a text field. Every action reading one of these already rejected a missing
+or non-positive amount with a visible error, so the check moved rather than
+disappeared — but **a new money field needs its action to validate, because
+nothing else will**. Client-side consumers were switched too (`EntryForm`'s
+split-sum hint, `HoldingForm`'s quantity x price auto-calc,
+`GoalProjectionCard`'s live chart), so what the UI previews can't disagree with
+what the server stores.
+
+44 assertions on `money.ts` standalone. Verified by **actually typing** rather
+than scripting values in: 25.500,75 stored as a price, 1.000,50 as a
+withdrawal, 1.250,30 as an entry, 150.000,00 as a goal target — and the goal's
+progress figure halving correctly (45.2% to 22.6%) when the inline target is
+retyped as 300.000,00. "abc" is still rejected with a visible error and the
+typed text kept.
+
+**(2) Money leaving a holding can be deposited into an account.** Both a
+withdrawal and a maturity, with a dropdown, as asked.
+
+The gap was real and one-directional: `Transfer` could carry money *into* a
+holding but had no way to represent it coming *out* — `fromAccountId` was a
+required `String` with no `fromInvestmentId`. So a withdrawal left the holding
+and existed nowhere, and (since V1.20) a matured holding contributes **zero** to
+net worth via `ownershipValue()`, meaning on its maturity date the money
+silently dropped off the chart. This closes that cliff.
+
+Migration `20260930120000_transfer_from_investment` makes `fromAccountId`
+nullable and adds `fromInvestmentId`. **SQLite cannot drop a NOT NULL with
+ALTER COLUMN**, so the table is recreated and copied — every existing row has
+an account on the from-side and keeps it. `accountBalance()` needed only its
+type widened: it credits on `toAccountId === account.id`, which a null
+from-side never disturbs.
+
+- **Withdrawal**: an optional "Deposit into" select in the withdraw modal,
+  defaulting to **"Don't record it"**, and hidden entirely when no accounts
+  exist. Choosing one writes a `Transfer` beside the sell carrying the same
+  `investmentTransactionId` — the mirror image of the account-to-holding
+  direction, so `deleteTransfer` already removes both. Verified: deleting the
+  transfer took the sell with it and both figures returned exactly.
+- **Maturity**: `redeemToAccount()` plus a per-holding select and button in the
+  matured banner. **Explicit, never automatic** — only the owner knows which
+  account the money landed in, and a wrong guess is worse than no guess. It
+  records a sell for the frozen redemption value so the holding's own history
+  says what became of it, plus the crediting Transfer.
+- **No "redeemed" flag.** The banner lists matured holdings *with value left*
+  (`> 0.005`), and since redeeming records a sell for the whole value the
+  holding drops out by itself. One less piece of state that could disagree
+  with the money.
+
+Verified end to end against seeded data: redeeming R$ 12.141,64 moved the
+account from R$ 1.000 to R$ 13.141,64 and the row left the banner; a R$ 1.500
+withdrawal dropped the holding's value by exactly that **with the gain
+unchanged at +R$ 2.073,79** (the V1.43 invariant); "Don't record it" wrote the
+sell and no transfer. Both languages ("Depositar em" / "Não registrar" /
+"Mover para conta").
+
+**The 375px layout needed three attempts, and the first two were wrong in the
+documented way.** The row is `justify-between`, so the form was squeezed to
+91px and the button's text wrapped into a circular blob overlapping the
+select. Making the form `w-full` below `sm` was not enough: the select carried
+`min-w-0`, so it shrank to a crushed "Es..." instead of pushing the button to a
+second line. **`min-w-[150px]` is the fix** — a floor, exactly the V1.8/V1.24
+call. Several measurements during this were the known pane artifact (116
+elements "past 375" with `scrollWidth === clientWidth`, a form measuring 14px);
+**a screenshot forces the paint and the numbers then agree with what is on
+screen**.
+
+**Also in this pass: the five row actions fit on one line again.** Adding
+Withdraw in V1.43 put six things in a cell measured for four, so the two text
+buttons wrapped and every row grew 70px to 81px — the exact mistake the note
+above `GRID_COLS` warns against. Re-measured: the cell needed 321px and had
+250, with nothing to take from the other columns (Value was already over its
+allocation) and no room to widen the table without putting a scrollbar back at
+1280px. So **Add coupon and Withdraw became icons**, like Edit and Delete in
+V1.29, which costs 240px for all five. Re-measure before touching those widths.
+
+Backup carries `fromInvestmentId` (still `version: 3`, additive).
+`tsc --noEmit`, `npm run lint` and `next build` all clean.
+
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
