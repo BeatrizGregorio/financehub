@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { ArrowDownLeft, ArrowUpRight, Trash2 } from "lucide-react";
 import { addTransaction, deleteTransaction, type ActionState } from "./actions";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
@@ -114,11 +115,8 @@ export function TransactionSection({
           <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
             {withdrawOnly ? t.investments.withdrawAmount : t.common.amount}
           </span>
-          <input
-            type="number"
+          <MoneyInput
             name="amount"
-            step="0.01"
-            min="0"
             required
             placeholder="0,00"
             className={`${inputClass} w-[120px]`}

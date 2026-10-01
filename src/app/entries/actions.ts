@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseMoney } from "@/lib/money";
 import { prisma } from "@/lib/db";
 import { addMonthsClamped } from "@/lib/format";
 import { parseTags, serializeTags } from "@/lib/tags";
@@ -34,7 +35,7 @@ function parseEntryForm(formData: FormData): ActionState & { data?: ParsedEntry 
     return { error: "Enter a name." };
   }
 
-  const amount = Number(amountRaw);
+  const amount = parseMoney(String(amountRaw ?? "")) ?? NaN;
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
     return { error: "Enter an amount greater than 0." };
   }
@@ -95,7 +96,7 @@ export async function createEntry(
   // combinable with repetition — the form hides those options while splitting.
   if (formData.get("split") === "on") {
     const categories = formData.getAll("splitCategory").map((c) => String(c).trim());
-    const amounts = formData.getAll("splitAmount").map((a) => Number(a));
+    const amounts = formData.getAll("splitAmount").map((a) => parseMoney(String(a)) ?? NaN);
     if (categories.length < 2) return { error: "A split needs at least two parts." };
     if (categories.some((c) => !c)) return { error: "Choose a category for every part." };
     if (amounts.some((a) => !Number.isFinite(a) || a <= 0)) return { error: "Enter an amount greater than 0 for every part." };

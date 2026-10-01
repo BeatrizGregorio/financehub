@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
+import { parseMoney } from "@/lib/money";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
@@ -150,9 +152,11 @@ export function EntryForm({
   function currentSplitGap(): number | null {
     const form = formRef.current;
     if (!form || !split) return null;
-    const total = Number((form.elements.namedItem("amount") as HTMLInputElement | null)?.value || 0);
+    // Through parseMoney, like the server: the live "parts add up to…" hint
+    // has to agree with the check that actually rejects the form.
+    const total = parseMoney((form.elements.namedItem("amount") as HTMLInputElement | null)?.value ?? "") ?? 0;
     const parts = [...form.querySelectorAll<HTMLInputElement>('input[name="splitAmount"]')].reduce(
-      (sum, el) => sum + (Number(el.value) || 0),
+      (sum, el) => sum + (parseMoney(el.value) ?? 0),
       0,
     );
     return Math.round((total - parts) * 100) / 100;
@@ -299,12 +303,9 @@ export function EntryForm({
             <label htmlFor={`${formId}-amount`} className={LABEL}>
               {splitting ? t.entries.splitTotal : t.common.value}
             </label>
-            <input
+            <MoneyInput
               id={`${formId}-amount`}
               name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
               required
               defaultValue={entry?.amount}
               placeholder="0.00"
@@ -385,11 +386,8 @@ export function EntryForm({
                         </option>
                       ))}
                     </select>
-                    <input
+                    <MoneyInput
                       name="splitAmount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
                       required
                       aria-label={`${t.common.amount} ${i + 1}`}
                       placeholder="0.00"

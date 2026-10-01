@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CreditCard, Plus, Settings2, Trash2 } from "lucide-react";
@@ -164,12 +165,9 @@ function PayBillForm({
     <form action={formAction} onSubmit={markSubmitted} className="grid gap-4 sm:grid-cols-2">
       <div>
         <label htmlFor="pay-amount" className={LABEL}>{t.common.amount}</label>
-        <input
+        <MoneyInput
           id="pay-amount"
           name="amount"
-          type="number"
-          step="0.01"
-          min="0.01"
           required
           defaultValue={bill.remaining > 0 ? bill.remaining.toFixed(2) : ""}
           className={INPUT}

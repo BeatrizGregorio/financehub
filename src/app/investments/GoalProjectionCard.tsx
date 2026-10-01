@@ -8,6 +8,7 @@ import { GoalForm, type GoalLike } from "./GoalForm";
 import { saveInvestmentGoal, updateGoalCardOpen, type ActionState } from "./actions";
 import { CARD } from "@/lib/ui";
 import { formatCurrency, parseDateInput, toDateInputValue } from "@/lib/format";
+import { parseMoney, toMoneyInputValue } from "@/lib/money";
 import { localeOf } from "@/lib/i18n";
 import {
   SPREAD,
@@ -35,31 +36,41 @@ type Draft = {
 
 function draftOf(goal: GoalLike): Draft {
   return {
-    targetAmount: String(goal.targetAmount),
+    // toMoneyInputValue, not String(): a stored 44511.785 renders as
+    // "44511.785", which parseMoney reads back as 44,511,785 under the
+    // three-digits-means-thousands rule. Two decimals always round-trip.
+    targetAmount: toMoneyInputValue(goal.targetAmount),
     targetDate: toDateInputValue(goal.targetDate),
     // Stored as a decimal, shown as a percentage — the conversion lives at the
     // form boundary and must not leak inward (see goal.ts).
     ratePercent: (goal.expectedAnnualRate * 100).toFixed(2),
-    monthly: goal.monthlyContribution != null ? String(goal.monthlyContribution) : "",
-    startingValue: goal.startingValue != null ? String(goal.startingValue) : "",
+    monthly: toMoneyInputValue(goal.monthlyContribution),
+    startingValue: toMoneyInputValue(goal.startingValue),
   };
 }
 
 const FIELD =
   "rounded-[10px] bg-[var(--color-surface-raised)] px-3 py-2 text-[13px] text-[var(--color-ink)] outline-none focus:ring-1 focus:ring-[var(--color-ink)]";
 
+/**
+ * `money` switches off type="number", which mangles a thousands separator —
+ * see money.ts. The rate field keeps it: a percentage never carries one, and
+ * the spinner is useful for nudging it.
+ */
 function NumberField({
   label,
   name,
   value,
   onChange,
   placeholder,
+  money,
 }: {
   label: string;
   name: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  money?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-1">
@@ -67,10 +78,12 @@ function NumberField({
         {label}
       </span>
       <input
-        type="number"
+        type={money ? "text" : "number"}
+        inputMode="decimal"
+        autoComplete="off"
         name={name}
-        step="0.01"
-        min="0"
+        step={money ? undefined : "0.01"}
+        min={money ? undefined : "0"}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
@@ -189,18 +202,20 @@ function GoalCard({
   const shown: GoalLike | null = useMemo(() => {
     if (!goal) return null;
     if (!draft) return goal;
-    const amount = Number(draft.targetAmount);
+    // The money fields are free text, so they go through the same parser the
+    // server will use — otherwise the chart would answer a different number
+    // from the one that gets saved.
+    const amount = parseMoney(draft.targetAmount);
     const rate = Number(draft.ratePercent);
-    const monthly = draft.monthly.trim() === "" ? null : Number(draft.monthly);
-    const start = draft.startingValue.trim() === "" ? null : Number(draft.startingValue);
+    const monthly = parseMoney(draft.monthly);
+    const start = parseMoney(draft.startingValue);
     return {
       ...goal,
-      targetAmount: Number.isFinite(amount) && amount > 0 ? amount : goal.targetAmount,
+      targetAmount: amount !== null && amount > 0 ? amount : goal.targetAmount,
       targetDate: parseDateInput(draft.targetDate) ?? goal.targetDate,
       expectedAnnualRate: Number.isFinite(rate) ? rate / 100 : goal.expectedAnnualRate,
-      monthlyContribution:
-        monthly !== null && Number.isFinite(monthly) && monthly >= 0 ? monthly : null,
-      startingValue: start !== null && Number.isFinite(start) && start >= 0 ? start : null,
+      monthlyContribution: monthly !== null && monthly >= 0 ? monthly : null,
+      startingValue: start !== null && start >= 0 ? start : null,
     };
   }, [goal, draft]);
 
@@ -324,6 +339,7 @@ function GoalCard({
               <NumberField
                 label={t.goal.startingValue}
                 name="startingValue"
+                money
                 value={draft.startingValue}
                 placeholder={currentValue.toFixed(0)}
                 onChange={(v) => set("startingValue", v)}
@@ -331,6 +347,7 @@ function GoalCard({
               <NumberField
                 label={t.goal.targetAmount}
                 name="targetAmount"
+                money
                 value={draft.targetAmount}
                 onChange={(v) => set("targetAmount", v)}
               />
@@ -355,6 +372,7 @@ function GoalCard({
               <NumberField
                 label={t.goal.monthlyContribution}
                 name="monthlyContribution"
+                money
                 value={draft.monthly}
                 placeholder={averageContribution.toFixed(0)}
                 onChange={(v) => set("monthly", v)}

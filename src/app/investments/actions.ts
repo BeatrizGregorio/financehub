@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseMoney } from "@/lib/money";
 import { seedOpeningPosition } from "@/lib/holdingTransactions";
 import { prisma } from "@/lib/db";
 import { INVESTMENT_TYPES, valuation } from "@/lib/investmentTypes";
@@ -44,6 +45,12 @@ function parseOptionalNumber(raw: FormDataEntryValue | null): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+/** Money fields are free text (see money.ts), so they need the money parser. */
+function parseOptionalMoney(raw: FormDataEntryValue | null): number | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  return parseMoney(raw);
+}
+
 function parseOptionalString(raw: FormDataEntryValue | null): string | null {
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
 }
@@ -62,7 +69,7 @@ function parseHoldingForm(formData: FormData): ActionState & { data?: ParsedHold
     return { error: "Choose a type." };
   }
 
-  const amountInvested = Number(amountInvestedRaw);
+  const amountInvested = parseMoney(String(amountInvestedRaw ?? "")) ?? NaN;
   if (!amountInvestedRaw || Number.isNaN(amountInvested) || amountInvested <= 0) {
     return { error: "Enter an amount invested greater than 0." };
   }
@@ -86,9 +93,9 @@ function parseHoldingForm(formData: FormData): ActionState & { data?: ParsedHold
       maturityDate: parseLocalDate(formData.get("maturityDate")),
       symbol: parseOptionalString(formData.get("symbol")),
       quantity: parseOptionalNumber(formData.get("quantity")),
-      purchaseRef: parseOptionalNumber(formData.get("purchaseRef")),
+      purchaseRef: parseOptionalMoney(formData.get("purchaseRef")),
       expectedReturn: parseOptionalNumber(formData.get("expectedReturn")),
-      corretagem: parseOptionalNumber(formData.get("corretagem")),
+      corretagem: parseOptionalMoney(formData.get("corretagem")),
       institution: parseOptionalString(formData.get("institution")),
       notes: parseOptionalString(formData.get("notes")),
     },
@@ -153,7 +160,7 @@ export async function savePrices(
 
   for (const [key, value] of entries) {
     const investmentId = key.slice("price:".length);
-    const price = Number(value);
+    const price = parseMoney(String(value)) ?? NaN;
     if (!value || Number.isNaN(price) || price <= 0) continue;
 
     await prisma.pricePoint.upsert({
@@ -173,7 +180,7 @@ export async function updatePricePoint(
   formData: FormData,
 ): Promise<ActionState> {
   const priceRaw = formData.get("price");
-  const price = Number(priceRaw);
+  const price = parseMoney(String(priceRaw ?? "")) ?? NaN;
   if (!priceRaw || Number.isNaN(price) || price <= 0) {
     return { error: "Enter a price greater than 0." };
   }
@@ -198,7 +205,7 @@ export async function addCoupon(
   if (!date) return { error: "Pick a valid date." };
 
   const amountRaw = formData.get("amount");
-  const amount = Number(amountRaw);
+  const amount = parseMoney(String(amountRaw ?? "")) ?? NaN;
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
     return { error: "Enter an amount greater than 0." };
   }
@@ -215,7 +222,7 @@ export async function updateCoupon(
   formData: FormData,
 ): Promise<ActionState> {
   const amountRaw = formData.get("amount");
-  const amount = Number(amountRaw);
+  const amount = parseMoney(String(amountRaw ?? "")) ?? NaN;
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
     return { error: "Enter an amount greater than 0." };
   }
@@ -244,13 +251,13 @@ export async function saveInvestmentGoal(
   formData: FormData,
 ): Promise<ActionState> {
   const name = parseOptionalString(formData.get("name")) ?? "My goal";
-  const targetAmount = Number(formData.get("targetAmount"));
+  const targetAmount = parseMoney(String(formData.get("targetAmount") ?? "")) ?? NaN;
   const targetDate = parseLocalDate(formData.get("targetDate"));
   const ratePercent = Number(formData.get("expectedAnnualRate"));
-  const monthlyContribution = parseOptionalNumber(formData.get("monthlyContribution"));
+  const monthlyContribution = parseOptionalMoney(formData.get("monthlyContribution"));
   // Blank means "track the portfolio", which is why this is optional rather
   // than defaulted to today's value — a number typed once would go stale.
-  const startingValue = parseOptionalNumber(formData.get("startingValue"));
+  const startingValue = parseOptionalMoney(formData.get("startingValue"));
 
   if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
     return { error: "Enter a target amount greater than 0." };
@@ -307,7 +314,7 @@ export async function addTransaction(
   if (kind !== "buy" && kind !== "sell") return { error: "Choose buy or sell." };
 
   const amountRaw = formData.get("amount");
-  const amount = Number(amountRaw);
+  const amount = parseMoney(String(amountRaw ?? "")) ?? NaN;
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
     return { error: "Enter an amount greater than 0." };
   }

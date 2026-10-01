@@ -9,6 +9,11 @@
  * asserted standalone, the same way format.ts and goal.ts are tested.
  */
 
+// The money rule lives in money.ts, shared with every money field in the UI:
+// a figure imported from a statement must mean what the same figure typed by
+// hand means.
+import { parseMoney } from "./money";
+
 /** Rows of raw cells. The first row is assumed to be a header. */
 export type ParsedCsv = { header: string[]; rows: string[][] };
 
@@ -86,62 +91,6 @@ export function parseCsv(text: string, delimiter?: string): ParsedCsv {
   const nonEmpty = rows.filter((r) => r.some((c) => c.trim() !== ""));
   if (nonEmpty.length === 0) return { header: [], rows: [] };
   return { header: nonEmpty[0].map((h) => h.trim()), rows: nonEmpty.slice(1) };
-}
-
-/**
- * Parse a money cell, coping with both conventions a Brazilian export might use.
- *
- * The hard case is that "1.234" is 1234 in pt-BR and 1.234 in en-US. The rule
- * used here: whichever of "." and "," appears *last* is the decimal separator,
- * because a thousands separator can never follow the decimal one. With only one
- * separator present, a group of exactly three digits after it is read as
- * thousands ("1.234" = 1234) and anything else as a decimal ("12,5" = 12.5).
- * That is the convention every statement in testing followed.
- *
- * Returns null rather than NaN so callers must handle the failure.
- */
-export function parseAmount(raw: string): number | null {
-  let s = raw.trim();
-  if (!s) return null;
-
-  // Currency symbols, spaces (including non-breaking), and stray letters.
-  s = s.replace(/[R$\s ]/gi, "");
-
-  // Accounting negatives: (1.234,56) means -1234.56.
-  let negative = false;
-  if (/^\(.*\)$/.test(s)) {
-    negative = true;
-    s = s.slice(1, -1);
-  }
-  if (s.startsWith("-")) {
-    negative = true;
-    s = s.slice(1);
-  } else if (s.startsWith("+")) {
-    s = s.slice(1);
-  }
-
-  if (!/^[\d.,]+$/.test(s) || !/\d/.test(s)) return null;
-
-  const lastDot = s.lastIndexOf(".");
-  const lastComma = s.lastIndexOf(",");
-
-  if (lastDot !== -1 && lastComma !== -1) {
-    // Both present: the later one is the decimal separator.
-    const decimalAt = Math.max(lastDot, lastComma);
-    const intPart = s.slice(0, decimalAt).replace(/[.,]/g, "");
-    const decPart = s.slice(decimalAt + 1);
-    s = `${intPart}.${decPart}`;
-  } else if (lastDot !== -1 || lastComma !== -1) {
-    const at = lastDot !== -1 ? lastDot : lastComma;
-    const after = s.slice(at + 1);
-    const before = s.slice(0, at).replace(/[.,]/g, "");
-    // Exactly three digits after a single separator reads as thousands.
-    s = after.length === 3 ? `${before}${after}` : `${before}.${after}`;
-  }
-
-  const n = Number(s);
-  if (!Number.isFinite(n)) return null;
-  return negative ? -n : n;
 }
 
 /**
@@ -242,7 +191,7 @@ export function mapRows(
 
   for (const cells of rows) {
     const date = parseCsvDate(cells[mapping.date] ?? "");
-    const amount = parseAmount(cells[mapping.amount] ?? "");
+    const amount = parseMoney(cells[mapping.amount] ?? "");
     if (!date || amount === null || amount === 0) {
       skipped++;
       continue;

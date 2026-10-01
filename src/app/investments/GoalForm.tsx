@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { useFormStatus } from "react-dom";
 import { ShieldCheck } from "lucide-react";
 import { saveInvestmentGoal } from "./actions";
@@ -101,12 +102,9 @@ export function GoalForm({
             </button>
           )}
         </div>
-        <input
+        <MoneyInput
           id="goal-target"
           name="targetAmount"
-          type="number"
-          min="0"
-          step="100"
           required
           value={targetAmount}
           onChange={(e) => setTargetAmount(e.target.value)}
@@ -154,12 +152,9 @@ export function GoalForm({
         <label className={LABEL} htmlFor="goal-pmt">
           {t.goal.monthlyContribution}
         </label>
-        <input
+        <MoneyInput
           id="goal-pmt"
           name="monthlyContribution"
-          type="number"
-          min="0"
-          step="50"
           defaultValue={goal?.monthlyContribution ?? ""}
           placeholder={String(Math.round(averageContribution))}
           className={FIELD}

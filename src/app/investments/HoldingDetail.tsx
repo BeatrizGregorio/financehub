@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Pencil, Trash2 } from "lucide-react";
 import { deletePricePoint, updatePricePoint, type ActionState } from "./actions";
@@ -53,11 +54,8 @@ function PriceRow({
       <form action={formAction} className="flex items-center justify-between gap-2 py-1.5">
         <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
         <div className="flex items-center gap-2">
-          <input
+          <MoneyInput
             name="price"
-            type="number"
-            step="0.01"
-            min="0.01"
             required
             defaultValue={price}
             autoFocus
