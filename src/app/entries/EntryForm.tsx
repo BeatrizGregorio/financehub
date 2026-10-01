@@ -103,12 +103,46 @@ export function EntryForm({
   // editing closes the modal.
   const keep = useKeepTypedValues(state, { formRef, resetOnSuccess: false });
 
+  /**
+   * Put back the controls React is driving, after form.reset() has blown them
+   * away.
+   *
+   * reset() restores every control to what React rendered on **mount**, not to
+   * what React is holding now — and since no state changed, nothing re-renders
+   * to correct it. The type radios made this expensive: add an income, and the
+   * pill still read "income" while the checked radio had silently gone back to
+   * "expense", so the next entry saved as an **expense under an income
+   * category**. The form lied, and only the database knew.
+   *
+   * Everything listed here is a control React owns via value/checked. **A new
+   * one must be added here**, or it will quietly submit a stale value after an
+   * add — which is the failure this function exists to prevent.
+   */
+  function restoreControlledFields(form: HTMLFormElement) {
+    for (const radio of form.querySelectorAll<HTMLInputElement>('input[name="type"]')) {
+      radio.checked = radio.value === type;
+    }
+    const splitBox = form.elements.namedItem("split");
+    if (splitBox instanceof HTMLInputElement) splitBox.checked = split;
+    for (const [name, value] of [
+      ["method", method],
+      ["seriesType", seriesType],
+      ["scope", scope],
+    ] as const) {
+      const el = form.elements.namedItem(name);
+      if (el instanceof HTMLSelectElement || el instanceof HTMLInputElement) el.value = value;
+    }
+  }
+
   useEffect(() => {
     if (submitCount === 0 || state.error) return;
     if (isEditing) {
       onDone?.();
     } else {
-      formRef.current?.reset();
+      const form = formRef.current;
+      if (!form) return;
+      form.reset();
+      restoreControlledFields(form);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
