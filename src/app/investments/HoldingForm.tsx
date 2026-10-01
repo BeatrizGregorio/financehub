@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
+import { parseMoney, toMoneyInputValue } from "@/lib/money";
 import { useFormStatus } from "react-dom";
 import { createHolding, updateHolding, type ActionState } from "./actions";
 import { toDateInputValue } from "@/lib/format";
@@ -67,23 +69,27 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
   );
   const [indexador, setIndexador] = useState(holding?.indexador ?? "prefixada");
   const [quantity, setQuantity] = useState(holding?.quantity != null ? String(holding.quantity) : "");
-  const [purchaseRef, setPurchaseRef] = useState(
-    holding?.purchaseRef != null ? String(holding.purchaseRef) : "",
-  );
-  const [amountInvested, setAmountInvested] = useState(
-    holding?.amountInvested != null ? String(holding.amountInvested) : "",
-  );
+  // Both are money, so they seed through toMoneyInputValue — String() can
+  // produce three decimals, which parseMoney would read back as thousands.
+  const [purchaseRef, setPurchaseRef] = useState(toMoneyInputValue(holding?.purchaseRef));
+  const [amountInvested, setAmountInvested] = useState(toMoneyInputValue(holding?.amountInvested));
   const [amountTouched, setAmountTouched] = useState(false);
+
+  // Once a holding has a buy/sell log, investedAt() reads the log and ignores
+  // this field — so editing it here looks like a save that did nothing. Say
+  // where the number actually comes from instead of letting it look broken.
+  const fromLog = (holding?.transactions?.length ?? 0) > 0;
 
   const subtypes = subtypesForType(type);
   const labels = positionLabels(type, t);
 
   function recalcAmount(nextQuantity: string, nextPurchaseRef: string) {
     if (amountTouched) return;
+    // Quantity is still a number field; the unit price is money.
     const q = Number(nextQuantity);
-    const p = Number(nextPurchaseRef);
-    if (nextQuantity && nextPurchaseRef && !Number.isNaN(q) && !Number.isNaN(p)) {
-      setAmountInvested(String(Math.round(q * p * 100) / 100));
+    const p = parseMoney(nextPurchaseRef);
+    if (nextQuantity && p !== null && !Number.isNaN(q)) {
+      setAmountInvested(toMoneyInputValue(Math.round(q * p * 100) / 100));
     }
   }
 
@@ -342,12 +348,9 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
             <label htmlFor={`${formId}-purchaseRef`} className={LABEL}>
               {labels.price}
             </label>
-            <input
+            <MoneyInput
               id={`${formId}-purchaseRef`}
               name="purchaseRef"
-              type="number"
-              step="0.01"
-              min="0"
               value={purchaseRef}
               onChange={(e) => {
                 setPurchaseRef(e.target.value);
@@ -364,12 +367,12 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
         <label htmlFor={`${formId}-amountInvested`} className={LABEL}>
           {t.investments.amountInvested}
         </label>
-        <input
+        {fromLog && (
+          <p className="mb-1 text-[12px] text-[var(--color-muted)]">{t.investments.amountFromLog}</p>
+        )}
+        <MoneyInput
           id={`${formId}-amountInvested`}
           name="amountInvested"
-          type="number"
-          step="0.01"
-          min="0.01"
           required
           value={amountInvested}
           onChange={(e) => {
@@ -403,12 +406,9 @@ export function HoldingForm({ holding, onDone }: { holding?: Holding; onDone?: (
           <label htmlFor={`${formId}-corretagem`} className={LABEL}>
             {t.investments.brokerage}
           </label>
-          <input
+          <MoneyInput
             id={`${formId}-corretagem`}
             name="corretagem"
-            type="number"
-            step="0.01"
-            min="0"
             defaultValue={holding?.corretagem ?? ""}
             placeholder="0.00"
             className={INPUT}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { Pencil, Trash2 } from "lucide-react";
 import { addCoupon, deleteCoupon, updateCoupon, type ActionState } from "./actions";
 import { RowAction } from "@/components/RowAction";
@@ -40,11 +41,8 @@ function CouponRow({ id, date, amount }: { id: string; date: Date; amount: numbe
       <form action={formAction} className="flex items-center justify-between gap-2 py-1.5">
         <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
         <div className="flex items-center gap-2">
-          <input
+          <MoneyInput
             name="amount"
-            type="number"
-            step="0.01"
-            min="0.01"
             required
             defaultValue={amount}
             autoFocus
@@ -120,12 +118,9 @@ function CouponAddForm({ investmentId }: { investmentId: string }) {
         >
           {t.common.amount}
         </label>
-        <input
+        <MoneyInput
           id={`coupon-amount-${investmentId}`}
           name="amount"
-          type="number"
-          step="0.01"
-          min="0.01"
           required
           placeholder="0.00"
           className="w-28 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5 text-[12.5px] outline-none focus:border-[var(--color-ink)] focus:bg-[var(--color-surface-raised)]"

@@ -51,6 +51,18 @@ jobs:
       - name: Verify packaged native module
         run: node scripts/verify-packaged-native-module.js
 
+      # The step above can only check the binaries it finds — it cannot see one
+      # that is missing. A build shipped with .next/node_modules/
+      # better-sqlite3-<hash>/ containing no binary at all: the scan found the
+      # other copy, passed, and every page in the installed app answered 500 on
+      # its first database query. The server still started, so the app's own
+      # startup check was satisfied too. Actually requesting a page is the only
+      # thing that catches it.
+      - name: Smoke-test the packaged app
+        run: node scripts/smoke-test-packaged-app.js
+        env:
+          DATABASE_URL: "file:./financehub.db"
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:

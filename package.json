@@ -13,7 +13,8 @@
     "electron:build": "next build && node scripts/prepare-electron.js && node scripts/rebuild-native-for-electron.js",
     "electron:start": "npm run electron:build && electron .",
     "electron:dist": "npm run electron:build && electron-builder --mac --publish never && npm rebuild better-sqlite3",
-    "electron:dist:win": "npm run electron:build && electron-builder --win --publish never && npm rebuild better-sqlite3"
+    "electron:dist:win": "npm run electron:build && electron-builder --win --publish never && npm rebuild better-sqlite3",
+    "icons": "electron scripts/make-icons.js"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.9.1",
@@ -61,13 +62,21 @@
     "afterPack": "scripts/after-pack.js",
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.finance"
+      "category": "public.app-category.finance",
+      "icon": "build/icon.png"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
+    },
+    "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     }
   }
 }

@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { CalendarClock, ChevronDown, Pencil, Target, TrendingUp, Wallet } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { GoalProjectionChart } from "@/components/GoalProjectionChart";
 import { GoalForm, type GoalLike } from "./GoalForm";
-import { updateGoalCardOpen } from "./actions";
+import { saveInvestmentGoal, updateGoalCardOpen, type ActionState } from "./actions";
 import { CARD } from "@/lib/ui";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, parseDateInput, toDateInputValue } from "@/lib/format";
+import { parseMoney, toMoneyInputValue } from "@/lib/money";
 import { localeOf } from "@/lib/i18n";
 import {
   SPREAD,
@@ -24,6 +25,73 @@ import {
 import type { Holding } from "./InvestmentsClient";
 import { useT } from "@/components/LanguageProvider";
 import type { Language } from "@/lib/i18n";
+
+type Draft = {
+  targetAmount: string;
+  targetDate: string;
+  ratePercent: string;
+  monthly: string;
+  startingValue: string;
+};
+
+function draftOf(goal: GoalLike): Draft {
+  return {
+    // toMoneyInputValue, not String(): a stored 44511.785 renders as
+    // "44511.785", which parseMoney reads back as 44,511,785 under the
+    // three-digits-means-thousands rule. Two decimals always round-trip.
+    targetAmount: toMoneyInputValue(goal.targetAmount),
+    targetDate: toDateInputValue(goal.targetDate),
+    // Stored as a decimal, shown as a percentage — the conversion lives at the
+    // form boundary and must not leak inward (see goal.ts).
+    ratePercent: (goal.expectedAnnualRate * 100).toFixed(2),
+    monthly: toMoneyInputValue(goal.monthlyContribution),
+    startingValue: toMoneyInputValue(goal.startingValue),
+  };
+}
+
+const FIELD =
+  "rounded-[10px] bg-[var(--color-surface-raised)] px-3 py-2 text-[13px] text-[var(--color-ink)] outline-none focus:ring-1 focus:ring-[var(--color-ink)]";
+
+/**
+ * `money` switches off type="number", which mangles a thousands separator —
+ * see money.ts. The rate field keeps it: a percentage never carries one, and
+ * the spinner is useful for nudging it.
+ */
+function NumberField({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  money,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  money?: boolean;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-muted-2)] uppercase">
+        {label}
+      </span>
+      <input
+        type={money ? "text" : "number"}
+        inputMode="decimal"
+        autoComplete="off"
+        name={name}
+        step={money ? undefined : "0.01"}
+        min={money ? undefined : "0"}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${FIELD} w-[130px]`}
+      />
+    </label>
+  );
+}
 
 /** Ties the collapse button to the region it opens, for screen readers. */
 const BODY_ID = "goal-projection-body";
@@ -54,7 +122,27 @@ function Stat({
   );
 }
 
-export function GoalProjectionCard({
+export function GoalProjectionCard(props: {
+  goal: GoalLike | null;
+  holdings: Holding[];
+  currentValue: number;
+  emergencyReserveTarget: number | null;
+  initialOpen: boolean;
+}) {
+  const g = props.goal;
+  const signature = g
+    ? [
+        g.targetAmount,
+        g.targetDate.getTime(),
+        g.expectedAnnualRate,
+        g.monthlyContribution ?? "",
+        g.startingValue ?? "",
+      ].join("|")
+    : "none";
+  return <GoalCard key={signature} {...props} />;
+}
+
+function GoalCard({
   goal,
   holdings,
   currentValue,
@@ -69,8 +157,14 @@ export function GoalProjectionCard({
 }) {
   const { t } = useT();
   const [editing, setEditing] = useState(false);
-  // Lets "use as the projection rate" preview the real return without saving.
-  const [rateOverride, setRateOverride] = useState<number | null>(null);
+  // The numbers driving the projection are edited in place, above the chart,
+  // rather than only behind the modal: they are the things you actually want
+  // to try different values for. The chart follows the draft as you type; the
+  // draft is only written to the database when Save is pressed.
+  const [draft, setDraft] = useState<Draft | null>(goal ? draftOf(goal) : null);
+  const [state, formAction] = useActionState(saveInvestmentGoal, {} as ActionState);
+  const set = (key: keyof Draft, value: string) =>
+    setDraft((d) => (d ? { ...d, [key]: value } : d));
   // Persisted on AppSettings, seeded from the server so the first painted
   // frame is already right. V1.21 left this per-visit because localStorage
   // read during the first render disagrees with the server-rendered HTML and
@@ -88,6 +182,7 @@ export function GoalProjectionCard({
   const collapsedProgress =
     goal && goal.targetAmount > 0 ? currentValue / goal.targetAmount : null;
 
+
   const averageContribution = useMemo(
     () => averageMonthlyContribution(holdings, 6),
     [holdings],
@@ -98,19 +193,54 @@ export function GoalProjectionCard({
     return xirr(flows);
   }, [holdings, currentValue]);
 
-  const expectedAnnualRate = rateOverride ?? goal?.expectedAnnualRate ?? 0.1;
-  const monthlyContribution = goal?.monthlyContribution ?? averageContribution;
+  /**
+   * What the block is currently showing: the saved goal with the draft's
+   * numbers laid over it. Each field falls back to the saved value while the
+   * input is empty or mid-edit, so a half-typed figure blanks the chart for a
+   * keystroke instead of throwing.
+   */
+  const shown: GoalLike | null = useMemo(() => {
+    if (!goal) return null;
+    if (!draft) return goal;
+    // The money fields are free text, so they go through the same parser the
+    // server will use — otherwise the chart would answer a different number
+    // from the one that gets saved.
+    const amount = parseMoney(draft.targetAmount);
+    const rate = Number(draft.ratePercent);
+    const monthly = parseMoney(draft.monthly);
+    const start = parseMoney(draft.startingValue);
+    return {
+      ...goal,
+      targetAmount: amount !== null && amount > 0 ? amount : goal.targetAmount,
+      targetDate: parseDateInput(draft.targetDate) ?? goal.targetDate,
+      expectedAnnualRate: Number.isFinite(rate) ? rate / 100 : goal.expectedAnnualRate,
+      monthlyContribution: monthly !== null && monthly >= 0 ? monthly : null,
+      startingValue: start !== null && start >= 0 ? start : null,
+    };
+  }, [goal, draft]);
+
+  /**
+   * Where the projection starts. A pinned startingValue is a what-if — "if I
+   * had R$ X today" — and blank means track the portfolio, which is what
+   * should normally happen: a number typed once would quietly stop matching
+   * reality as holdings move under it.
+   */
+  const startFrom = shown?.startingValue ?? currentValue;
+
+  const expectedAnnualRate = shown?.expectedAnnualRate ?? 0.1;
+  const monthlyContribution = shown?.monthlyContribution ?? averageContribution;
+  const dirty = Boolean(goal && draft && JSON.stringify(draft) !== JSON.stringify(draftOf(goal)));
 
   const projection = useMemo(() => {
-    if (!goal) return null;
+    if (!shown) return null;
     return goalProjection({
-      currentValue,
+      currentValue: startFrom,
       monthlyContribution,
       expectedAnnualRate,
-      targetAmount: goal.targetAmount,
-      targetDate: goal.targetDate,
+      targetAmount: shown.targetAmount,
+      targetDate: shown.targetDate,
     });
-  }, [goal, currentValue, monthlyContribution, expectedAnnualRate]);
+  }, [shown, startFrom, monthlyContribution, expectedAnnualRate]);
 
   return (
     <div className={`${CARD} p-5`}>
@@ -188,7 +318,7 @@ export function GoalProjectionCard({
               </p>
               <button
                 type="button"
-                onClick={() => setRateOverride(realReturn)}
+                onClick={() => set("ratePercent", (realReturn * 100).toFixed(2))}
                 className="rounded-full bg-[var(--color-surface-raised)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--color-ink)] transition hover:brightness-95"
               >
                 {t.goal.useAsRate}
@@ -200,18 +330,84 @@ export function GoalProjectionCard({
           </p>
         </div>
 
-        {rateOverride !== null && (
-          <p className="mb-4 rounded-[10px] bg-[var(--color-brand)]/10 px-3 py-2 text-[12px] text-[var(--color-ink)]">
-            {t.goal.previewingAt((rateOverride * 100).toFixed(2))}
-            <button
-              type="button"
-              onClick={() => setRateOverride(null)}
-              className="font-semibold underline underline-offset-2"
-            >
-              {t.goal.reset}
-            </button>{" "}
-            {t.goal.orSaveVia}
-          </p>
+        {goal && draft && (
+          <form action={formAction} className="mb-4 rounded-[12px] bg-[var(--color-inset)] px-3.5 py-3">
+            {/* The name isn't edited here — it changes once, and a text field
+                among four numbers would bury them. The modal still owns it. */}
+            <input type="hidden" name="name" value={goal.name} />
+            <div className="flex flex-wrap items-end gap-2.5">
+              <NumberField
+                label={t.goal.startingValue}
+                name="startingValue"
+                money
+                value={draft.startingValue}
+                placeholder={currentValue.toFixed(0)}
+                onChange={(v) => set("startingValue", v)}
+              />
+              <NumberField
+                label={t.goal.targetAmount}
+                name="targetAmount"
+                money
+                value={draft.targetAmount}
+                onChange={(v) => set("targetAmount", v)}
+              />
+              <label className="flex flex-col gap-1">
+                <span className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-muted-2)] uppercase">
+                  {t.goal.targetDate}
+                </span>
+                <input
+                  type="date"
+                  name="targetDate"
+                  value={draft.targetDate}
+                  onChange={(e) => set("targetDate", e.target.value)}
+                  className={FIELD}
+                />
+              </label>
+              <NumberField
+                label={t.goal.expectedReturn}
+                name="expectedAnnualRate"
+                value={draft.ratePercent}
+                onChange={(v) => set("ratePercent", v)}
+              />
+              <NumberField
+                label={t.goal.monthlyContribution}
+                name="monthlyContribution"
+                money
+                value={draft.monthly}
+                placeholder={averageContribution.toFixed(0)}
+                onChange={(v) => set("monthly", v)}
+              />
+              {dirty && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-xl px-4 py-2 text-[13px] font-semibold text-white shadow-[var(--shadow-brand)] transition hover:brightness-105 active:scale-95"
+                    style={{ background: "var(--gradient-brand)" }}
+                  >
+                    {t.common.save}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDraft(draftOf(goal))}
+                    className="text-[12.5px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
+                  >
+                    {t.goal.reset}
+                  </button>
+                </div>
+              )}
+            </div>
+            {shown?.startingValue != null && (
+              <p className="mt-2 text-[12px] text-[var(--color-muted-2)]">
+                {t.goal.startingValuePinned(formatCurrency(currentValue))}
+              </p>
+            )}
+            {dirty && (
+              <p className="mt-2 text-[12px] text-[var(--color-muted-2)]">{t.goal.unsavedPreview}</p>
+            )}
+            {state.error && (
+              <p className="mt-2 text-[12.5px] text-[var(--color-rust-text)]">{state.error}</p>
+            )}
+          </form>
         )}
 
         {!goal ? (
@@ -230,8 +426,8 @@ export function GoalProjectionCard({
           </div>
         ) : (
           <GoalBody
-            goal={goal}
-            currentValue={currentValue}
+            goal={shown ?? goal}
+            currentValue={startFrom}
             expectedAnnualRate={expectedAnnualRate}
             monthlyContribution={monthlyContribution}
             projection={projection}
@@ -242,18 +438,13 @@ export function GoalProjectionCard({
 
       {editing && (
         <Modal title={goal ? t.goal.editGoal : t.goal.setGoal} onClose={() => setEditing(false)}>
+          {/* Opens on whatever is currently shown, so the modal agrees with
+              the inputs rather than snapping back to the saved figures. */}
           <GoalForm
-            goal={
-              goal
-                ? { ...goal, expectedAnnualRate: rateOverride ?? goal.expectedAnnualRate }
-                : null
-            }
+            goal={shown}
             averageContribution={averageContribution}
             emergencyReserveTarget={emergencyReserveTarget}
-            onDone={() => {
-              setEditing(false);
-              setRateOverride(null);
-            }}
+            onDone={() => setEditing(false)}
           />
         </Modal>
       )}

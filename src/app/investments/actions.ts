@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseMoney } from "@/lib/money";
 import { seedOpeningPosition } from "@/lib/holdingTransactions";
 import { prisma } from "@/lib/db";
-import { INVESTMENT_TYPES } from "@/lib/investmentTypes";
+import { INVESTMENT_TYPES, valuation } from "@/lib/investmentTypes";
+import { currentValue, isMatured } from "@/lib/investments";
+import { getReferenceRates } from "@/lib/data";
 
 export type ActionState = { error?: string };
 
@@ -44,6 +47,12 @@ function parseOptionalNumber(raw: FormDataEntryValue | null): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+/** Money fields are free text (see money.ts), so they need the money parser. */
+function parseOptionalMoney(raw: FormDataEntryValue | null): number | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  return parseMoney(raw);
+}
+
 function parseOptionalString(raw: FormDataEntryValue | null): string | null {
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
 }
@@ -62,7 +71,7 @@ function parseHoldingForm(formData: FormData): ActionState & { data?: ParsedHold
     return { error: "Choose a type." };
   }
 
-  const amountInvested = Number(amountInvestedRaw);
+  const amountInvested = parseMoney(String(amountInvestedRaw ?? "")) ?? NaN;
   if (!amountInvestedRaw || Number.isNaN(amountInvested) || amountInvested <= 0) {
     return { error: "Enter an amount invested greater than 0." };
   }
@@ -86,9 +95,9 @@ function parseHoldingForm(formData: FormData): ActionState & { data?: ParsedHold
       maturityDate: parseLocalDate(formData.get("maturityDate")),
       symbol: parseOptionalString(formData.get("symbol")),
       quantity: parseOptionalNumber(formData.get("quantity")),
-      purchaseRef: parseOptionalNumber(formData.get("purchaseRef")),
+      purchaseRef: parseOptionalMoney(formData.get("purchaseRef")),
       expectedReturn: parseOptionalNumber(formData.get("expectedReturn")),
-      corretagem: parseOptionalNumber(formData.get("corretagem")),
+      corretagem: parseOptionalMoney(formData.get("corretagem")),
       institution: parseOptionalString(formData.get("institution")),
       notes: parseOptionalString(formData.get("notes")),
     },
@@ -153,7 +162,7 @@ export async function savePrices(
 
   for (const [key, value] of entries) {
     const investmentId = key.slice("price:".length);
-    const price = Number(value);
+    const price = parseMoney(String(value)) ?? NaN;
     if (!value || Number.isNaN(price) || price <= 0) continue;
 
     await prisma.pricePoint.upsert({
@@ -173,7 +182,7 @@ export async function updatePricePoint(
   formData: FormData,
 ): Promise<ActionState> {
   const priceRaw = formData.get("price");
-  const price = Number(priceRaw);
+  const price = parseMoney(String(priceRaw ?? "")) ?? NaN;
   if (!priceRaw || Number.isNaN(price) || price <= 0) {
     return { error: "Enter a price greater than 0." };
   }
@@ -198,7 +207,7 @@ export async function addCoupon(
   if (!date) return { error: "Pick a valid date." };
 
   const amountRaw = formData.get("amount");
-  const amount = Number(amountRaw);
+  const amount = parseMoney(String(amountRaw ?? "")) ?? NaN;
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
     return { error: "Enter an amount greater than 0." };
   }
@@ -215,7 +224,7 @@ export async function updateCoupon(
   formData: FormData,
 ): Promise<ActionState> {
   const amountRaw = formData.get("amount");
-  const amount = Number(amountRaw);
+  const amount = parseMoney(String(amountRaw ?? "")) ?? NaN;
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
     return { error: "Enter an amount greater than 0." };
   }
@@ -244,10 +253,13 @@ export async function saveInvestmentGoal(
   formData: FormData,
 ): Promise<ActionState> {
   const name = parseOptionalString(formData.get("name")) ?? "My goal";
-  const targetAmount = Number(formData.get("targetAmount"));
+  const targetAmount = parseMoney(String(formData.get("targetAmount") ?? "")) ?? NaN;
   const targetDate = parseLocalDate(formData.get("targetDate"));
   const ratePercent = Number(formData.get("expectedAnnualRate"));
-  const monthlyContribution = parseOptionalNumber(formData.get("monthlyContribution"));
+  const monthlyContribution = parseOptionalMoney(formData.get("monthlyContribution"));
+  // Blank means "track the portfolio", which is why this is optional rather
+  // than defaulted to today's value — a number typed once would go stale.
+  const startingValue = parseOptionalMoney(formData.get("startingValue"));
 
   if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
     return { error: "Enter a target amount greater than 0." };
@@ -261,6 +273,9 @@ export async function saveInvestmentGoal(
   if (monthlyContribution !== null && monthlyContribution < 0) {
     return { error: "The monthly contribution can't be negative." };
   }
+  if (startingValue !== null && startingValue < 0) {
+    return { error: "The starting value can't be negative." };
+  }
 
   const data = {
     name,
@@ -268,6 +283,7 @@ export async function saveInvestmentGoal(
     targetDate,
     expectedAnnualRate: ratePercent / 100,
     monthlyContribution,
+    startingValue,
   };
 
   await prisma.investmentGoal.upsert({
@@ -300,12 +316,15 @@ export async function addTransaction(
   if (kind !== "buy" && kind !== "sell") return { error: "Choose buy or sell." };
 
   const amountRaw = formData.get("amount");
-  const amount = Number(amountRaw);
+  const amount = parseMoney(String(amountRaw ?? "")) ?? NaN;
   if (!amountRaw || Number.isNaN(amount) || amount <= 0) {
     return { error: "Enter an amount greater than 0." };
   }
 
-  // Optional: only holdings priced per unit have a meaningful quantity.
+  // Only holdings priced per unit have a meaningful quantity — but for those
+  // it is required, not optional. Their value is units x price, so a buy with
+  // no units recorded raises the invested figure while leaving the value
+  // untouched: the holding reports a loss exactly the size of the purchase.
   const quantityRaw = formData.get("quantity");
   let quantity: number | null = null;
   if (quantityRaw !== null && String(quantityRaw).trim() !== "") {
@@ -314,12 +333,106 @@ export async function addTransaction(
     quantity = q;
   }
 
+  const holding = await prisma.investment.findUnique({
+    where: { id: investmentId },
+    select: { type: true, subtype: true },
+  });
+  if (!holding) return { error: "That holding no longer exists." };
+  if (quantity === null && valuation(holding.type, holding.subtype).mode === "unit") {
+    return { error: "Enter how many units this buy or sell was for." };
+  }
+
+  // Money taken out has to land somewhere, or it leaves the holding and
+  // vanishes from net worth entirely. Optional: with no accounts set up, or
+  // with "Don't record it" chosen, this behaves exactly as it did before.
+  const toAccountId = String(formData.get("toAccountId") ?? "") || null;
+  if (toAccountId) {
+    if (kind !== "sell") return { error: "Only money taken out can be deposited into an account." };
+    if (!(await prisma.account.findUnique({ where: { id: toAccountId } }))) {
+      return { error: "That account no longer exists." };
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     // Carry the existing position across before the first transaction takes
     // over valuation — see seedOpeningPosition().
     await seedOpeningPosition(tx, investmentId);
-    await tx.investmentTransaction.create({
+    const created = await tx.investmentTransaction.create({
       data: { investmentId, date, kind, amount, quantity },
+    });
+    if (toAccountId) {
+      // The mirror image of an account paying into a holding: one Transfer
+      // carrying the same investmentTransactionId, so deleting it from the
+      // accounts page takes the sell with it.
+      await tx.transfer.create({
+        data: {
+          date,
+          amount,
+          fromInvestmentId: investmentId,
+          toAccountId,
+          investmentTransactionId: created.id,
+        },
+      });
+    }
+  });
+
+  revalidateAll();
+  return {};
+}
+
+/**
+ * Redeem a matured holding into an account.
+ *
+ * A holding past its maturity date is money already paid back, and since V1.20
+ * it is excluded from the portfolio totals and contributes nothing to net
+ * worth. Until that cash is recorded somewhere it has simply disappeared from
+ * the app — which is what this closes.
+ *
+ * Deliberately an explicit action rather than something that happens on its
+ * own when a date rolls past: only the owner knows which account the money
+ * actually landed in, and a wrong guess is worse than no guess. It records a
+ * sell for the final value, so the holding's own history says what became of
+ * it, plus the Transfer that credits the account.
+ */
+export async function redeemToAccount(
+  investmentId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const toAccountId = String(formData.get("toAccountId") ?? "");
+  if (!toAccountId) return { error: "Choose the account the money landed in." };
+  if (!(await prisma.account.findUnique({ where: { id: toAccountId } }))) {
+    return { error: "That account no longer exists." };
+  }
+
+  const holding = await prisma.investment.findUnique({
+    where: { id: investmentId },
+    include: { prices: true, coupons: true, transactions: true },
+  });
+  if (!holding) return { error: "That holding no longer exists." };
+  if (!isMatured(holding)) return { error: "That holding hasn't matured yet." };
+
+  const rates = await getReferenceRates();
+  // Its value is already frozen at the maturity date (valueAtDate caps there),
+  // so this is the redemption figure the banner is showing.
+  const amount = Math.round(currentValue(holding, rates) * 100) / 100;
+  if (amount <= 0) return { error: "There is nothing left to move." };
+
+  const date = holding.maturityDate ?? new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await seedOpeningPosition(tx, investmentId);
+    const created = await tx.investmentTransaction.create({
+      data: { investmentId, date, kind: "sell", amount, quantity: null },
+    });
+    await tx.transfer.create({
+      data: {
+        date,
+        amount,
+        fromInvestmentId: investmentId,
+        toAccountId,
+        investmentTransactionId: created.id,
+      },
     });
   });
 

@@ -2,6 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 import { saveBudgets } from "./actions";
+import { MoneyInput } from "@/components/MoneyInput";
 import { categoryColor } from "@/lib/categories";
 import { CARD } from "@/lib/ui";
 import { useT } from "@/components/LanguageProvider";
@@ -55,15 +56,12 @@ export function BudgetEditor({
                     rather than 20px of bare text. */}
                 <div className="flex items-center gap-1.5 rounded-[10px] bg-[var(--color-inset)] px-[13px] py-1">
                   <span className="font-mono text-xs text-[var(--color-muted-2)]">R$</span>
-                  <input
-                    type="number"
+                  <MoneyInput
                     name={`budget:${c.name}`}
                     // The category name is only a visual sibling, so screen
                     // readers would otherwise announce four identical
                     // unlabelled number fields.
                     aria-label={t.settings.budgetLimitFor(c.name)}
-                    min="0"
-                    step="10"
                     defaultValue={limitByCategory.get(c.name) || ""}
                     placeholder="0"
                     className="w-20 bg-transparent py-1 text-right font-mono text-[13px] outline-none"

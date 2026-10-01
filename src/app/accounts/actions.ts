@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseMoney } from "@/lib/money";
 import { prisma } from "@/lib/db";
 import { ACCOUNT_KINDS } from "@/lib/accounts";
 import { seedOpeningPosition } from "@/lib/holdingTransactions";
@@ -33,7 +34,7 @@ function parseAccountForm(formData: FormData) {
 
   // Opening balance may be negative (an overdrawn account) and may be zero.
   const balanceRaw = String(formData.get("openingBalance") ?? "").trim();
-  const openingBalance = balanceRaw === "" ? 0 : Number(balanceRaw);
+  const openingBalance = balanceRaw === "" ? 0 : (parseMoney(balanceRaw) ?? NaN);
   if (!Number.isFinite(openingBalance)) return { error: "Enter a valid opening balance." } as const;
 
   const openingDate = parseLocalDate(formData.get("openingDate"));
@@ -101,7 +102,7 @@ export async function createTransfer(_prev: ActionState, formData: FormData): Pr
   const date = parseLocalDate(formData.get("date"));
   if (!date) return { error: "Pick a date." };
 
-  const amount = Number(formData.get("amount"));
+  const amount = parseMoney(String(formData.get("amount") ?? "")) ?? NaN;
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter an amount greater than 0." };
 
   const fromAccountId = String(formData.get("from") ?? "");

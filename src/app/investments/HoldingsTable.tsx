@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { ArrowUpRight, Coins, Pencil, Trash2 } from "lucide-react";
 import { deleteHolding } from "./actions";
 import { RowAction } from "@/components/RowAction";
 import { typeColor, typeIconName, typeLabel, subtypeLabel, showsRateFields } from "@/lib/investmentTypes";
@@ -15,12 +15,18 @@ import type { Dict } from "@/lib/i18n";
 // actions on one line (View more 73 + Add coupon 83 + Edit 35 + Delete 51 +
 // three 10px gaps = 272); at 250 they wrapped onto two lines. That extra width
 // is paid for by trimming Type and Value, which were over-allocated — their
-// widest real content is 100px and 101px against 160/150 allocated. Net effect
-// is a *narrower* floor than a naive widening would give, so it still fits
-// without a horizontal scrollbar at 1280px (969px of usable width, measured)
-// and at the desktop app's 1360px window. The Name column absorbs the
-// remainder and truncates with an ellipsis. Re-measure before changing these.
-const GRID_COLS = "1.3fr 140px 120px 165px 250px";
+// Re-measured 2026-09-30, after a fifth action (Withdraw) pushed the two icon
+// buttons onto a second line and grew every row 70px -> 81px: the cell needed
+// 321px and had 250. There was nothing to take from the other columns —
+// measured widest real content was Type 127, Value 133 (already *over* its
+// 120), Gain 156 — and widening the table past a 960px floor puts a scrollbar
+// back at 1280px, which V1.19 and V1.29 both rejected.
+//
+// So the actions shrank instead: Add coupon and Withdraw became icons, like
+// Edit and Delete did in V1.29. Five actions now cost 73 + 28*4 + 4 gaps =
+// 240px (225 used, with slack so sub-pixel rounding cannot spill a button onto a second line), which pays for Value's real content and still leaves the Name column
+// more room than before. Re-measure before changing any of these.
+const GRID_COLS = "1.3fr 130px 140px 160px 240px";
 
 function DeleteButton({ id, t }: { id: string; t: Dict }) {
   return (
@@ -42,12 +48,14 @@ export function HoldingsTable({
   rates,
   onEdit,
   onView,
+  onWithdraw,
   onAddCoupon,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
   onEdit: (holding: Holding) => void;
   onView: (holding: Holding) => void;
+  onWithdraw: (holding: Holding) => void;
   onAddCoupon: (holding: Holding) => void;
 }) {
   const { t, lang } = useT();
@@ -151,7 +159,7 @@ export function HoldingsTable({
                     ? `${gl.gain >= 0 ? "+" : "−"}${formatCurrency(Math.abs(gl.gain))} (${(gl.returnPct * 100).toFixed(1)}%)`
                     : "—"}
                 </span>
-                <div className="flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1">
+                <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                   <button
                     type="button"
                     onClick={() => onView(holding)}
@@ -163,14 +171,19 @@ export function HoldingsTable({
                       HoldingDetail uses, so this button doesn't offer a
                       meaningless action on Ação/Cripto/Outro. */}
                   {showsRateFields(holding.type) && (
-                    <button
-                      type="button"
+                    <RowAction
+                      label={t.investments.addCoupon}
+                      icon={Coins}
                       onClick={() => onAddCoupon(holding)}
-                      className="-my-1 rounded px-1.5 py-1 text-xs font-semibold text-[var(--color-muted-2)] hover:text-[var(--color-brand-text)]"
-                    >
-                      {t.investments.addCoupon}
-                    </button>
+                    />
                   )}
+                  {/* Every holding can have money taken out of it, so unlike
+                      coupons this isn't gated by type. */}
+                  <RowAction
+                    label={t.investments.withdraw}
+                    icon={ArrowUpRight}
+                    onClick={() => onWithdraw(holding)}
+                  />
                   <RowAction label={t.common.edit} icon={Pencil} onClick={() => onEdit(holding)} />
                   <DeleteButton id={holding.id} t={t} />
                 </div>

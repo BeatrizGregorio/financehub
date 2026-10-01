@@ -1489,6 +1489,753 @@ the rest of the cycle.
 
 `tsc --noEmit`, `npm run lint` and a full `next build` all clean.
 
+V1.36 (edit a whole series; undo a delete) added 2026-09-21, the two gaps the
+owner picked from a list of suggestions. Both touch several rows at once,
+which is where a quiet mistake is expensive, so the shared logic lives in
+`lib/entryEdits.ts`, pure and asserted standalone (18 assertions).
+
+**(1) Editing a series.** Deleting a series was possible but editing one was
+not: a rent increase meant deleting twelve rows and recreating them. The edit
+modal now offers "Only this entry" / "All N in the series" when the entry has
+a `groupId` with more than one row, read from `groupCounts` which the page
+already computed.
+
+**It defaults to this entry alone, deliberately** — a bulk rewrite should be
+something the owner picked, never the path of least effort. The scope rides in
+a hidden `scope` field rather than a new bound argument, so `updateEntry`'s
+signature is unchanged.
+
+**`sharedSeriesFields()` withholds exactly one field: the date.** Copying it
+would collapse a twelve-month series onto one day, which is never what "apply
+to all" means; the edited row takes its new date, the rest keep theirs. The
+function lists the other fields one by one rather than spreading-minus-date,
+so its `Omit<EntryFields, "date">` return type turns a newly added field into
+a **compile error** instead of a field that silently stops propagating. For
+instalments `amount` is per entry, so applying it sets each instalment to that
+amount rather than re-splitting a total — the hint under the choice says so.
+
+**(2) Undo a delete.** Every delete was a `confirm()` and then gone, and
+"Delete series" takes a dozen rows with it. `DeletedEntryBatch` now stores the
+deleted rows as JSON (ids included) and the entries page shows one banner —
+Undo / Dismiss — while the batch is fresh.
+
+- **Only ever one batch:** `recordDeletion()` clears the table before writing,
+  so nothing accumulates and the banner can't be ambiguous about what it
+  restores.
+- `UNDO_WINDOW_MINUTES = 30`, checked by `withinUndoWindow()`, which also
+  rejects a *future* timestamp rather than treating it as fresh.
+- **Restore keeps the original ids**, so a restored split or series is the same
+  group it was — and ids that exist again are skipped rather than overwritten,
+  so if the owner re-created something by hand in the meantime, her version
+  wins.
+- `restorableRows()` is defensive by design: unparseable JSON, a non-array, a
+  bad date, a missing id — each is skipped rather than restored wrong. **A
+  silently wrong date in a finance app is worse than a missing row.**
+- **Excluded from backup, and cleared on import** (`restoreBackup` deletes the
+  table): it is a scratch buffer, and resurrecting rows into a restored
+  database would be worse than losing the undo.
+
+Verified in the browser end to end: editing one row of a 4× series with the
+default scope changed exactly that row (1800 → 1950, the other three
+untouched); switching to "All 4 in the series" propagated name, amount and
+category to all four **with each date unchanged** and an unrelated standalone
+entry untouched; deleting the series showed 'Deleted "Aluguel reajustado" and
+3 more.' and Undo restored all four with identical ids, dates, `groupId` and
+`seriesType`; a single delete showed the singular copy; Dismiss left the row
+deleted and consumed the batch; a hand-backdated 45-minute-old batch correctly
+did not appear. Both languages ("Todos os 3 da série", '"Mercado" excluído.',
+Desfazer/Dispensar).
+
+**Still not undoable:** deleting a holding, account, card payment, points
+programme or category. Entries are the bulk-delete risk; the others are
+one-at-a-time and would each need their own payload shape.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
+V1.37 (sort the entries table by any column) added 2026-09-21. Every
+column header is now a sort button: Date, Name, Category, Method, Amount.
+
+**The sort lives in the query string**, like the filters have since V1.27 —
+the ordering happens on the server, so it has to survive the round trip, and a
+sorted view stays shareable and back-buttonable. A default sort (date
+descending, what the table has always shown) is left out of the URL entirely,
+so the plain `/entries` link stays clean. `parseSort()` falls back rather than
+throwing, so a hand-edited or stale URL shows the default table, not an error.
+
+**Text does not sort correctly in SQLite, and this is the part worth
+remembering.** The first browser run put *"aluguel minusculo" after "Zebra
+Store"* — SQLite compares raw bytes, so lowercase letters sit above uppercase
+in ASCII, and accented words ("Água") land after both. Prisma can't express
+`COLLATE NOCASE` in `orderBy`, and changing the *column's* collation would
+quietly change every `=` comparison in the app too. So:
+- **Date and Amount still sort in SQL** (`toOrderBy()` → Prisma `orderBy`),
+  where byte order and numeric order already agree.
+- **Name, Category and Method sort in JS** via `sortRowsByText()` with
+  `Intl.Collator`, which is case-insensitive *and* accent-aware in the owner's
+  own language — "Água" lands with the A's, where she'd look for it.
+  `pageByText()` in `entries/page.tsx` reads three short columns for the
+  filtered set, orders them, then fetches only that page's rows. `in` returns
+  rows in the database's order, not the order asked for, so they're put back
+  into the sorted order before rendering. That key query only runs when a text
+  column is actually the sort.
+
+This is the same limitation already documented for the search box (`mode:
+"insensitive"` is Postgres-only) — search still matches only ASCII case; it's
+the *ordering* that's now correct, not the filtering.
+
+**Every order ends in a unique tiebreaker** (`{ id: "asc" }`), and that is not
+cosmetic with server-side paging: rows that compare equal have no defined
+order, so without a stable last key the same entry can appear on two pages or
+on neither as the database re-plans the query. Both paths use the same
+tiebreakers — equal values show newest first, then id — so the SQL and JS
+orderings can't disagree.
+
+**Blanks always sort last, in either direction.** An entry with no payment
+method isn't the "smallest" one, and burying the filled-in rows under a block
+of empties is never what sorting was for.
+
+The arrow appears **only on the active column** — an arrow on every header
+reads as decoration and stops meaning anything — and rides `useOptimistic` for
+the same reason the filters do since V1.30, so it moves on click instead of
+snapping back until the rows arrive (measured: it lands within 30ms). Markup is
+`role="columnheader"` + `aria-sort`, which carries the same fact an arrow glyph
+alone leaves out. First click uses the column's natural direction — date and
+amount open at their biggest, text opens A→Z — and clicking the active column
+flips it. Paging resets on a re-sort, since page 3 of the old order means
+nothing in the new one.
+
+Verified: 34 assertions on `entrySort.ts` standalone, including that paging an
+**all-ties** set (37 rows sharing a name *and* a date, re-shuffled before each
+"request") reproduces the full order exactly with no row on two pages and none
+skipped. Then in the browser with deliberately awkward seeded rows — mixed
+case, an accented name, a null method, a shared date: all five columns sort and
+flip, "Água mineral"/"aluguel minusculo" now sort with the A's and descending
+is the exact reverse, sort composes with the type filter (no income leaked into
+an expenses-only amount sort), real header clicks move the arrow immediately,
+and Method puts its two blanks last. Then in Portuguese ("Ordenar por Nome",
+dd/MM/yyyy dates, blanks still last) and at 375px (page horizontal scroll 0,
+every header button 24px tall — the WCAG 2.2 minimum; the headers reading past
+375px are inside the table's **pre-existing** `overflow-x-auto` wrapper, which
+scrolls sideways on its own, measured 254px visible of 820px). Test rows
+removed afterwards. `tsc --noEmit`, `npm run lint` and a full `next build` all
+clean.
+
+V1.38 (projection follows a hand-typed price; buying more of a holding)
+added 2026-09-25, two owner-reported bugs in Investments. Both reproduced
+against the real compiled module before anything was changed.
+
+**(1) The projection sat flat for anything priced by hand.** A stock bought at
+R$ 1.000 and priced at R$ 1.500 projected R$ 1.500 at every horizon out to 20
+years, despite having delivered 50%. That was V1.10's deliberate "hold flat
+rather than guess a growth rate" decision, which the owner has now seen on a
+real timeline and reversed — the same shape of correction as V1.11 → V1.12.
+
+`realizedAnnualRate()` in `investments.ts` answers what a holding has actually
+returned, and `projectedInvestmentValue()` grows it at that rate.
+- **It is money-weighted (XIRR over the real dated flows), not value/invested.**
+  A top-up halfway through the period would otherwise read as though it had
+  been there from the start, which is the exact error the transaction log
+  exists to prevent. `xirr` is imported from `goal.ts` — already written and
+  asserted for the goal card, and `goal.ts` imports only `format.ts`, so there
+  is no cycle. Verified: a mid-period top-up reports **more** than the naive
+  ratio, and a top-up made today doesn't dilute the rate at all.
+- **Accrual holdings are untouched.** The guard is `isAccrualValued()` — a CDB
+  keeps projecting at its contracted rate, and asking XIRR would replace a
+  known rate with a guess. Verified a CDB's projection is bit-identical to what
+  `valueAtDate()` says.
+- **Two guards, both deliberate.** `MIN_REALIZED_DAYS = 90`: a 2% move over a
+  week annualizes to ~180%, so below that the holding projects flat, exactly as
+  before. `MAX_PROJECTED_RATE = 25` (% p.a., floor and ceiling): a holding that
+  doubled in a year really did return 100%, but compounding that for 20 years
+  produces fiction. It bites only at the extremes. Both numbers are
+  **interpolated into the chart's blurb** rather than restated in prose, so the
+  copy can't drift from the constants.
+- Untouched on purpose: `valueAtDate()`, current value, gains, tax and the
+  monthly charts. Only the projection changed — a holding's *stated* value is
+  still whatever was typed.
+
+**(2) Buying more of a holding.** The buy/sell log (V1.27 item 7) already did
+this correctly — invested and units rise from the buy date, and a purchase at
+today's price correctly adds no gain. Two things made it look broken:
+- **A per-unit buy with the units box left blank was accepted**, and it is
+  worse than useless: value is units x price, so the invested figure rose while
+  the value didn't, reporting a **loss exactly the size of the purchase**
+  (R$ -250 on the reproduction). Units are now required when
+  `valuation().mode === "unit"` — server-side in `addTransaction`, with
+  `required` on the input as well. Gated on the valuation mode, **not**
+  `showsPosition()`, which is also true for Fundo, where units don't drive the
+  value and requiring them would be wrong.
+- **The edit form silently stopped mattering.** Once a holding has any
+  transactions, `investedAt()` reads the log and ignores `amountInvested`, so
+  editing that field looked like a save that did nothing — almost certainly
+  what "it isn't taken into consideration" meant. `HoldingForm` now says where
+  the number comes from and points at View more → Buys and sells. The field is
+  still submitted (`parseHoldingForm` requires it), just no longer silent.
+
+Left alone, and worth knowing: `quantityAt()` sums a mixed set of transactions
+treating a null quantity as 0. The validation above stops new ones, but any row
+already stored that way would undercount. Nothing in the dev database had it;
+the owner's desktop install is a separate file.
+
+**Correction, same day, after the owner reported "the projection graphic is
+not working".** It rendered fine and threw no errors — it had become
+unreadable, and the number behind it was wrong. Capping the *rate* at 25% was
+not enough, because nothing capped the *duration*: a hand-priced stock with no
+maturity date compounded for the full 20 years, so a R$ 12.400 position
+reached ~R$ 1,08M and dominated everything. Measured: the y-axis ran to
+R$ 1.000.000 and the first eight horizons (30d–5y) sat within **10px of each
+other on a 256px chart** — 3.9% of its height for every horizon a person
+actually reads.
+
+Fixed at the maths, not the axis: `MAX_REALIZED_PROJECTION_YEARS = 5` bounds
+how far a realized return is carried before the holding is held flat. A rate
+measured from the past is evidence about the near future and very little about
+the far one — the same principle the maturity cap already applies to bonds,
+which is why it belongs in `projectedInvestmentValue()` next to it rather than
+in the chart. Accrual holdings are untouched: a bond maturing in 2040 still
+compounds the whole way, asserted explicitly.
+
+After: y-axis to R$ 120.000, the first eight horizons spread over **76px
+(29.7%)**, and a deliberately flat tail past five years. **A blank screenshot
+during this check was the documented pane artifact, not a break** — the DOM
+had both charts at 306x256 with all 11 points and a real path.
+
+**Second correction, same day: a contracted rate outranks a realized one.**
+The owner reported the projection still flat and, separately, that a top-up
+wasn't counted. Diagnosed against her **real** database — which is the
+desktop app's (`AppData/Roaming/FinanceHub/financehub.db`), *not* the project's
+`financehub.db`, which is empty. Two separate findings, and only one was a bug:
+
+1. **`HoldingDetail` showed the stale stored field.** The totals and the gain
+   have read `investedAt()` since V1.27, but the "Invested" figure in the
+   View-more panel was `holding.amountInvested` — which never moves once a
+   holding has a buy/sell log. So her FIRF read **R$ 8.056,18 invested beside a
+   +R$ 543,90 gain**, two numbers that cannot both be true (8.056 → 18.600
+   would be a gain of 10.544). Fixed to `investedAt(holding)`; a sweep found
+   this was the only display of the stored field left, the rest being the edit
+   form's default, backup, and opening-position seeding, all correct.
+
+   The rest of the invested chain was already right. Her two top-ups
+   (R$ 10.000 into a FIRF, R$ 2.172,11 into a FIDC) are recorded as
+   transactions and `portfolioSummary()`/`gainLoss()` read `investedAt()`, so
+   the code counts R$ 91.274,06 against the stored fields' R$ 79.101,95. She
+   was *also* running a desktop build from 13:47 that predates the later
+   fixes — `BUILD_ID` on the installed app differed from the repo's, and the
+   commit times bracket it. **Nothing in `src/` reaches her until
+   `electron:dist:win` is re-run and the installer re-run.** Worth remembering
+   for any future "still broken" report: check which database and which build
+   before touching code — but check for a real bug too, because here there was
+   one behind the stale build.
+
+2. A real design error, and her guess ("because I entered values manually")
+   was right. **All 12 of her holdings have a manual price**, which makes
+   `isAccrualValued()` false for every one — so nine renda-fixa holdings with
+   genuine contracted rates (13.38%–17.58%) and maturities out to 2065 were
+   being treated as hand-priced equities: realized rate, 25% cap, five-year
+   bound. A 59-day-old debenture had no realized rate at all and so sat
+   **completely flat** despite a contracted 13.44% and a 2041 maturity.
+
+   The axis was wrong. It is not "accrual-valued vs hand-priced" but **"has a
+   contracted rate vs doesn't"**. `projectedInvestmentValue()` now: returns
+   early if accrual-valued (`valueAtDate()` already compounded it — growing it
+   again would double-count); else grows from the typed value at
+   `getEffectiveRate()` with **no cap and no five-year bound**, because a
+   contract is not an extrapolation; else falls back to the realized rate with
+   both. Typing a price sets the *starting point*, never a ceiling.
+
+   Her portfolio now projects R$ 100.851 → R$ 331.673 over 20 years, 3.29x
+   across the range with all 11 points distinct — against a flat line before.
+
+Verified: 22 assertions on the compiled module (clamping both ways, the 90-day
+guard, a worthless holding yielding no rate rather than -100%, a loss
+projecting downward, maturity still freezing, and the full top-up arithmetic
+including units and invested six months *before* the buy), plus 5 more for the
+projection bound and 11 more for the contracted-rate rule (including that an
+accrual holding is not compounded twice, and that a contracted rate beats a
+realized one that disagrees). Then end to end in
+the browser on a seeded stock + CDB: the projection curve rises (11 points,
+strictly monotonic by measured dot `cy`, previously flat), the server rejects a
+unitless buy with the typed amount preserved, a real R$ 750 / 50-unit purchase
+moves invested to R$ 1.750 and units to 150 with **gain unchanged at
+R$ 1.100**, the opening buy was seeded automatically so nothing was lost, and
+the edit-form note appears for the holding with a log and not for the one
+without. Both languages. Test data removed. `tsc --noEmit`, `npm run lint` and
+a full `next build` all clean.
+
+V1.39 (performance comparison chart; goal numbers edited in place) added
+2026-09-26, two owner requests on the Investments page.
+
+**(1) Performance comparison** (`PerformanceChart.tsx`, `performanceComparison()`
+in `investments.ts`) — a ranked horizontal bar chart, **first content block on
+the page** at the owner's request, with a switcher over four metrics:
+return after tax, gross return, vs the contracted rate, and gain in reais.
+**Matured holdings are excluded**, matching `portfolioSummary()` and
+`allocationByType()`.
+
+The switcher exists because the four answers *reorder each other*, which the
+owner's real portfolio demonstrates: an IR-exempt CRA returning 15,30% beats a
+taxable debenture returning 18,02% once IR is taken off, and the CDB that is
+middling on percentage produced R$ 7.702 of a R$ 10.128 total gain. Any one of
+those shown alone reads as the whole story.
+
+Three decisions worth keeping:
+- **The three rate metrics share one axis domain.** Letting Recharts fit each
+  metric separately made bars *grow* when switching to after-tax — the values
+  shrank but the axis shrank further. An axis that hides the tax bite is worse
+  than no chart. Money keeps its own scale.
+- **Unanswerable rates are omitted and the holdings named underneath**, never
+  drawn as a zero bar. A holding bought three weeks ago has no annualizable
+  history (`MIN_REALIZED_DAYS`), and a zero would read as "returned nothing".
+  Gain in reais is always answerable, which is why it is offered as a metric.
+- **The name axis takes a share of the width** (`min(132, max(70, w * 0.32))`)
+  via a ResizeObserver. A fixed 132px left **14px for the bars at 375px** —
+  labels legible, data not. The observer only subscribes in the effect; the
+  state is set from its callback, which is not what the set-state-in-effect
+  lint rule forbids.
+
+`annualizedReturn()` was split out of `realizedAnnualRate()`: same XIRR over
+the same flows, but **unclamped and without the accrual-valued skip**, plus an
+optional `closingValue` so the after-tax figure is the same flows with a
+smaller final inflow rather than the rate scaled by the surviving fraction of
+gain — tax lands on the gain, and scaling a rate is a different operation.
+`realizedAnnualRate()` keeps the clamp and the skip, because those exist to
+stop a *projection* running away; reporting what happened should report what
+happened.
+
+**(2) Goal & projection is edited in place.** The owner did not want to open a
+modal to try a different rate. The four numbers that drive the projection —
+target amount, target date, expected return, monthly contribution — are now
+inputs above the chart. Typing recalculates the chart and both solvers live
+(`goal.ts` is pure and runs in the browser); nothing is written until Save,
+which appears only when the draft differs from what is stored.
+
+- **The card is keyed on a signature of the saved goal**, so a save remounts it
+  and the draft reseeds from the new values. `useState` ignores a changed
+  initial value, and the alternative is a setState-in-effect. Same pattern as
+  `CategoryChip` in V1.27.
+- **Each field falls back to the saved value while empty or mid-edit**, so a
+  half-typed figure blanks the chart for one keystroke instead of throwing.
+- **The old `rateOverride` preview is gone**, folded into the same draft:
+  "Use as the projection rate" now fills the rate box. One number being
+  previewed, in one place. `previewingAt`/`orSaveVia` were removed from both
+  dictionaries rather than left as dead copy.
+- **The name stays in the modal** — it changes once, and a text field among
+  four numbers would bury them. It rides along as a hidden field so saving the
+  numbers can't blank it. The modal opens on the *shown* values, so it agrees
+  with the inputs rather than snapping back.
+- `parseDateInput()` parses the date field as a **local** calendar date;
+  `new Date("2029-06-15")` is UTC midnight and shows the 14th in Brazil.
+
+Verified: 56 assertions on `investments.ts` (including that matured holdings
+are dropped, an exempt holding's net equals its gross while a taxable one's
+does not, a too-new holding yields null rates but a real gain, and the
+regression that the projection still clamps to 25% and still skips
+accrual-valued holdings). Then in the browser against seeded holdings shaped
+like the owner's: the metric switcher reorders exactly as predicted
+(Caramuru overtakes SIMPAR after tax), bars shrink rather than grow when tax
+is applied, the matured holding never appears, and the too-new one is named
+underneath. For the goal: the solvers move monotonically with the inputs
+(6% needs R$ 2.838,71/month, 25% needs R$ 1.600,69), Save persists with the
+rate stored as a decimal and the name preserved, Reset restores, and the Save
+button disappears after a save. Both languages, 375px (four inputs stack, no
+overflow). Test data removed. `tsc --noEmit`, `npm run lint` and a full
+`next build` all clean.
+
+V1.40 (a typed price is a reading, not a freeze; performance by month)
+added 2026-09-28, both from the owner.
+
+**(1) The bug: value stopped moving after Update Prices.** `valueAtDate()`
+returned the manual price unchanged for every date after it, so a holding sat
+perfectly still between price entries. For a stock that is right — today's
+price is not knowable here. For a CDB at 13,65% it is wrong: the bond goes on
+paying whether or not anyone typed a number yesterday.
+
+A marked holding is now carried forward from its reading at
+`getEffectiveRate()`. Holdings with nothing contractual to earn at — a stock, a
+fund with no rate — have a rate of 0 and so still sit exactly where they were
+put, which needed no special-casing. Coupons paid *after* the reading are
+subtracted (cash that has since left); ones before it are already in the price.
+
+This is the same insight as V1.39's projection fix, applied one level down, and
+it **simplified `projectedInvestmentValue()`**: it no longer re-applies the
+contracted rate itself, because `valueAtDate()` now does. Re-applying it would
+have compounded twice — there is an assertion pinning that.
+
+`isAccrualValued()` gained a `rates` argument and now answers **"does this
+figure depend on the reference rates?"** for marked holdings too, since they
+keep earning at an indexador-derived rate. Without that the "these rates are
+stale" note would have stopped covering most of the portfolio.
+
+**(2) The chart the owner actually wanted.** V1.39's ranked bar chart with a
+metric switcher was rejected on sight — *"I think it's more useful if it shows
+the performance throughout the months"*. Replaced by `monthlyPerformance()` +
+a rewritten `PerformanceChart`: one line per active holding, cumulative return
+in percent, month by month, on the same cycle checkpoints every other monthly
+chart uses. `performanceComparison()`/`PerformanceRow` were **deleted rather
+than left unused**, as with `portfolioValueOverTime()` in V1.12.
+
+- **Percent, not reais**, so a R$ 3.000 debenture and a R$ 24.000 CDB share an
+  axis — the question is which is performing, not which is biggest. Coupons are
+  added back so a bond that pays out doesn't look like it lost value.
+- **Months before a holding was bought are `null`, not 0**, with
+  `connectNulls={false}`, so its line simply starts later instead of plunging
+  to the axis. Verified: a holding bought last month starts at x=839 of 930.
+- **Colours walk the palette by index.** `categoryColor()` hashes the name, and
+  with five holdings two already collided on the same purple — two identical
+  lines are two you cannot tell apart. `PALETTE` is now exported for this.
+- **Clicking a legend entry isolates that line** (the rest drop to 0.15
+  opacity, clicking again restores). With a dozen holdings that is the
+  difference between a chart and a plate of spaghetti.
+
+A useful thing the shape reveals: for months before a price was ever entered
+the line follows accrual, then steps to the real price when one exists. On the
+owner's CRAs that is a visible drop — the market price is below what the
+contracted rate predicted — which is exactly the divergence a single ranked
+number was hiding.
+
+Verified: 56 assertions on the compiled module. New ones cover the reading
+behaviour (value equals the typed price on its day, grows at the contracted
+rate after, a stock stays flat, maturity still freezes, a later coupon comes
+off, and the projection applies the rate once rather than twice) and the
+series (matured excluded, 13 checkpoints, nulls before purchase, the plotted
+figure equals the cumulative return, and an accruing line only rises — even
+one that paid a coupon). **Several older assertions had to be repaired for
+clock drift**, not for behaviour: they pinned a fixture date while
+`projectPortfolioValue()` reads the real clock, so each passing day moved them
+by a few days' accrual. Those now use a relative tolerance, which still fails
+loudly on flatness or double-compounding. Then in the browser: 5 distinct
+colours, months on the axis, legend isolation, both languages and 375px.
+Test data removed. `tsc --noEmit`, `npm run lint` and `next build` clean.
+
+V1.41 (the goal projection can start from a pinned amount) added 2026-09-28.
+A fifth inline input beside the four from V1.39: **Starting from**, the value
+the projection begins at.
+
+`InvestmentGoal.startingValue` is **nullable, and null is the normal state**
+(`prisma/migrations/20260928120000_add_goal_starting_value`). Blank means
+"follow the portfolio", which is what should usually happen — a figure typed
+once would quietly stop matching reality as holdings move under it, the same
+staleness problem the points tab was rebuilt around in V1.34. The input's
+placeholder is the live portfolio value, so the default is visible without
+being stored, and when a value *is* pinned the card says so and names the real
+figure: "Clear it to follow your portfolio, currently R$ 44.511,78."
+
+**The actual-return line deliberately keeps using the real portfolio value.**
+`buildCashFlows(holdings, currentValue)` feeds the XIRR of what the portfolio
+has genuinely done; a what-if starting point has no business changing it.
+Everything that describes progress *toward* the goal — the projection, both
+solvers, the progress bar — follows the pinned value, because that is the
+question being asked.
+
+Verified in the browser: blank by default with the live value as placeholder,
+pinning R$ 100.000 drops the required contribution from R$ 2.414,45/month to
+R$ 395,73 and pulls the arrival from October 2029 to January 2028, saving
+persists it, clearing it saves NULL and the notice disappears. Both languages,
+and all five inputs stack inside 375px — an "off the right edge" reading there
+was the **documented sidebar-transition artifact**, confirmed by killing
+transitions and re-measuring (nav settles at 47px, every field ends by 283 of
+375). `tsc --noEmit`, `npm run lint` and `next build` clean.
+
+**Pre-existing gap noticed, not fixed here: the investment goal is not in the
+backup at all.** `lib/backup.ts` has no `investmentGoal` key, so exporting and
+restoring loses it. Out of scope for this change, but it is a real hole.
+
+V1.42 (the performance chart picks its own window) added 2026-09-28.
+Range pills above the chart — 3m / 6m / 1y / 2y / all — replacing the
+hardcoded 12 months. Default is still 1y, so nothing moved for anyone who
+doesn't touch it.
+
+**The chart now owns its data, not just its rendering.** It takes
+`investments`/`rates`/`cycleStartDay` and calls `monthlyPerformance()` itself
+in a `useMemo`, rather than being handed finished points. Changing the window
+is then instant and local — no server round trip, no state lifted into
+`InvestmentsClient` just to be passed back down. Typed against
+`InvestmentLike` from the lib rather than the `Holding` type exported from
+`app/investments/`, so a component under `components/` doesn't reach into
+`app/`.
+
+**"All" is computed, not a big number.** `monthsOfHistory()` in
+`investments.ts` measures from the oldest *active* holding — matured ones are
+excluded, so a holding that matured in 2020 can't stretch the axis to cover
+six empty years. It floors at 3 (a two-point chart is not a chart) and caps at
+240. Ranges longer than the available history are **hidden**, so a portfolio
+four months old offers "3m" and "all" and nothing that would draw a
+three-quarters-empty chart.
+
+**The selection is clamped rather than validated**: `range === "all" ?
+maxMonths : Math.min(range, maxMonths)`. Nothing to reset when the history
+grows or a holding matures, and no state that can disagree with the data.
+
+**`Date.now()` inside a `useMemo` trips `react-hooks/purity`** — correctly,
+it is a clock read during render. That is why the measurement lives in
+`investments.ts` beside `monthlyCheckpoints()`, which already reads the clock,
+rather than in the component. Worth remembering for any future "how long
+since…" in a component.
+
+Year labels are built from the number plus the translated unit
+(`1``` → "1y"/"1a"), the same way projection horizons are, so pt shows
+3m/6m/1a/2a/tudo. `allRange` is a new key in both dictionaries rather than
+borrowing `t.entries.all`, which belongs to the type filter.
+
+Verified: 7 more assertions on `monthsOfHistory()` (empty list falls back to a
+year, three years reads as ~37 months, a week-old holding floors at 3, the
+oldest holding wins, a long-matured one does **not** stretch it, the 240 cap,
+and that a 3-month window really returns 4 checkpoints against a 12-month
+one's 13) — 63 in the file overall. Then in the browser across all five
+ranges: the plotted vertex count steps 10 → 19 → 37 → 73 → 106 and the axis
+follows exactly (3m = Jun→Sep 2026, all = Sep 2023→Sep 2026, matching the
+oldest seeded holding), with exactly one pill active throughout. Portuguese
+shows 3m/6m/1a/2a/tudo with pt month ticks. At 375px the pills wrap, stay
+31px tall and nothing leaves the viewport. **A "chart renders nothing at
+375px" reading was the documented ResponsiveContainer artifact** — container
+209x300 but svg 41px wide with `document.hidden === true`; a screenshot plus a
+resize event brought it back to 209px with all five lines. Test data removed.
+`tsc --noEmit`, `npm run lint` and `next build` clean.
+
+V1.43 (withdrawals — "retirada") added 2026-09-29. The owner asked to record
+money taken out of a holding. The mechanism half-existed as a `sell` in the
+buy/sell log, and **it was wrong for most of her portfolio**.
+
+**The bug.** `valueAtDate()`'s manual-price branch returns the typed figure —
+for an MTM holding that figure *is* the whole value, so a sell reduced
+`investedAt()` and left the value untouched. Reproduced: a fund marked at
+R$ 22.000 against R$ 20.000 invested, withdraw R$ 5.000, and the **gain jumped
+from R$ 2.000 to R$ 7.000**. The withdrawal was counted as pure profit. The
+accrual branch was already correct (`accrualValue()` compounds each sell from
+its own date), so this only hit holdings priced by hand — which is all twelve
+of hers.
+
+Fixed by subtracting, from a marked value, the cash that left *after* the
+reading — exactly parallel to the coupon rule already there, and for the same
+reason: a price typed after a withdrawal already reflects it, so counting it
+again would take it twice. `withdrawnBetween()` compounds each withdrawal from
+its own date at the contracted rate, mirroring `accrualValue()` so the two
+branches can't disagree about what a withdrawal costs.
+
+**Withdrawals are skipped for unit-priced holdings** (`mode === "unit"`): there
+the sale already showed up as a smaller `quantityAt()`, and deducting the money
+as well would remove it twice. Asserted.
+
+**A second latent bug in the same branch:** `if (rate <= 0 || days <= 0) return
+marked` returned *before* the coupon subtraction, so a coupon paid after a
+reading on a **rate-0 holding** was silently ignored too — which is her FIDCs
+and FIRF, all of which resolve to 0%. The cash-out is now computed before that
+branch and applied either way.
+
+**UI.** A `Withdraw` row action on every holding — unlike Add coupon it isn't
+gated by type, since anything can have money taken out of it. It opens
+`TransactionSection` in a new `mode="withdraw"`: kind fixed to `sell` via a
+hidden field, no Buy/Sell selector, the amount labelled "Amount taken out",
+and the list filtered to withdrawals. **A presentation over the same wiring,
+not a second component** — a separate withdrawal form would have meant a second
+copy of the add/delete plumbing to drift, which is exactly what `CouponSection`
+was extracted to prevent in V1.19.
+
+The `sell` label became "Sell / withdrawal" / "Venda / resgate", because
+"Venda" alone reads wrong for a CRA and the log has to be obviously the same
+thing the Withdraw button writes.
+
+Verified: 11 more assertions (value falls by the withdrawal while **gain stays
+put** — taking money out is neither profit nor loss; invested falls; a rate-0
+holding still shrinks; a coupon on a rate-0 holding is subtracted; a withdrawal
+made *before* the reading is not; a unit-priced holding is quantity x price
+with no second deduction; withdrawing the whole balance leaves ~0) — 74 in the
+file. Then end to end in the browser on an MTM debenture with a contracted
+rate: value R$ 44.525,68 → R$ 43.525,68, invested R$ 34.676,00 → R$ 33.676,00,
+**gain unchanged at +R$ 9.849,68**, the opening buy auto-seeded and preserved,
+and the withdrawal listed. Both languages ("Retirada", "Valor retirado").
+Test data removed. `tsc --noEmit`, `npm run lint` and `next build` clean.
+
+**Not done, and worth knowing:** a withdrawal is not an `Entry`, so the money
+does not appear as income on the dashboard or in an account balance. Matching
+it to a deposit would need the transfer machinery from V1.28 pointed the other
+way. Nothing here blocks that.
+
+V1.44 (the second income saved as an expense; a date range on the
+performance chart) added 2026-09-30.
+
+**(1) The bug, and it was silent.** Adding one income after another saved the
+second as an **expense, under an income category** — reproduced before
+touching anything, and confirmed in the database. `form.reset()` restores
+every control to what React rendered on **mount**, not to what React is
+holding now, and because no state changes nothing re-renders to correct it.
+React writes the `checked` attribute on first render, so the reset default is
+whichever type the form opened with. Measured: after the first save the radio
+read `expense:true income:false` while the pill still highlighted **income**.
+The form lied and only the database knew.
+
+The same applies to `method`, `seriesType` and the `split` checkbox — each
+would have reverted to its mount value with the UI showing otherwise.
+`restoreControlledFields()` puts them all back after the reset. **A new
+controlled field must be added there**, which is why that function carries the
+warning rather than a bare list: forgetting one means a stale value submitted
+silently, which is exactly the failure it exists to prevent.
+
+This is the third distinct consequence of React 19's form-reset behaviour in
+this project (V1.28 item 8, V1.30 item 2, now this), and the first where the
+form kept *looking* correct.
+
+**(2) A custom date range** on the performance chart, beside the V1.42 pills:
+**From** and **To**. Either end alone works — "since March" and "up to June"
+are both real questions — so a null `from` means the whole history and a null
+`to` means today. **Both defaults are resolved inside
+`monthlyPerformanceBetween()`, not the component**, because they read the
+clock and `react-hooks/purity` rejects that during render (same lesson as
+V1.42's `monthsOfHistory`). Filling either end deactivates the preset pills; a
+Clear button returns to them. Reversed dates say so and fall back to the
+preset rather than silently swapping, which would answer a question that
+wasn't asked. The last checkpoint is the end date itself, so "up to the 20th"
+plots the 20th rather than the whole month around it.
+
+`performanceAt()` was split out so the rolling window and the explicit range
+share the per-checkpoint work and cannot drift.
+
+**A real bug found while building it, in code shipped two sessions ago.**
+`parseDateInput` read `/^(d{4})-(d{2})-(d{2})$/` — the backslashes had been
+eaten by an edit script's escaping, so it matched the literal text "dddd-dd-dd"
+and **returned null for every real date**. The new range silently fell back to
+the whole history, which is how it was caught. The same damaged copy was in
+`GoalProjectionCard` from **V1.41**, meaning the goal's inline *target date*
+has never applied since it shipped — V1.41's verification covered the amount,
+rate and contribution fields but not the date, and the fallback-to-saved-value
+masked it. Both now use one copy in `format.ts`, with **8 assertions** on it,
+including that "2025-06-10" parses as local 10 June and not the 9th. Confirmed
+in the browser: moving the goal's target date from June 2029 to June 2027
+moves the required contribution from R$ 2.413,44 to R$ 12.328,32.
+
+The lesson worth keeping: **a parser that returns null on failure degrades
+quietly.** It needed its own assertions precisely because nothing upstream
+throws.
+
+Verified: 86 assertions in `investments.ts` (a four-cycle range, the end date
+honoured rather than its cycle end, a single-cycle range, a reversed range
+yielding nothing, matured holdings still excluded, and both ends open) plus 8
+on `parseDateInput`. Then in the browser: preset Oct 2025–Sep 2026 → from-only
+runs to today → both set gives exactly Jun–Dec 2025 → Clear returns to the 1y
+preset, with no pill active while a custom range is in force. Portuguese shows
+De / Até / Limpar datas with pt month ticks. Three consecutive incomes all save
+as income, name and amount still clear between them, and a recurring expense
+still creates its twelve rows with the right method. Test data removed.
+`tsc --noEmit`, `npm run lint` and `next build` clean.
+
+**Tooling note:** `next build` failed once with `unlink` on
+`.next/standalone/release` — a stray directory left inside the standalone
+output by the earlier Electron packaging work. Deleting it fixed the build; it
+is not a code problem.
+
+V1.45 (money typed by hand; money leaving a holding lands in an account)
+added 2026-09-30, from two owner reports in one message.
+
+**(1) "I'm not being able to input values manually."** Typing 25.500,75 into a
+price field stored **25,50**. Every money field was `<input type="number">`,
+which takes a *comma* decimal happily enough — 1234,56 and 13,65 were both
+fine, which is why the bug read as intermittent — but a **thousands separator
+is taken as the decimal point and the comma is then dropped**. No error, no
+warning, and a figure nobody re-reads once saved. Measured directly before
+changing anything: `{ typed: "25.500,75", value: "25.50075" }`.
+
+Money fields are now `type="text" inputMode="decimal"` (`components/MoneyInput`),
+parsed by one rule in **`lib/money.ts`** — which is the CSV importer's
+`parseAmount`, **moved and renamed `parseMoney`**, with `csv.ts` importing it.
+Deliberately shared: a figure typed into the app and the same figure imported
+from a statement have to mean the same thing, or the two halves of the app
+disagree about the owner's money. Both conventions parse, so 25.500,75 and
+25,500.75 are the same amount.
+
+**`toMoneyInputValue()` seeds those fields, and the two decimals are
+load-bearing, not cosmetic**: `String(44511.785)` is `"44511.785"`, which
+`parseMoney` reads back as **44,511,785** under the three-digits-means-thousands
+rule. Opening a form and saving it unchanged had to stay safe. `toFixed(2)`
+cannot produce three decimals, so the round trip is closed. Anywhere a stored
+number is put into a money field — `HoldingForm`'s controlled state,
+`GoalProjectionCard`'s draft — goes through it.
+
+**Day, percentage and quantity fields stay `type="number"`** (cycle start day,
+card closing/due days, backup retention, installment count, annualRate/spread/
+adminFee/perfFee/expectedReturn, units). They never carry a thousands
+separator and the spinner is useful. The sweep named its targets per file with
+expected counts, so converting the wrong field would have thrown.
+
+**The cost is the browser's own `min`/`step` validation**, which never applied
+to a text field. Every action reading one of these already rejected a missing
+or non-positive amount with a visible error, so the check moved rather than
+disappeared — but **a new money field needs its action to validate, because
+nothing else will**. Client-side consumers were switched too (`EntryForm`'s
+split-sum hint, `HoldingForm`'s quantity x price auto-calc,
+`GoalProjectionCard`'s live chart), so what the UI previews can't disagree with
+what the server stores.
+
+44 assertions on `money.ts` standalone. Verified by **actually typing** rather
+than scripting values in: 25.500,75 stored as a price, 1.000,50 as a
+withdrawal, 1.250,30 as an entry, 150.000,00 as a goal target — and the goal's
+progress figure halving correctly (45.2% to 22.6%) when the inline target is
+retyped as 300.000,00. "abc" is still rejected with a visible error and the
+typed text kept.
+
+**(2) Money leaving a holding can be deposited into an account.** Both a
+withdrawal and a maturity, with a dropdown, as asked.
+
+The gap was real and one-directional: `Transfer` could carry money *into* a
+holding but had no way to represent it coming *out* — `fromAccountId` was a
+required `String` with no `fromInvestmentId`. So a withdrawal left the holding
+and existed nowhere, and (since V1.20) a matured holding contributes **zero** to
+net worth via `ownershipValue()`, meaning on its maturity date the money
+silently dropped off the chart. This closes that cliff.
+
+Migration `20260930120000_transfer_from_investment` makes `fromAccountId`
+nullable and adds `fromInvestmentId`. **SQLite cannot drop a NOT NULL with
+ALTER COLUMN**, so the table is recreated and copied — every existing row has
+an account on the from-side and keeps it. `accountBalance()` needed only its
+type widened: it credits on `toAccountId === account.id`, which a null
+from-side never disturbs.
+
+- **Withdrawal**: an optional "Deposit into" select in the withdraw modal,
+  defaulting to **"Don't record it"**, and hidden entirely when no accounts
+  exist. Choosing one writes a `Transfer` beside the sell carrying the same
+  `investmentTransactionId` — the mirror image of the account-to-holding
+  direction, so `deleteTransfer` already removes both. Verified: deleting the
+  transfer took the sell with it and both figures returned exactly.
+- **Maturity**: `redeemToAccount()` plus a per-holding select and button in the
+  matured banner. **Explicit, never automatic** — only the owner knows which
+  account the money landed in, and a wrong guess is worse than no guess. It
+  records a sell for the frozen redemption value so the holding's own history
+  says what became of it, plus the crediting Transfer.
+- **No "redeemed" flag.** The banner lists matured holdings *with value left*
+  (`> 0.005`), and since redeeming records a sell for the whole value the
+  holding drops out by itself. One less piece of state that could disagree
+  with the money.
+
+Verified end to end against seeded data: redeeming R$ 12.141,64 moved the
+account from R$ 1.000 to R$ 13.141,64 and the row left the banner; a R$ 1.500
+withdrawal dropped the holding's value by exactly that **with the gain
+unchanged at +R$ 2.073,79** (the V1.43 invariant); "Don't record it" wrote the
+sell and no transfer. Both languages ("Depositar em" / "Não registrar" /
+"Mover para conta").
+
+**The 375px layout needed three attempts, and the first two were wrong in the
+documented way.** The row is `justify-between`, so the form was squeezed to
+91px and the button's text wrapped into a circular blob overlapping the
+select. Making the form `w-full` below `sm` was not enough: the select carried
+`min-w-0`, so it shrank to a crushed "Es..." instead of pushing the button to a
+second line. **`min-w-[150px]` is the fix** — a floor, exactly the V1.8/V1.24
+call. Several measurements during this were the known pane artifact (116
+elements "past 375" with `scrollWidth === clientWidth`, a form measuring 14px);
+**a screenshot forces the paint and the numbers then agree with what is on
+screen**.
+
+**Also in this pass: the five row actions fit on one line again.** Adding
+Withdraw in V1.43 put six things in a cell measured for four, so the two text
+buttons wrapped and every row grew 70px to 81px — the exact mistake the note
+above `GRID_COLS` warns against. Re-measured: the cell needed 321px and had
+250, with nothing to take from the other columns (Value was already over its
+allocation) and no room to widen the table without putting a scrollbar back at
+1280px. So **Add coupon and Withdraw became icons**, like Edit and Delete in
+V1.29, which costs 240px for all five. Re-measure before touching those widths.
+
+Backup carries `fromInvestmentId` (still `version: 3`, additive).
+`tsc --noEmit`, `npm run lint` and `next build` all clean.
+
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
@@ -2262,6 +3009,45 @@ doesn't trust them — it actually `require()`s the binary under the relevant ru
 each step and fails loudly if that fails, rather than silently shipping a broken
 binary. Keep that verification if you ever rewrite this script.
 
+### App icon
+
+Until 2026-09-25 no icon was configured at all, so the desktop app shipped with
+Electron's default. `build/icon.svg` is now the source: the same mark as the
+sidebar logo in `Nav.tsx` — a rounded square with the brand gradient and
+lucide's `ChartPie` glyph in white. It uses the **default green**, not whichever
+accent is selected in Settings, because an icon is baked into the executable at
+build time and can't follow a runtime setting.
+
+`npm run icons` (`scripts/make-icons.js`) rasterizes it to `build/icon.ico`
+(16/24/32/48/64/128/256) and `build/icon.png` (512, which electron-builder
+converts to `.icns` for macOS and uses directly on Linux).
+
+- **It renders through Electron, not an image library.** Rasterizing an SVG
+  needs a real renderer and this project already ships one; adding `sharp` for
+  a file that changes once a year would fight the "keep the dependency list
+  small" rule. The window is `show: false`. One catch worth knowing if you
+  touch it: the page must be a blank **HTML** document, because loading the SVG
+  directly gives an XML document where `document.createElement("canvas")`
+  returns a plain `Element` with no `getContext`.
+- **The .ico is packed by hand** (~30 lines). An .ico is a header, one 16-byte
+  directory entry per image, then the payloads — and since Vista those payloads
+  can be PNGs as-is, which is exactly what the canvas produced, so there is no
+  bitmap re-encoding. A side of 256 is stored as 0, the field being one byte.
+- **All three files are committed, and generation is deliberately NOT chained
+  into `electron:build`.** Packaging must never depend on a renderer being
+  available — the Windows CI build is fragile enough already. Re-run
+  `npm run icons` by hand after editing the SVG.
+- `.gitignore` needed `/build` changed to `/build/*` for the three
+  `!/build/icon.*` exceptions to work: **git will not re-include a file whose
+  parent directory is excluded.**
+- `main.cjs` sets the `BrowserWindow` icon only when **not** packaged. A
+  packaged build takes its icon from the `.exe` on Windows and the bundle on
+  macOS, and `build/` is not shipped inside the app, so setting it there would
+  name a file that does not exist.
+
+The web favicon (`src/app/favicon.ico`) was left alone — this was scoped to the
+desktop icon.
+
 ### Packaging quirks (electron-builder — also non-obvious)
 
 `package.json`'s `"build"` key configures `electron-builder`. Two things here exist
@@ -2405,6 +3191,43 @@ for reasons that took real trial and error to find, in case they need touching:
   Settings → Privacy & Security → Open Anyway) gets past it once. This is a
   one-time nuisance for personal use; only worth fixing with a real Developer ID
   if the owner starts distributing this to other people.
+
+### The symlink that empties itself (2026-09-25)
+
+A seventh instance of the native-module bug, and the first one where the
+**binary was missing entirely** rather than being the wrong ABI.
+
+`.next/standalone/.next/node_modules/better-sqlite3-<hash>` is a symlink to
+the root `node_modules/better-sqlite3`, and on this Windows machine Next wrote
+it as an **absolute** path into the project. `after-pack.js` dereferences it,
+so whatever the root package contains *at packaging time* is what ships at that
+path. `rebuild-native-for-electron.js` deletes the root `build/` directory
+before rebuilding (line ~73) — so when the rebuild then fails, the root package
+has no binary at all, and a package built from that state ships the hashed path
+**empty**. The app starts, `waitForServer()` is satisfied, and every page
+answers 500 on its first query.
+
+Two lessons, both already half-written elsewhere in this file and both violated
+again here:
+- **`find` does not follow symlinks without `-L`.** A check that "found one
+  binary and it loads" concluded the package was sound when the second location
+  did not exist. `verify-packaged-native-module.js` has the same blind spot: it
+  verifies the binaries it *finds*, and cannot see one that is absent.
+- **The only check that catches this is running the app.**
+  `scripts/smoke-test-packaged-app.js` (added here) boots
+  `resources/standalone/server.js` under the packaged Electron against a temp
+  copy of `financehub.db` and requests every route, failing on any non-200 or
+  any `bindings`/`DLOPEN`/`NODE_MODULE_VERSION` text in the server log. Run it
+  after every packaging run; it is the last step before believing a build.
+
+**Local Windows packaging needs Python.** `electron-rebuild` compiles
+better-sqlite3 from source and there is no prebuilt Electron binary for this ABI
+(checked: 404). Without Python the rebuild fails, `electron-builder` never runs
+because of the `&&` chain, and **a stale installer sits in `release/` looking
+exactly like a fresh one** — which is how old code got installed three times in
+one evening under a new timestamp. The failure message now says so. Recovering
+`npm run dev` afterwards does *not* need Python: `npx prebuild-install` inside
+`node_modules/better-sqlite3` fetches the Node-ABI prebuild, which does exist.
 
 ### Verifying a change to any of this
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Pencil, Trash2 } from "lucide-react";
 import { deletePricePoint, updatePricePoint, type ActionState } from "./actions";
@@ -9,7 +10,14 @@ import { CouponSection } from "./CouponSection";
 import { TransactionSection } from "./TransactionSection";
 import { formatCurrency, formatDate, formatShortDate } from "@/lib/format";
 import { typeLabel, subtypeLabel, showsRateFields } from "@/lib/investmentTypes";
-import { currentValue, isMatured, monthlyValue, taxBreakdown, type ReferenceRatesLike } from "@/lib/investments";
+import {
+  currentValue,
+  investedAt,
+  isMatured,
+  monthlyValue,
+  taxBreakdown,
+  type ReferenceRatesLike,
+} from "@/lib/investments";
 import type { Holding } from "./InvestmentsClient";
 import { useT } from "@/components/LanguageProvider";
 import type { Dict, Language } from "@/lib/i18n";
@@ -46,11 +54,8 @@ function PriceRow({
       <form action={formAction} className="flex items-center justify-between gap-2 py-1.5">
         <span className="font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(date, lang)}</span>
         <div className="flex items-center gap-2">
-          <input
+          <MoneyInput
             name="price"
-            type="number"
-            step="0.01"
-            min="0.01"
             required
             defaultValue={price}
             autoFocus
@@ -96,10 +101,12 @@ export function HoldingDetail({
   holding,
   rates,
   cycleStartDay,
+  accounts,
 }: {
   holding: Holding;
   rates: ReferenceRatesLike;
   cycleStartDay: number;
+  accounts: { id: string; name: string }[];
 }) {
   const { t, lang } = useT();
   const chartData = [...holding.prices]
@@ -159,8 +166,13 @@ export function HoldingDetail({
         </div>
         <div>
           <p className="font-mono text-[10px] tracking-wide text-[var(--color-muted-2)] uppercase">{t.investments.invested}</p>
+          {/* investedAt(), not holding.amountInvested: once there are buys and
+              sells on file they are the invested figure, and the stored field
+              stays at whatever the holding was first created with. Showing the
+              stale one here put it next to a gain computed from the real one,
+              so the two disagreed on screen. */}
           <p className="font-mono text-sm font-semibold text-[var(--color-ink)]">
-            {formatCurrency(holding.amountInvested)}
+            {formatCurrency(investedAt(holding))}
           </p>
         </div>
         <div>
@@ -302,7 +314,7 @@ export function HoldingDetail({
 
       {/* Applies to every type: renda fixa gets topped up too, and that is the
           case where attributing money to the original startDate is wrong. */}
-      <TransactionSection holding={holding} />
+      <TransactionSection holding={holding} accounts={accounts} />
     </div>
   );
 }

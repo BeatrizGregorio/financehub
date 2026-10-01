@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { CalendarHeart, Check, Trash2 } from "lucide-react";
 import { createFund, deleteFund, markFundPaid, setFundSaved, type ActionState } from "./fundActions";
 import { fundStatus, monthlySetAside } from "@/lib/sinkingFunds";
@@ -32,11 +33,8 @@ function SavedForm({ fund }: { fund: FundRow }) {
     <form action={action} className="flex items-center gap-1.5">
       <div className="flex items-center gap-1 rounded-[10px] bg-[var(--color-inset)] px-2.5 py-0.5">
         <span className="font-mono text-[11px] text-[var(--color-muted-2)]">R$</span>
-        <input
+        <MoneyInput
           name="savedAmount"
-          type="number"
-          step="0.01"
-          min="0"
           defaultValue={fund.savedAmount}
           aria-label={t.settings.fundSavedFor(fund.name)}
           className="w-20 bg-transparent py-1 text-right font-mono text-[12.5px] outline-none"
@@ -93,7 +91,7 @@ export function SinkingFundsCard({ funds, expenseCategories }: { funds: FundRow[
           </label>
           <label>
             <span className={MICRO}>{t.common.amount}</span>
-            <input name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" className={FIELD} />
+            <MoneyInput name="amount" required placeholder="0.00" className={FIELD} />
           </label>
           <label>
             <span className={MICRO}>{t.settings.fundDue}</span>
@@ -101,7 +99,7 @@ export function SinkingFundsCard({ funds, expenseCategories }: { funds: FundRow[
           </label>
           <label>
             <span className={MICRO}>{t.settings.fundSavedSoFar}</span>
-            <input name="savedAmount" type="number" step="0.01" min="0" placeholder="0.00" className={FIELD} />
+            <MoneyInput name="savedAmount" placeholder="0.00" className={FIELD} />
           </label>
           <label className="sm:col-span-2 lg:col-span-2">
             <span className={MICRO}>{t.settings.fundCategory}</span>

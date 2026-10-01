@@ -1,0 +1,243 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { PALETTE } from "@/lib/categories";
+import { useT } from "@/components/LanguageProvider";
+import { monthlyPerformance, monthlyPerformanceBetween, monthsOfHistory } from "@/lib/investments";
+import { parseDateInput, toDateInputValue } from "@/lib/format";
+import type { InvestmentLike, ReferenceRatesLike } from "@/lib/investments";
+
+/**
+ * Windows offered above the chart. "All" is computed from the oldest holding
+ * rather than fixed, so it always means "everything you have" — and ranges
+ * longer than the history are hidden, since a chart that is three-quarters
+ * empty is worse than not offering the option.
+ */
+const RANGES = [3, 6, 12, 24] as const;
+const DEFAULT_MONTHS = 12;
+
+/**
+ * Each holding's cumulative return, month by month.
+ *
+ * Lines rather than a ranked snapshot: a single number says which holding is
+ * ahead today and hides that one has climbed steadily while another spiked
+ * once and has drifted since. The shape is the useful part.
+ *
+ * Percent rather than reais, so holdings of very different sizes share an
+ * axis. A line starts at the month its holding was bought — before that there
+ * is no return to draw, and a zero would read as "flat" rather than "not
+ * held".
+ */
+export function PerformanceChart({
+  investments,
+  rates,
+  cycleStartDay,
+}: {
+  investments: InvestmentLike[];
+  rates: ReferenceRatesLike;
+  cycleStartDay: number;
+}) {
+  const { t, lang } = useT();
+  const [range, setRange] = useState<number | "all">(DEFAULT_MONTHS);
+
+  // How much history there actually is, from the oldest active holding.
+  const maxMonths = useMemo(() => monthsOfHistory(investments), [investments]);
+
+  // Clamping rather than validating the state: if the selected window is
+  // longer than the history, show the history. Nothing to reset, nothing to
+  // get out of sync.
+  const months = range === "all" ? maxMonths : Math.min(range, maxMonths);
+
+  /**
+   * An explicit range overrides the preset when either end is filled in.
+   *
+   * Either end alone is enough — "since March" and "up to June" are both real
+   * questions, so a missing `from` means the whole history and a missing `to`
+   * means today, rather than demanding both before anything happens.
+   */
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const custom = from !== "" || to !== "";
+  const fromDate = parseDateInput(from);
+  const toDate = parseDateInput(to);
+  // Reversed dates describe an empty span. Saying so beats silently swapping
+  // them, which would answer a question that wasn't asked.
+  const reversed = fromDate !== null && toDate !== null && fromDate.getTime() > toDate.getTime();
+
+  const { points, holdings } = useMemo(() => {
+    // A null end is resolved inside the lib, which is also where the clock is
+    // allowed to be read.
+    if (custom && !reversed) {
+      return monthlyPerformanceBetween(investments, rates, fromDate, toDate, cycleStartDay, lang);
+    }
+    return monthlyPerformance(investments, rates, months, cycleStartDay, lang);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [investments, rates, months, cycleStartDay, lang, custom, reversed, from, to]);
+
+  const rangeLabel = (value: number | "all") => {
+    if (value === "all") return t.investments.allRange;
+    return value % 12 === 0
+      ? `${value / 12}${t.charts.horizonYears}`
+      : `${value}${t.charts.horizonMonths}`;
+  };
+  const options: (number | "all")[] = [...RANGES.filter((m) => m < maxMonths), "all"];
+  const dateField =
+    "rounded-[10px] bg-[var(--color-inset)] px-2.5 py-1.5 text-[12.5px] text-[var(--color-ink)] outline-none focus:ring-1 focus:ring-[var(--color-ink)]";
+  // Clicking a legend entry isolates that holding; clicking it again brings
+  // the rest back. With a dozen lines that is the difference between a chart
+  // and a plate of spaghetti.
+  const [focused, setFocused] = useState<string | null>(null);
+
+  // Walk the palette by index rather than hashing each name through
+  // categoryColor(): hashing gave two of five holdings the same purple here,
+  // and on a line chart two identical colours are two lines you cannot tell
+  // apart. Index assignment keeps them distinct until the palette runs out.
+  const colorFor = (index: number) => PALETTE[index % PALETTE.length];
+
+  const pct = (v: number) => `${v.toFixed(1).replace(".", lang === "pt" ? "," : ".")}%`;
+  const nameOf = (key: unknown) =>
+    holdings.find((h) => h.id === String(key))?.name ?? String(key);
+
+  if (holdings.length === 0) {
+    return (
+      <p className="py-8 text-center text-[13px] text-[var(--color-muted-2)]">
+        {t.investments.performanceEmpty}
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      {options.length > 1 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {options.map((option) => {
+            // A custom range owns the chart, so no preset is the active one.
+            const active =
+              !custom && (option === range || (range !== "all" && option === "all" && range >= maxMonths));
+            return (
+              <button
+                key={String(option)}
+                type="button"
+                onClick={() => setRange(option)}
+                aria-pressed={active}
+                className="rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition"
+                style={
+                  active
+                    ? { background: "var(--gradient-brand)", color: "#fff" }
+                    : { background: "var(--color-inset)", color: "var(--color-muted)" }
+                }
+              >
+                {rangeLabel(option)}
+              </button>
+            );
+          })}
+
+          <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[var(--color-muted-2)]">
+            {t.investments.rangeFrom}
+            <input
+              type="date"
+              value={from}
+              max={to || toDateInputValue(new Date())}
+              onChange={(e) => setFrom(e.target.value)}
+              className={dateField}
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted-2)]">
+            {t.investments.rangeTo}
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              className={dateField}
+            />
+          </label>
+          {custom && (
+            <button
+              type="button"
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+              className="text-[12px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
+            >
+              {t.investments.rangeClear}
+            </button>
+          )}
+        </div>
+      )}
+
+      {reversed && (
+        <p className="mb-3 text-[12.5px] text-[var(--color-rust-text)]">{t.investments.rangeInvalid}</p>
+      )}
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={points} margin={{ top: 6, right: 20, bottom: 4, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 11, fill: "var(--color-muted-2)" }}
+            tickMargin={8}
+          />
+          <YAxis
+            width={56}
+            tick={{ fontSize: 11, fill: "var(--color-muted-2)" }}
+            tickFormatter={(v) => `${Number(v).toFixed(0)}%`}
+          />
+          {/* Break-even. Below this line a holding is worth less than what went
+              into it, which is worth seeing at a glance. */}
+          <ReferenceLine y={0} stroke="var(--color-muted-2)" strokeDasharray="4 3" />
+          <Tooltip
+            contentStyle={{
+              borderRadius: 12,
+              fontSize: 13,
+              fontFamily: "var(--font-jakarta)",
+              background: "var(--color-tooltip-bg)",
+              backdropFilter: "blur(16px)",
+              border: "1px solid var(--color-border)",
+            }}
+            formatter={(value: unknown, key: unknown) => [pct(Number(value)), nameOf(key)]}
+          />
+          <Legend
+            wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+            formatter={(key) => nameOf(key)}
+            onClick={(entry) => {
+              const key = String((entry as { dataKey?: string }).dataKey ?? "");
+              setFocused((current) => (current === key ? null : key));
+            }}
+          />
+          {holdings.map((holding, index) => {
+            const dimmed = focused !== null && focused !== holding.id;
+            return (
+              <Line
+                key={holding.id}
+                type="monotone"
+                dataKey={holding.id}
+                name={holding.id}
+                stroke={colorFor(index)}
+                strokeWidth={focused === holding.id ? 2.5 : 1.8}
+                strokeOpacity={dimmed ? 0.15 : 1}
+                dot={false}
+                // A holding bought mid-window has nulls before it; this stops
+                // the line being drawn back to the axis.
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            );
+          })}
+        </LineChart>
+      </ResponsiveContainer>
+      <p className="mt-2 text-[12px] text-[var(--color-muted-2)]">{t.investments.performanceHint}</p>
+    </div>
+  );
+}

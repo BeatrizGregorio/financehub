@@ -34,7 +34,8 @@ export type AccountEntryLike = {
 export type TransferLike = {
   date: Date;
   amount: number;
-  fromAccountId: string;
+  /** Null when the money came out of a holding rather than an account. */
+  fromAccountId: string | null;
   toAccountId: string | null;
   toInvestmentId: string | null;
 };

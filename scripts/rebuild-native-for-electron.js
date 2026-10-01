@@ -71,7 +71,33 @@ console.log(`Found ${standaloneBinariesBefore.length} standalone better-sqlite3 
 // Force a truly clean rebuild — no stale build/ dir left for node-gyp or
 // electron-rebuild's own caching to short-circuit against.
 fs.rmSync(path.join(rootPkgDir, "build"), { recursive: true, force: true });
-run("npx electron-rebuild -f -w better-sqlite3");
+try {
+  run("npx electron-rebuild -f -w better-sqlite3");
+} catch {
+  // node-gyp compiles better-sqlite3 from source, which needs Python and a C++
+  // toolchain. When they are missing it fails with a node-gyp stack trace that
+  // says nothing about what to install — and because this runs in the middle of
+  // electron:dist, the visible symptom is just "no installer appeared", which
+  // has already cost one debugging session. There are no prebuilt Electron
+  // binaries to fall back to: better-sqlite3 publishes none for this
+  // combination (checked, HTTP 404).
+  console.error(`
+Could not rebuild better-sqlite3 for Electron.
+
+This step compiles the module from source, which needs:
+  - Python 3
+  - the Visual Studio C++ build tools (Windows) or Xcode command line tools (macOS)
+
+Neither a prebuilt Electron binary nor a cached build is available, so there is
+nothing to fall back to. Either install those, or build the installer through
+the GitHub Actions workflow (.github/workflows/build-windows.yml), where the
+runner already has them.
+
+Nothing was packaged. The previous installer in release/, if any, is now STALE —
+delete it rather than running it, or you will install old code over new.
+`);
+  process.exit(1);
+}
 
 if (!loadsUnderElectron(rootBinary)) {
   console.error(

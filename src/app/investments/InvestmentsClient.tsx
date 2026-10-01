@@ -1,18 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { PartyPopper, Plus, RefreshCw } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { HoldingForm } from "./HoldingForm";
 import { HoldingsTable } from "./HoldingsTable";
 import { CouponSection } from "./CouponSection";
+import { TransactionSection } from "./TransactionSection";
 import { UpdatePricesModal } from "./UpdatePricesModal";
 import { HoldingDetail } from "./HoldingDetail";
+import { redeemToAccount, type ActionState } from "./actions";
 import { ProjectionChart } from "@/components/ProjectionChart";
 import { GoalProjectionCard } from "./GoalProjectionCard";
 import type { GoalLike } from "./GoalForm";
 import { PortfolioValueChart } from "@/components/PortfolioValueChart";
+import { PerformanceChart } from "@/components/PerformanceChart";
 import {
+  MAX_PROJECTED_RATE,
+  MAX_REALIZED_PROJECTION_YEARS,
   currentValue,
   isAccrualValued,
   isMatured,
@@ -92,6 +97,7 @@ export function InvestmentsClient({
   goal,
   emergencyReserveTarget,
   goalCardOpen,
+  accounts,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
@@ -103,6 +109,7 @@ export function InvestmentsClient({
   goal: GoalLike | null;
   emergencyReserveTarget: number | null;
   goalCardOpen: boolean;
+  accounts: { id: string; name: string }[];
 }) {
   const { t, lang } = useT();
   const [editing, setEditing] = useState<Holding | null>(null);
@@ -110,12 +117,16 @@ export function InvestmentsClient({
   const [showPrices, setShowPrices] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [couponForId, setCouponForId] = useState<string | null>(null);
+  const [withdrawForId, setWithdrawForId] = useState<string | null>(null);
 
   const summary = portfolioSummary(holdings, rates);
-  const maturedHoldings = holdings.filter((h) => isMatured(h));
+  // Matured *and* still holding something. Moving one into an account
+  // records a sell for its whole value, so it leaves this list by itself —
+  // no "redeemed" flag to keep in step with the money.
+  const maturedHoldings = holdings.filter((h) => isMatured(h) && currentValue(h, rates) > 0.005);
   // Only worth mentioning the reference rates when something actually depends
   // on them — a portfolio of stocks with manual prices doesn't use them at all.
-  const hasAccrualHoldings = holdings.some((h) => !isMatured(h) && isAccrualValued(h));
+  const hasAccrualHoldings = holdings.some((h) => !isMatured(h) && isAccrualValued(h, rates));
   const projection = projectPortfolioValue(holdings, rates, t.charts);
   const monthly = monthlyPortfolioValue(holdings, rates, 12, cycleStartDay, lang);
   // Derive from the live `holdings` prop (not a frozen snapshot) so editing or
@@ -125,6 +136,9 @@ export function InvestmentsClient({
   // object, so a coupon added in the modal shows up immediately — same
   // reasoning as `viewing` above.
   const couponFor = couponForId ? (holdings.find((h) => h.id === couponForId) ?? null) : null;
+  // Derived from the live list by id, like couponFor — so a withdrawal
+  // recorded inside the modal shows up in its own list without closing it.
+  const withdrawFor = withdrawForId ? (holdings.find((h) => h.id === withdrawForId) ?? null) : null;
 
   function startEdit(holding: Holding) {
     setEditing(holding);
@@ -179,16 +193,7 @@ export function InvestmentsClient({
           </div>
           <ul className="flex flex-col gap-1 pl-[27px]">
             {maturedHoldings.map((h) => (
-              <li
-                key={h.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[12.5px]"
-              >
-                <span className="font-semibold text-[var(--color-ink)]">{h.name}</span>
-                <span className="font-mono text-[var(--color-muted)]">
-                  {t.investments.maturedOn} {h.maturityDate ? formatDate(h.maturityDate, lang) : ""} ·{" "}
-                  {formatCurrency(currentValue(h, rates))}
-                </span>
-              </li>
+              <MaturedRow key={h.id} holding={h} rates={rates} accounts={accounts} />
             ))}
           </ul>
           <p className="pl-[27px] text-[11.5px] text-[var(--color-muted)]">
@@ -234,6 +239,19 @@ export function InvestmentsClient({
         </p>
       )}
 
+      {/* First content block on the page, per the owner's request: the
+          question "which of these is actually working" comes before the
+          timeline charts and the holdings list. */}
+      {holdings.length > 0 && (
+        <div className={`${CARD} p-5`}>
+          <h2 className="text-[17px] font-extrabold tracking-tight">{t.investments.performance}</h2>
+          <p className="mt-1 mb-3 text-[12.5px] text-[var(--color-muted)]">
+            {t.investments.performanceBlurb}
+          </p>
+          <PerformanceChart investments={holdings} rates={rates} cycleStartDay={cycleStartDay} />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <div className={`${CARD} p-5`}>
           <div className="mb-1 flex items-center justify-between">
@@ -254,7 +272,7 @@ export function InvestmentsClient({
             </span>
           </div>
           <p className="mb-3 text-[12.5px] text-[var(--color-muted)]">
-            {t.investments.projectionBlurb}
+            {t.investments.projectionBlurb(String(MAX_PROJECTED_RATE), String(MAX_REALIZED_PROJECTION_YEARS))}
           </p>
           <ProjectionChart data={projection} />
         </div>
@@ -282,7 +300,7 @@ export function InvestmentsClient({
 
       {viewing && (
         <Modal title={viewing.name} onClose={() => setViewingId(null)}>
-          <HoldingDetail holding={viewing} rates={rates} cycleStartDay={cycleStartDay} />
+          <HoldingDetail holding={viewing} rates={rates} cycleStartDay={cycleStartDay} accounts={accounts} />
         </Modal>
       )}
 
@@ -292,13 +310,90 @@ export function InvestmentsClient({
         </Modal>
       )}
 
+      {withdrawFor && (
+        <Modal title={`${t.investments.withdraw} — ${withdrawFor.name}`} onClose={() => setWithdrawForId(null)}>
+          {/* The same component the detail view uses, in its withdraw
+              presentation — one set of add/delete wiring, two framings. */}
+          <TransactionSection holding={withdrawFor} mode="withdraw" accounts={accounts} />
+        </Modal>
+      )}
+
       <HoldingsTable
         holdings={holdings}
         rates={rates}
         onEdit={startEdit}
         onView={(h) => setViewingId(h.id)}
         onAddCoupon={(h) => setCouponForId(h.id)}
+        onWithdraw={(h) => setWithdrawForId(h.id)}
       />
     </div>
+  );
+}
+
+/**
+ * One matured holding in the banner, with somewhere to put the money.
+ *
+ * A matured holding contributes nothing to the portfolio totals or to net
+ * worth (V1.20), so until the cash is recorded in an account it has simply
+ * dropped out of the app. This is the one place that is obvious, which is
+ * why the control lives here rather than in the table.
+ *
+ * Not automatic: only the owner knows which account the money landed in.
+ */
+function MaturedRow({
+  holding,
+  rates,
+  accounts,
+}: {
+  holding: Holding;
+  rates: ReferenceRatesLike;
+  accounts: { id: string; name: string }[];
+}) {
+  const { t, lang } = useT();
+  const [state, formAction] = useActionState(redeemToAccount.bind(null, holding.id), {} as ActionState);
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12.5px]">
+      <span className="font-semibold text-[var(--color-ink)]">{holding.name}</span>
+      <span className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 sm:w-auto sm:flex-1">
+        <span className="font-mono text-[var(--color-muted)]">
+          {t.investments.maturedOn} {holding.maturityDate ? formatDate(holding.maturityDate, lang) : ""} ·{" "}
+          {formatCurrency(currentValue(holding, rates))}
+        </span>
+        {accounts.length > 0 && (
+          <form action={formAction} className="flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:w-auto sm:flex-1 sm:flex-nowrap">
+            <select
+              name="toAccountId"
+              defaultValue=""
+              required
+              aria-label={t.investments.moveToAccountFor(holding.name)}
+              // A floor rather than min-w-0: with nothing to stop it the select
+              // shrank to a crushed "Es..." instead of pushing the button onto a
+              // second line, which is the V1.8 trap exactly.
+              className="min-w-[150px] flex-1 rounded-[9px] bg-[var(--color-surface-raised)] px-2 py-1 text-[12px] text-[var(--color-ink)] outline-none focus:ring-1 focus:ring-[var(--color-ink)]"
+            >
+              <option value="" disabled>
+                {t.investments.chooseAccount}
+              </option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold whitespace-nowrap text-white transition hover:brightness-105 active:scale-95"
+              style={{ background: "var(--gradient-brand)" }}
+            >
+              {t.investments.moveToAccount}
+            </button>
+          </form>
+        )}
+      </span>
+      {state.error && (
+        <span className="w-full text-[12px] text-[var(--color-rust-text)]">{state.error}</span>
+      )}
+    </li>
   );
 }
