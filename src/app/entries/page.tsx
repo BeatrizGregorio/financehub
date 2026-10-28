@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { withinUndoWindow } from "@/lib/entryEdits";
 import { isTextColumn, parseSort, sortRowsByText, toOrderBy, type Sort } from "@/lib/entrySort";
 import { getCategories, getCycleStartDay, getPaymentMethods } from "@/lib/data";
-import { cycleKey, cycleLabel, cycleRange } from "@/lib/format";
+import { cycleKey, cycleLabel, cycleRange, parseDateInput } from "@/lib/format";
 import { getLanguage } from "@/lib/data";
 import { EntriesClient } from "./EntriesClient";
 import type { Prisma } from "@/generated/prisma/client";
@@ -26,6 +26,8 @@ type Search = {
   tag?: string;
   sort?: string;
   dir?: string;
+  from?: string;
+  to?: string;
 };
 
 /**
@@ -76,13 +78,31 @@ export default async function EntriesPage({
   const account = sp.account ?? "all";
   const tag = sp.tag ?? "all";
   const sort = parseSort(sp.sort, sp.dir);
+  // Either end alone is a real question — "since March", "up to June" — so
+  // a missing end simply means unbounded, the same rule the performance
+  // chart's range uses.
+  const from = parseDateInput(sp.from ?? "");
+  const to = parseDateInput(sp.to ?? "");
 
   const where: Prisma.EntryWhereInput = {};
   if (type !== "all") where.type = type;
   if (tag !== "all") where.tags = { contains: tagNeedle(tag) };
   if (account === "none") where.accountId = null;
   else if (account !== "all") where.accountId = account;
-  if (month !== "all") {
+  if (from || to) {
+    // An explicit range wins over the month picker. The two are kept
+    // mutually exclusive in the UI as well, so they can never describe two
+    // different windows at once.
+    //
+    // The end is inclusive of its own day: "up to the 9th" has to contain
+    // the 9th whatever time of day its entries carry, so the bound is
+    // midnight after it.
+    const endExclusive = to ? new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1) : null;
+    where.date = {
+      ...(from ? { gte: from } : {}),
+      ...(endExclusive ? { lt: endExclusive } : {}),
+    };
+  } else if (month !== "all") {
     // The same cycle-aware date range the sidebar's IN/OUT query uses, rather
     // than bucketing in memory — those two agreeing is the useful end-to-end
     // check that the range and the bucketing haven't drifted apart.
@@ -179,7 +199,7 @@ export default async function EntriesPage({
       outflow={outflow}
       page={page}
       pageSize={PAGE_SIZE}
-      filters={{ q, month, type, account, tag }}
+      filters={{ q, month, type, account, tag, from: sp.from ?? "", to: sp.to ?? "" }}
       splitCounts={splitCounts}
       tags={allTags}
       deleted={deleted}

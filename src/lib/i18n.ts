@@ -142,6 +142,7 @@ const en = {
     setAccount: "Set account…",
     addTagPlaceholder: "Add tag…",
     clearSelection: "Clear",
+    clearFilters: "Clear filters",
     confirmBulkUpdate: (n: number, value: string) =>
       `Set ${value} on ${n} entr${n === 1 ? "y" : "ies"}? This can't be undone.`,
     confirmBulkDelete: (n: number) =>
@@ -946,6 +947,7 @@ const pt: Dict = {
     setAccount: "Definir conta…",
     addTagPlaceholder: "Adicionar tag…",
     clearSelection: "Limpar",
+    clearFilters: "Limpar filtros",
     confirmBulkUpdate: (n: number, value: string) =>
       `Definir ${value} em ${n} lançamento${n === 1 ? "" : "s"}? Isso não pode ser desfeito.`,
     confirmBulkDelete: (n: number) =>

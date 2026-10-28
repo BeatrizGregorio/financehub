@@ -77,7 +77,7 @@ function Figure({
   );
 }
 type TypeFilter = "all" | "income" | "expense";
-type Filters = { q: string; month: string; type: string; account: string; tag: string };
+type Filters = { q: string; month: string; type: string; account: string; tag: string; from: string; to: string };
 
 /**
  * Filters live in the URL rather than in component state.
@@ -227,6 +227,17 @@ export function EntriesClient({
     if (merged.type && merged.type !== "all") params.set("type", merged.type);
     if (merged.account && merged.account !== "all") params.set("account", merged.account);
     if (merged.tag && merged.tag !== "all") params.set("tag", merged.tag);
+    // A month and an explicit range would describe two different windows,
+    // so picking either clears the other rather than silently losing to it.
+    if ("month" in next) {
+      merged.from = "";
+      merged.to = "";
+    } else if ("from" in next || "to" in next) {
+      merged.month = "all";
+      params.delete("month");
+    }
+    if (merged.from) params.set("from", merged.from);
+    if (merged.to) params.set("to", merged.to);
     // Any filter change resets to page 1 unless the caller asked for a page.
     const nextPage = "page" in next ? next.page : 1;
     if (nextPage && nextPage > 1) params.set("page", String(nextPage));
@@ -245,6 +256,17 @@ export function EntriesClient({
       router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
     });
   }
+
+  const anyFilter =
+    filters.q !== "" ||
+    filters.month !== "all" ||
+    filters.type !== "all" ||
+    filters.account !== "all" ||
+    filters.tag !== "all" ||
+    filters.from !== "" ||
+    filters.to !== "";
+  const dateField =
+    "rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-[7px] text-[12.5px] text-[var(--color-ink)] outline-none focus:ring-1 focus:ring-[var(--color-ink)]";
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -425,6 +447,27 @@ export function EntriesClient({
           </div>
         )}
 
+        <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted-2)]">
+          {t.investments.rangeFrom}
+          <input
+            type="date"
+            value={shownFilters.from}
+            max={shownFilters.to || undefined}
+            onChange={(e) => navigate({ from: e.target.value })}
+            className={dateField}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted-2)]">
+          {t.investments.rangeTo}
+          <input
+            type="date"
+            value={shownFilters.to}
+            min={shownFilters.from || undefined}
+            onChange={(e) => navigate({ to: e.target.value })}
+            className={dateField}
+          />
+        </label>
+
         {accounts.length > 0 && (
           <div className="relative">
             <select
@@ -480,6 +523,19 @@ export function EntriesClient({
             </button>
           )}
         </form>
+
+        {anyFilter && (
+          <button
+            type="button"
+            onClick={() => {
+              setQ("");
+              navigate({ q: "", month: "all", type: "all", account: "all", tag: "all", from: "", to: "" });
+            }}
+            className="text-[12.5px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
+          >
+            {t.entries.clearFilters}
+          </button>
+        )}
       </div>
 
       {selected.size > 0 && (
