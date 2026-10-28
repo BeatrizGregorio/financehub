@@ -26,7 +26,7 @@ export function PointsCard({ enabled, programCount }: { enabled: boolean; progra
 
       {/* Saves as soon as it's ticked: a single switch doesn't need a button. */}
       <form ref={formRef} action={updatePointsEnabled}>
-        <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-semibold text-[var(--color-ink)]">
+        <label className="-my-1 flex cursor-pointer items-center gap-2.5 py-1 text-[13.5px] font-semibold text-[var(--color-ink)]">
           <input
             type="checkbox"
             name="enabled"

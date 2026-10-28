@@ -111,7 +111,7 @@ export function HoldingsFilter({
             <button
               type="button"
               onClick={() => onChange({ ...filter, hidden: new Set() })}
-              className="text-[12px] font-semibold text-[var(--color-brand-text)] underline underline-offset-2"
+              className="-m-1 p-1 text-[12px] font-semibold text-[var(--color-brand-text)] underline underline-offset-2"
             >
               {t.investments.selectAll}
             </button>
@@ -120,7 +120,7 @@ export function HoldingsFilter({
               onClick={() =>
                 onChange({ ...filter, hidden: new Set(inScope.map((h) => h.id)) })
               }
-              className="text-[12px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
+              className="-m-1 p-1 text-[12px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
             >
               {t.investments.selectNone}
             </button>

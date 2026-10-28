@@ -82,7 +82,7 @@ export function AutoBackupCard({
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <form action={settingsAction} className="flex flex-col gap-3.5">
-          <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-semibold text-[var(--color-ink)]">
+          <label className="-my-1 flex cursor-pointer items-center gap-2.5 py-1 text-[13.5px] font-semibold text-[var(--color-ink)]">
             <input
               type="checkbox"
               name="enabled"
