@@ -5,13 +5,19 @@ import { deleteEntry, deleteSeries, deleteSplit } from "./actions";
 import { RowAction } from "@/components/RowAction";
 import { tagsOf } from "@/lib/tags";
 import { categoryColor } from "@/lib/categories";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatWeekday } from "@/lib/format";
+import { groupByDay } from "@/lib/entryGroups";
 import type { EditableEntry } from "./EntryForm";
 import { useT } from "@/components/LanguageProvider";
-import type { Dict } from "@/lib/i18n";
+import type { Dict, Language } from "@/lib/i18n";
 import type { Sort, SortColumn } from "@/lib/entrySort";
 
 const GRID_COLS = "90px 1.4fr 1.1fr 1fr 110px 150px";
+
+/** One thing to render in the table body: a day heading, or an entry. */
+type BodyItem =
+  | { kind: "day"; key: string; date: Date; net: number; count: number }
+  | { kind: "entry"; key: string; entry: EditableEntry };
 
 /**
  * A column heading that sorts. The arrow only appears on the active column —
@@ -123,6 +129,54 @@ function DeleteSplitButton({ splitId, count, t }: { splitId: string; count: numb
   );
 }
 
+/**
+ * The band that opens each day, with that day's own net beside it.
+ *
+ * The subtotal is the point of grouping at all: it answers "what did
+ * Tuesday cost" without reading down a column and adding up.
+ */
+function DayHeading({
+  date,
+  net,
+  count,
+  lang,
+  t,
+}: {
+  date: Date;
+  net: number;
+  count: number;
+  lang: Language;
+  t: Dict;
+}) {
+  return (
+    // The same grid as the rows, so the day's subtotal lands in the Amount
+    // column directly above the amounts it adds up. Right-aligning it to the
+    // edge of the table instead would put it under Actions, where it would
+    // read as unrelated to the numbers it totals.
+    <div
+      className="grid items-baseline gap-4 border-b border-[var(--color-track)] bg-[var(--color-inset)] px-6 py-2 font-mono text-[11px]"
+      style={{ gridTemplateColumns: GRID_COLS }}
+    >
+      <span
+        className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 tracking-[0.08em] text-[var(--color-muted)] uppercase"
+        style={{ gridColumn: "span 4" }}
+      >
+        {formatWeekday(date, lang)} · {formatDate(date, lang)}
+        <span className="tracking-normal normal-case text-[var(--color-muted-2)]">
+          {t.entries.countSuffix(count)}
+        </span>
+      </span>
+      <span
+        className="text-right font-semibold tabular-nums"
+        style={{ color: net >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
+      >
+        {net >= 0 ? "+" : "−"}
+        {formatCurrency(Math.abs(net))}
+      </span>
+    </div>
+  );
+}
+
 function seriesBadge(entry: EditableEntry, t: Dict): string | null {
   if (entry.seriesType === "fixed") return t.entries.recurring;
   if (entry.seriesType === "installment") {
@@ -152,6 +206,27 @@ export function EntryTable({
 }) {
   const { t, lang } = useT();
 
+  // Headings and rows flattened into one list, so the body stays a single map
+  // and a heading can never end up inside a row's markup.
+  //
+  // **Only a date sort is grouped.** Sorted by name or amount, the same day
+  // turns up in a dozen places, so a heading per run would be one heading per
+  // row — noise where the whole point was structure.
+  const grouped = sort.column === "date";
+  const body: BodyItem[] =
+    grouped
+      ? groupByDay(entries).flatMap((g) => [
+          {
+            kind: "day" as const,
+            key: `day:${g.key}`,
+            date: g.date,
+            net: g.net,
+            count: g.rows.length,
+          },
+          ...g.rows.map((entry) => ({ kind: "entry" as const, key: entry.id, entry })),
+        ])
+      : entries.map((entry) => ({ kind: "entry" as const, key: entry.id, entry }));
+
   if (entries.length === 0) {
     return (
       <p className="py-12 text-center text-[13px] text-[var(--color-muted-2)]">
@@ -176,7 +251,20 @@ export function EntryTable({
             <span className="text-right">{t.common.actions}</span>
           </div>
 
-          {entries.map((entry) => {
+          {body.map((item) => {
+            if (item.kind === "day") {
+              return (
+                <DayHeading
+                  key={item.key}
+                  date={item.date}
+                  net={item.net}
+                  count={item.count}
+                  lang={lang}
+                  t={t}
+                />
+              );
+            }
+            const entry = item.entry;
             const badge = seriesBadge(entry, t);
             const seriesCount = entry.groupId ? groupCounts[entry.groupId] ?? 0 : 0;
             return (
@@ -185,8 +273,13 @@ export function EntryTable({
                 className="grid items-center gap-4 border-b border-black/[0.04] px-6 py-[15px] last:border-0"
                 style={{ gridTemplateColumns: GRID_COLS }}
               >
+                {/* Under a day heading the date is already stated, so the
+                    cell is left empty rather than repeating it on every row.
+                    The resulting indent reads as "these belong to the heading
+                    above". The column itself stays, because its header is the
+                    Date sort control. */}
                 <span className="font-mono text-[13px] text-[var(--color-muted-2)]">
-                  {formatDate(entry.date, lang)}
+                  {grouped ? "" : formatDate(entry.date, lang)}
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="flex items-center gap-2 truncate text-[13.5px] font-semibold text-[var(--color-ink)]">

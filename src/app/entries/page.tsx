@@ -151,10 +151,13 @@ export default async function EntriesPage({
     .sort((a, b) => (a < b ? 1 : -1))
     .map((key) => ({ key, label: cycleLabel(key, lang) }));
 
-  const net = sums.reduce(
-    (acc, s) => acc + (s.type === "income" ? 1 : -1) * (s._sum.amount ?? 0),
-    0,
-  );
+  // In and out for the whole filtered set, not just the visible page. These
+  // were already being computed and then collapsed into a single net figure —
+  // but "R$ 0 net" on a month with R$ 8.000 each way says nothing, so both
+  // sides are reported and net is derived from them.
+  const inflow = sums.find((s) => s.type === "income")?._sum.amount ?? 0;
+  const outflow = sums.find((s) => s.type === "expense")?._sum.amount ?? 0;
+  const net = inflow - outflow;
 
   // The most recent delete, offered as an undo only while it is fresh. Older
   // batches are cleared when the next delete records one, so at most one row
@@ -172,6 +175,8 @@ export default async function EntriesPage({
       groupCounts={groupCounts}
       total={total}
       net={net}
+      inflow={inflow}
+      outflow={outflow}
       page={page}
       pageSize={PAGE_SIZE}
       filters={{ q, month, type, account, tag }}

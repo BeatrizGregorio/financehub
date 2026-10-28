@@ -12,6 +12,33 @@ import { EntryTable } from "./EntryTable";
 import { useT } from "@/components/LanguageProvider";
 
 type CategoryOption = { id: string; name: string };
+
+/** One figure in the totals band: a micro label over a coloured amount. */
+function Figure({
+  label,
+  value,
+  tone,
+  prefix,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+  prefix: string;
+}) {
+  return (
+    // A floor rather than min-w-0 so a long label wraps instead of being
+    // crushed, per the pattern the rest of this app uses for stat text.
+    <div className="min-w-[90px]">
+      <p className="font-mono text-[10px] tracking-[0.1em] text-[var(--color-muted-2)] uppercase">
+        {label}
+      </p>
+      <p className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums" style={{ color: tone }}>
+        {prefix}
+        {formatCurrency(value)}
+      </p>
+    </div>
+  );
+}
 type TypeFilter = "all" | "income" | "expense";
 type Filters = { q: string; month: string; type: string; account: string; tag: string };
 
@@ -29,6 +56,8 @@ export function EntriesClient({
   groupCounts,
   total,
   net,
+  inflow,
+  outflow,
   page,
   pageSize,
   filters,
@@ -47,6 +76,8 @@ export function EntriesClient({
   groupCounts: Record<string, number>;
   total: number;
   net: number;
+  inflow: number;
+  outflow: number;
   page: number;
   pageSize: number;
   filters: Filters;
@@ -149,14 +180,7 @@ export function EntriesClient({
         <div>
           <h1 className="text-[28px] font-extrabold tracking-tight sm:text-[34px]">{t.entries.title}</h1>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            {t.entries.countSuffix(total)} · {scopeLabel} · {t.entries.net}{" "}
-            <span
-              style={{ color: net >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)" }}
-              className="font-semibold"
-            >
-              {net >= 0 ? "+" : "−"}
-              {formatCurrency(Math.abs(net))}
-            </span>
+            {t.entries.countSuffix(total)} · {scopeLabel}
           </p>
         </div>
         <button
@@ -170,6 +194,21 @@ export function EntriesClient({
         >
           <Plus size={16} /> {t.entries.addEntry}
         </button>
+      </div>
+
+      {/* Totals for everything the filters match, not just the visible page.
+          Both sides are shown rather than net alone: a month that takes in
+          R$ 8.000 and spends R$ 8.000 nets to zero, and "R$ 0" is the one
+          figure that tells you nothing about it. */}
+      <div className="flex flex-wrap gap-x-10 gap-y-3 rounded-[16px] border border-[var(--color-border)] bg-[var(--color-inset)] px-5 py-3.5">
+        <Figure label={t.dashboard.income} value={inflow} tone="var(--color-positive-text)" prefix="+" />
+        <Figure label={t.dashboard.expenses} value={outflow} tone="var(--color-rust-text)" prefix="−" />
+        <Figure
+          label={t.entries.net}
+          value={Math.abs(net)}
+          tone={net >= 0 ? "var(--color-positive-text)" : "var(--color-rust-text)"}
+          prefix={net >= 0 ? "+" : "−"}
+        />
       </div>
 
       {showForm && (

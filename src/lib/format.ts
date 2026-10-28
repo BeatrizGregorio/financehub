@@ -85,6 +85,26 @@ export function formatShortDate(date: Date, lang: Language = DEFAULT_LANGUAGE): 
   return f.format(date);
 }
 
+const weekdayFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Short weekday name, for the day headings in the entries register.
+ *
+ * Composed with formatDate at the call site rather than asking Intl for
+ * weekday+date together, the same reasoning as monthLabel: a combined pt-BR
+ * format reads "terça-feira, 14 de outubro de 2026". The trailing dot pt puts
+ * on "ter." is dropped so it sits evenly beside the date.
+ */
+export function formatWeekday(date: Date, lang: Language = DEFAULT_LANGUAGE): string {
+  const locale = localeOf(lang);
+  let f = weekdayFormatters.get(locale);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, { weekday: "short" });
+    weekdayFormatters.set(locale, f);
+  }
+  return f.format(date).replace(/\.$/, "");
+}
+
 function monthLabel(date: Date, lang: Language): string {
   // Composed from the parts rather than asking Intl for month+year together:
   // pt-BR would otherwise produce "ago. de 2026", which is three times the
