@@ -18,7 +18,13 @@
 /out/
 
 # production
-/build
+/build/*
+# ...except the desktop app's icon. The .svg is the source; the .ico and .png
+# are generated from it by `npm run icons` and committed so that packaging —
+# including the Windows CI build — never has to rasterize anything.
+!/build/icon.svg
+!/build/icon.ico
+!/build/icon.png
 
 # misc
 .DS_Store

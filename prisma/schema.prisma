@@ -207,6 +207,8 @@ model InvestmentGoal {
   targetDate         DateTime
   expectedAnnualRate Float    @default(0.1)
   monthlyContribution Float?
+  /// Null means "start from the live portfolio value" — see the migration.
+  startingValue      Float?
   updatedAt          DateTime @updatedAt
 }
 
@@ -239,7 +241,10 @@ model Transfer {
   id                      String   @id @default(cuid())
   date                    DateTime
   amount                  Float
-  fromAccountId           String
+  /// Exactly one side is set per direction: an account pays into a holding, or
+  /// a holding pays out into an account (a withdrawal or a redemption).
+  fromAccountId           String?
+  fromInvestmentId        String?
   toAccountId             String?
   toInvestmentId          String?
   investmentTransactionId String?
@@ -327,6 +332,19 @@ model PointsRedemption {
   createdAt     DateTime      @default(now())
 
   @@index([programId])
+}
+
+/// A just-deleted set of entries, kept briefly so the delete can be undone
+/// (V1.36). Deliberately NOT part of backup export/import: it is a scratch
+/// buffer, and resurrecting rows into a restored database would be worse than
+/// losing the undo.
+model DeletedEntryBatch {
+  id        String   @id @default(cuid())
+  label     String
+  count     Int
+  /// The deleted rows as JSON, ids included.
+  payload   String
+  createdAt DateTime @default(now())
 }
 
 model SinkingFund {

@@ -48,7 +48,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   Fund: "#EC4899",
 };
 
-const PALETTE = ["#0C9E57", "#10B96A", "#3B82F6", "#F59E0B", "#A855F7", "#F97316", "#14B8A6", "#EC4899", "#0EA5E9", "#9CA3AF"];
+export const PALETTE = ["#0C9E57", "#10B96A", "#3B82F6", "#F59E0B", "#A855F7", "#F97316", "#14B8A6", "#EC4899", "#0EA5E9", "#9CA3AF"];
 
 export function categoryColor(category: string): string {
   if (CATEGORY_COLORS[category]) return CATEGORY_COLORS[category];

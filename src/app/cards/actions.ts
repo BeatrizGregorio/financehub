@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseMoney } from "@/lib/money";
 import { prisma } from "@/lib/db";
 import { clampCardDay } from "@/lib/cards";
 
@@ -76,7 +77,7 @@ export async function payBill(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const amount = Number(formData.get("amount"));
+  const amount = parseMoney(String(formData.get("amount") ?? "")) ?? NaN;
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter an amount greater than 0." };
 
   const dateRaw = String(formData.get("date") ?? "");

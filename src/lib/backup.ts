@@ -131,7 +131,8 @@ export type Backup = {
     id?: string;
     date: string;
     amount: number;
-    fromAccountId: string;
+    fromAccountId?: string | null;
+    fromInvestmentId?: string | null;
     toAccountId?: string | null;
     toInvestmentId?: string | null;
     investmentTransactionId?: string | null;
@@ -228,6 +229,7 @@ export async function buildBackup() {
       date: t.date,
       amount: t.amount,
       fromAccountId: t.fromAccountId,
+      fromInvestmentId: t.fromInvestmentId,
       toAccountId: t.toAccountId,
       toInvestmentId: t.toInvestmentId,
       investmentTransactionId: t.investmentTransactionId,
@@ -293,6 +295,9 @@ export async function restoreBackup(backup: Backup) {
   // to hand someone a paid copy, and wiping it here would deactivate the app
   // every time someone restored a backup.
   await prisma.entry.deleteMany();
+  // The undo buffer belongs to the data that was just replaced: offering to
+  // restore rows from a different database would be worse than losing it.
+  await prisma.deletedEntryBatch.deleteMany();
   await prisma.category.deleteMany();
   await prisma.budget.deleteMany();
   await prisma.paymentMethod.deleteMany();
@@ -473,7 +478,8 @@ export async function restoreBackup(backup: Backup) {
         ...(t.id ? { id: t.id } : {}),
         date: new Date(t.date),
         amount: t.amount,
-        fromAccountId: t.fromAccountId,
+        fromAccountId: t.fromAccountId ?? null,
+        fromInvestmentId: t.fromInvestmentId ?? null,
         toAccountId: t.toAccountId ?? null,
         toInvestmentId: t.toInvestmentId ?? null,
         investmentTransactionId: t.investmentTransactionId ?? null,

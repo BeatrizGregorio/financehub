@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { ArrowDownLeft, ArrowUpRight, Trash2 } from "lucide-react";
 import { addTransaction, deleteTransaction, type ActionState } from "./actions";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
-import { showsPosition } from "@/lib/investmentTypes";
+import { showsPosition, valuation } from "@/lib/investmentTypes";
 import { investedAt, quantityAt } from "@/lib/investments";
 import { useT } from "@/components/LanguageProvider";
 import { useKeepTypedValues } from "@/components/useKeepTypedValues";
@@ -20,7 +21,22 @@ import type { Holding } from "./InvestmentsClient";
  * from the stored amountInvested to the sum of dated flows. Someone recording
  * one should know that, rather than discovering their totals moved.
  */
-export function TransactionSection({ holding }: { holding: Holding }) {
+/**
+ * `mode` is a presentation choice over the same wiring, not a second feature.
+ * "withdraw" fixes the kind to a sell, drops the Buy/Sell selector and lists
+ * only what has been taken out — everything a focused "record a withdrawal"
+ * dialog needs, without a second copy of the add/delete plumbing to drift.
+ */
+export function TransactionSection({
+  holding,
+  mode = "full",
+  accounts = [],
+}: {
+  holding: Holding;
+  mode?: "full" | "withdraw";
+  accounts?: { id: string; name: string }[];
+}) {
+  const withdrawOnly = mode === "withdraw";
   const { t, lang } = useT();
   const [state, formAction] = useActionState(
     addTransaction.bind(null, holding.id),
@@ -30,12 +46,15 @@ export function TransactionSection({ holding }: { holding: Holding }) {
   // Clears after a successful add; keeps what was typed on an error.
   const { formProps } = useKeepTypedValues(state);
 
-  const txs = [...(holding.transactions ?? [])].sort(
-    (a, b) => b.date.getTime() - a.date.getTime(),
-  );
+  const txs = [...(holding.transactions ?? [])]
+    .filter((tx) => (withdrawOnly ? tx.kind === "sell" : true))
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
   // Same rule the add/edit form uses for showing quantity fields, so the units
   // input appears exactly where a unit count is meaningful.
   const perUnit = showsPosition(holding.type, holding.subtype);
+  // Units drive the value for these, so a buy without them is meaningless —
+  // the server rejects it too, this just stops it being submitted at all.
+  const unitsRequired = valuation(holding.type, holding.subtype).mode === "unit";
   const invested = investedAt(holding);
   const units = quantityAt(holding);
 
@@ -45,7 +64,9 @@ export function TransactionSection({ holding }: { holding: Holding }) {
   return (
     <div className="mt-6">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="text-[15px] font-extrabold tracking-tight">{t.investments.transactions}</h3>
+        <h3 className="text-[15px] font-extrabold tracking-tight">
+          {withdrawOnly ? t.investments.withdraw : t.investments.transactions}
+        </h3>
         {txs.length > 0 && (
           <span className="shrink-0 font-mono text-[12px] whitespace-nowrap text-[var(--color-muted)] tabular-nums">
             {t.investments.netInvested} {formatCurrency(invested)}
@@ -54,24 +75,32 @@ export function TransactionSection({ holding }: { holding: Holding }) {
         )}
       </div>
       <p className="mb-3 text-[12px] text-[var(--color-muted-2)]">
-        {txs.length === 0 ? t.investments.transactionsEmptyHint : t.investments.transactionsActiveHint}
+        {withdrawOnly
+          ? t.investments.withdrawHint
+          : txs.length === 0
+            ? t.investments.transactionsEmptyHint
+            : t.investments.transactionsActiveHint}
       </p>
 
       <form action={formAction} {...formProps} className="mb-3 flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
-            {t.investments.kind}
-          </span>
-          <select
-            name="kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as "buy" | "sell")}
-            className={inputClass}
-          >
-            <option value="buy">{t.investments.buy}</option>
-            <option value="sell">{t.investments.sell}</option>
-          </select>
-        </label>
+        {withdrawOnly ? (
+          <input type="hidden" name="kind" value="sell" />
+        ) : (
+          <label className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
+              {t.investments.kind}
+            </span>
+            <select
+              name="kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as "buy" | "sell")}
+              className={inputClass}
+            >
+              <option value="buy">{t.investments.buy}</option>
+              <option value="sell">{t.investments.sell}</option>
+            </select>
+          </label>
+        )}
         <label className="flex flex-col gap-1">
           <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
             {t.common.date}
@@ -86,18 +115,35 @@ export function TransactionSection({ holding }: { holding: Holding }) {
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
-            {t.common.amount}
+            {withdrawOnly ? t.investments.withdrawAmount : t.common.amount}
           </span>
-          <input
-            type="number"
+          <MoneyInput
             name="amount"
-            step="0.01"
-            min="0"
             required
             placeholder="0,00"
             className={`${inputClass} w-[120px]`}
           />
         </label>
+        {/* Where the money landed. Only for a sell, and only when there is an
+            account to pick — on a fresh install there is nothing to offer, and
+            an empty dropdown would just raise a question with no answer.
+            Optional on purpose: leaving it alone records the withdrawal
+            exactly as it did before accounts came into it. */}
+        {accounts.length > 0 && (withdrawOnly || kind === "sell") && (
+          <label className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
+              {t.investments.depositInto}
+            </span>
+            <select name="toAccountId" defaultValue="" className={inputClass}>
+              <option value="">{t.investments.dontRecordDeposit}</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {perUnit && (
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--color-muted-2)]">
@@ -108,6 +154,7 @@ export function TransactionSection({ holding }: { holding: Holding }) {
               name="quantity"
               step="any"
               min="0"
+              required={unitsRequired}
               placeholder="0"
               className={`${inputClass} w-[100px]`}
             />
@@ -124,7 +171,9 @@ export function TransactionSection({ holding }: { holding: Holding }) {
       {state.error && <p className="mb-2 text-[12.5px] text-[var(--color-rust-text)]">{state.error}</p>}
 
       {txs.length === 0 ? (
-        <p className="text-[13px] text-[var(--color-muted-2)]">{t.investments.noTransactions}</p>
+        <p className="text-[13px] text-[var(--color-muted-2)]">
+          {withdrawOnly ? t.investments.noWithdrawals : t.investments.noTransactions}
+        </p>
       ) : (
         <ul className="flex flex-col gap-1">
           {txs.map((tx) => {

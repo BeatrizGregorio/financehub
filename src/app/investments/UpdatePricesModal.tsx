@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { useFormStatus } from "react-dom";
 import { savePrices, type ActionState } from "./actions";
 import { latestPrice } from "@/lib/investments";
@@ -78,11 +79,8 @@ export function UpdatePricesModal({ holdings, onDone }: { holdings: Holding[]; o
                   {mode === "unit" ? t.investments.pricePerUnit : t.investments.currentTotalValue}
                 </p>
               </div>
-              <input
+              <MoneyInput
                 name={`price:${h.id}`}
-                type="number"
-                step="0.01"
-                min="0"
                 placeholder="0.00"
                 className="w-28 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2.5 py-1.5 text-right font-mono text-[13px] outline-none focus:border-[var(--color-ink)]"
               />

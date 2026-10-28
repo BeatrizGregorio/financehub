@@ -1,5 +1,6 @@
 import {
   CYCLE_START_DAY,
+  cycleKey,
   addCycles,
   currentCycleKey,
   cycleEndDate,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/format";
 import { valuation, iofRate as iofRateFor, irRate as irRateFor } from "@/lib/investmentTypes";
 import { DEFAULT_LANGUAGE, type Language } from "@/lib/i18n";
+import { xirr } from "@/lib/goal";
 import { cashPosition, type AccountEntryLike, type AccountLike, type TransferLike } from "@/lib/accounts";
 
 export type PricePointLike = { date: Date; price: number };
@@ -151,6 +153,31 @@ export function accrualValue(inv: InvestmentLike, rates: ReferenceRatesLike, asO
   return inv.amountInvested * Math.pow(1 + rate / 100, days / 365);
 }
 
+/**
+ * Money withdrawn between two dates, carried to `asOfDate` at `rate`.
+ *
+ * A withdrawal is cash that left the holding, so the balance since then has
+ * been earning on less. Compounding each one from its own date mirrors what
+ * accrualValue() already does with sells, so the manual-price branch and the
+ * accrual branch can't disagree about what a withdrawal costs.
+ */
+function withdrawnBetween(
+  inv: InvestmentLike,
+  afterDate: Date,
+  asOfDate: Date,
+  rate: number,
+): number {
+  const after = dateKey(afterDate);
+  const until = dateKey(asOfDate);
+  return (inv.transactions ?? [])
+    .filter((tx) => tx.kind === "sell" && dateKey(tx.date) > after && dateKey(tx.date) <= until)
+    .reduce((sum, tx) => {
+      const days = daysBetween(tx.date, asOfDate);
+      const grown = days <= 0 || rate <= 0 ? tx.amount : tx.amount * Math.pow(1 + rate / 100, days / 365);
+      return sum + grown;
+    }, 0);
+}
+
 /** Sum of coupon payments received on or before a given date. */
 export function totalCoupons(inv: InvestmentLike, throughDate: Date = new Date()): number {
   const key = dateKey(throughDate);
@@ -222,12 +249,22 @@ export function isMatured(inv: InvestmentLike, asOfDate: Date = new Date()): boo
  * by hand and have no editor: a number derived from a stale rate should say so
  * rather than presenting itself as firm.
  */
-export function isAccrualValued(inv: InvestmentLike, asOfDate: Date = new Date()): boolean {
+export function isAccrualValued(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike | null = null,
+  asOfDate: Date = new Date(),
+): boolean {
   const { fallback } = valuation(inv.type, inv.subtype);
   if (inv.maturityDate && dateKey(asOfDate) > dateKey(inv.maturityDate)) {
     asOfDate = inv.maturityDate;
   }
-  if (latestPriceOnOrBefore(inv, asOfDate)) return false;
+  if (latestPriceOnOrBefore(inv, asOfDate)) {
+    // Since a marked holding goes on earning at its contracted rate, its value
+    // depends on the reference rates just as much as a pure accrual one — so
+    // the "these rates are stale" note has to cover it. Without rates to
+    // resolve an indexador against, fall back to the old answer.
+    return rates ? getEffectiveRate(inv, rates) > 0 : false;
+  }
   return fallback !== "amountInvested";
 }
 
@@ -246,7 +283,38 @@ export function valueAtDate(inv: InvestmentLike, rates: ReferenceRatesLike, asOf
   if (manual) {
     // quantityAt() rather than inv.quantity: on a historical date the position
     // may have been smaller (or not held at all).
-    return mode === "unit" ? quantityAt(inv, asOfDate) * manual.price : manual.price;
+    const marked = mode === "unit" ? quantityAt(inv, asOfDate) * manual.price : manual.price;
+
+    // A typed-in price is a reading taken on a day, not a value frozen until
+    // the next reading. Anything with a contracted rate goes on earning from
+    // that reading — a CDB at 13.65% does not stop paying because nobody
+    // updated a number. Without this the value sat still between price
+    // entries, which is what "it stopped increasing after I updated the
+    // prices" means.
+    //
+    // Holdings with nothing contractual to earn at — a stock, a fund with no
+    // rate — have getEffectiveRate() of 0 and so stay exactly where they were
+    // put, which is still the right answer for them: today's price is not
+    // something this app can know.
+    const rate = getEffectiveRate(inv, rates);
+    const days = daysBetween(manual.date, asOfDate);
+
+    // Cash that has left the holding *since* the reading. Anything before it is
+    // already reflected in the price someone typed, so counting it again would
+    // take it twice. This is applied whether or not the holding earns a rate —
+    // a fund with no contracted rate still gets smaller when money is taken out
+    // of it, and an early return here used to skip the subtraction entirely.
+    //
+    // Withdrawals only count for MTM holdings: where the price is per unit, the
+    // withdrawal already showed up as a smaller quantity in `marked` above, and
+    // subtracting the money as well would remove it twice.
+    const cashOut =
+      totalCoupons(inv, asOfDate) -
+      totalCoupons(inv, manual.date) +
+      (mode === "unit" ? 0 : withdrawnBetween(inv, manual.date, asOfDate, rate));
+
+    if (rate <= 0 || days <= 0) return marked - cashOut;
+    return marked * Math.pow(1 + rate / 100, days / 365) - cashOut;
   }
 
   if (fallback === "amountInvested") return investedAt(inv, asOfDate);
@@ -440,6 +508,129 @@ export function monthlyValue(
   }));
 }
 
+/**
+ * How many monthly checkpoints it takes to cover every active holding.
+ *
+ * Answers "what does *all* mean" for a range picker, so the longest option is
+ * the owner's actual history rather than an arbitrary number. Floors at 3 (a
+ * two-point chart is not a chart) and caps at 240, so one very old holding
+ * can't ask for hundreds of checkpoints.
+ */
+export function monthsOfHistory(
+  investments: InvestmentLike[],
+  asOfDate: Date = new Date(),
+): number {
+  const active = investments.filter((inv) => !isMatured(inv, asOfDate));
+  if (active.length === 0) return 12;
+  const earliest = Math.min(...active.map((inv) => inv.startDate.getTime()));
+  // +1 so the month of purchase itself is included.
+  const elapsed = Math.ceil((asOfDate.getTime() - earliest) / (1000 * 60 * 60 * 24 * 30.44)) + 1;
+  return Math.min(Math.max(elapsed, 3), 240);
+}
+
+/** One row per month, holding ids as keys — the shape a line chart wants. */
+export type MonthlyPerformancePoint = { label: string } & Record<string, number | string | null>;
+
+/**
+ * Each active holding's cumulative return, month by month.
+ *
+ * Percent rather than reais so a R$ 3.000 debenture and a R$ 24.000 CDB can be
+ * read on the same axis — the question is which is *performing*, not which is
+ * biggest. Coupons are added back, so a bond that pays out cash doesn't look
+ * like it lost value the month it paid.
+ *
+ * A holding contributes null for months before it was bought, which Recharts
+ * draws as a line that simply starts later rather than a plunge to zero.
+ * Matured holdings are left out entirely, as everywhere else.
+ */
+/**
+ * Monthly checkpoints across an explicit range, rather than N months back from
+ * today.
+ *
+ * The last point is `to` itself when the range ends mid-cycle, so "up to the
+ * 20th" plots the 20th and not the whole month around it. Cycle keys are
+ * `YYYY-MM` and sort lexicographically (see V1.14), which is what lets the
+ * loop compare them directly. The iteration cap is a guard against a
+ * nonsensical range, not an expected limit.
+ */
+function checkpointsBetween(
+  from: Date,
+  to: Date,
+  startDay: number,
+): { date: Date; key: string }[] {
+  const endKey = cycleKey(to, startDay);
+  const out: { date: Date; key: string }[] = [];
+  let key = cycleKey(from, startDay);
+  for (let guard = 0; guard < 1200 && key <= endKey; guard++) {
+    const end = cycleEndDate(key, startDay);
+    out.push({ key, date: end.getTime() > to.getTime() ? to : end });
+    key = addCycles(key, 1);
+  }
+  return out;
+}
+
+/** The per-checkpoint work, shared by both windows. */
+function performanceAt(
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  checkpoints: { date: Date; key: string }[],
+  lang: Language,
+): { points: MonthlyPerformancePoint[]; holdings: { id: string; name: string }[] } {
+  const active = investments.filter((inv) => !isMatured(inv));
+
+  const points = checkpoints.map(({ date, key }) => {
+    const row: MonthlyPerformancePoint = { label: cycleLabel(key, lang) };
+    for (const inv of active) {
+      const invested = investedAt(inv, date);
+      // Nothing in yet means there is no return to speak of — not a zero.
+      if (invested <= 0 || dateKey(date) < dateKey(inv.startDate)) {
+        row[inv.id] = null;
+        continue;
+      }
+      const value = valueAtDate(inv, rates, date) + totalCoupons(inv, date);
+      row[inv.id] = (value / invested - 1) * 100;
+    }
+    return row;
+  });
+
+  return { points, holdings: active.map((inv) => ({ id: inv.id, name: inv.name })) };
+}
+
+export function monthlyPerformance(
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  monthsBack = 12,
+  startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
+) {
+  return performanceAt(investments, rates, monthlyCheckpoints(monthsBack, startDay), lang);
+}
+
+/**
+ * The same series across a range the owner picked, start and end inclusive.
+ *
+ * Either end may be null, because "since March" and "up to June" are both real
+ * questions: a null `to` means today and a null `from` means the whole
+ * history. **Both defaults read the clock, which is why they are resolved here
+ * rather than by the caller** — a component computing them would be doing it
+ * inside a render, which react-hooks/purity rejects, and rightly.
+ */
+export function monthlyPerformanceBetween(
+  investments: InvestmentLike[],
+  rates: ReferenceRatesLike,
+  from: Date | null,
+  to: Date | null,
+  startDay: number = CYCLE_START_DAY,
+  lang: Language = DEFAULT_LANGUAGE,
+) {
+  const end = to ?? new Date();
+  // Any date inside the opening cycle will do — checkpointsBetween only reads
+  // its cycle key — so the cycle's own end date is the simplest one to hand it.
+  const openingKey = addCycles(cycleKey(end, startDay), -(monthsOfHistory(investments, end) - 1));
+  const start = from ?? cycleEndDate(openingKey, startDay);
+  return performanceAt(investments, rates, checkpointsBetween(start, end, startDay), lang);
+}
+
 /** Total portfolio value at the end of each of the last `monthsBack` months. */
 export function monthlyPortfolioValue(
   investments: InvestmentLike[],
@@ -493,24 +684,173 @@ function addHorizon(base: Date, h: { days?: number; months?: number }): Date {
 }
 
 /**
- * A single holding's projected value at a future date — reuses valueAtDate()
- * so accrual, coupon deduction, and the "no data = stay flat" behavior for
- * ação/cripto/priced holdings all fall out of that one function for free.
- * The only projection-specific rule is capping at the maturity date: past
- * maturity, a bond isn't accruing anymore, so its value freezes there rather
- * than projecting further (matches "freeze at maturity", not "assume
- * automatic reinvestment").
+ * Below this much history, annualizing is noise rather than a rate — a 2% move
+ * over a week annualizes to nearly 180% a year. Such a holding is projected
+ * flat, which is what the whole projection used to do.
  */
-function projectedInvestmentValue(inv: InvestmentLike, rates: ReferenceRatesLike, targetDate: Date): number {
-  const cap = inv.maturityDate && targetDate.getTime() > inv.maturityDate.getTime() ? inv.maturityDate : targetDate;
-  return valueAtDate(inv, rates, cap);
+export const MIN_REALIZED_DAYS = 90;
+
+/**
+ * Ceiling and floor on a projected rate, % p.a.
+ *
+ * A holding that doubled in a year has really delivered 100%, but compounding
+ * that for twenty years produces a number with no relationship to anything.
+ * The cap keeps an unusually good (or bad) run from turning the chart into
+ * fiction; it bites only at the extremes.
+ */
+export const MAX_PROJECTED_RATE = 25;
+
+/**
+ * How far a realized return is carried forward before the holding is simply
+ * held flat.
+ *
+ * A rate measured from the past is evidence about the near future and very
+ * little about the far one. Compounding it for twenty years also lets a single
+ * holding swamp the whole chart: a R$ 12.400 position at the 25% ceiling
+ * reaches R$ 1,08M, which buries every horizon anyone actually reads.
+ *
+ * This is the same principle the maturity cap already applies to bonds — stop
+ * where the justification stops, rather than assuming it continues.
+ */
+export const MAX_REALIZED_PROJECTION_YEARS = 5;
+
+/**
+ * The annual return a holding has actually delivered so far, in % p.a., or
+ * null when there is no honest way to say.
+ *
+ * Only for holdings valued from a price typed in by hand. Accrual holdings
+ * already carry a contracted rate, and getEffectiveRate() is the right answer
+ * for those — asking this of a CDB would replace its known rate with a guess.
+ *
+ * This is money-weighted (XIRR over the real dated flows), not a simple
+ * value/invested ratio, so a top-up halfway through the period doesn't read as
+ * though it had been there from the start. That is the same calculation the
+ * goal card already shows as the portfolio's real return, applied to one
+ * holding.
+ */
+/**
+ * Money-weighted annual return (XIRR) over a holding's own dated flows.
+ *
+ * `closingValue` replaces what the holding is worth today, which is how the
+ * after-tax figure is produced: same flows, smaller final inflow. Tax lands on
+ * the *gain*, so scaling the rate by the surviving fraction would be a
+ * different operation and a worse answer.
+ *
+ * Returns null rather than a wrong number when there is no honest answer: too
+ * little history to annualize, a non-positive closing value, or flows XIRR
+ * cannot bracket a root for.
+ *
+ * Unlike realizedAnnualRate() this does **not** skip accrual-valued holdings
+ * and does **not** clamp. A CDB has a real return worth comparing; the clamp
+ * exists only to stop a projection running away, and reporting what actually
+ * happened should report what actually happened.
+ */
+export function annualizedReturn(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike,
+  asOfDate: Date = new Date(),
+  closingValue?: number,
+): number | null {
+  const txs = txThrough(inv, asOfDate);
+  // A buy is cash leaving the owner, so it enters XIRR negative; a sell
+  // positive. With no transactions on file the holding still has exactly one
+  // known dated purchase.
+  const flows = txs.length
+    ? txs.map((tx) => ({ date: tx.date, amount: -txSign(tx.kind) * tx.amount }))
+    : [{ date: inv.startDate, amount: -inv.amountInvested }];
+
+  const key = dateKey(asOfDate);
+  for (const c of inv.coupons) {
+    if (dateKey(c.date) <= key) flows.push({ date: c.date, amount: c.amount });
+  }
+
+  const value = closingValue ?? valueAtDate(inv, rates, asOfDate);
+  if (value <= 0) return null;
+  flows.push({ date: asOfDate, amount: value });
+  flows.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  if (daysBetween(flows[0].date, asOfDate) < MIN_REALIZED_DAYS) return null;
+
+  const rate = xirr(flows);
+  // xirr returns null when the flows can't bracket a root — no answer beats a
+  // wrong one.
+  if (rate === null || !Number.isFinite(rate)) return null;
+  return rate * 100;
 }
 
 /**
- * Projected total portfolio value at a fixed set of future horizons. An
- * estimate, not a forecast guarantee — it assumes today's rates hold steady
- * (no CDI/SELIC/IPCA drift) and that matured holdings aren't reinvested; see
- * the disclaimer surfaced next to this chart.
+ * The realized rate as the *projection* wants it: only for holdings priced by
+ * hand, and clamped so an exceptional run can't compound into fiction.
+ * See annualizedReturn() for the unguarded figure the comparison chart uses.
+ */
+export function realizedAnnualRate(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike,
+  asOfDate: Date = new Date(),
+): number | null {
+  if (isAccrualValued(inv, rates, asOfDate)) return null;
+  const rate = annualizedReturn(inv, rates, asOfDate);
+  if (rate === null) return null;
+  return Math.max(-MAX_PROJECTED_RATE, Math.min(MAX_PROJECTED_RATE, rate));
+}
+
+
+/**
+ * A single holding's projected value at a future date.
+ *
+ * valueAtDate() does the work for anything with a contracted rate: called with
+ * a future date it accrues forward on its own. What it cannot do is project a
+ * holding whose value is a price someone typed in — there is no future price
+ * point to look up, so it comes back flat.
+ *
+ * Flat was the original behaviour for those, deliberately: better than
+ * inventing a growth rate for a stock. But a holding that has been priced by
+ * hand is not without information — it has delivered a real return, and that
+ * is what it grows at here. Accrual holdings are untouched by this; so are
+ * ones too new to annualize honestly.
+ *
+ * Capping at the maturity date stays: past maturity a bond isn't earning, so
+ * its value freezes rather than projecting on ("freeze at maturity", not
+ * "assume automatic reinvestment").
+ */
+function projectedInvestmentValue(
+  inv: InvestmentLike,
+  rates: ReferenceRatesLike,
+  today: Date,
+  targetDate: Date,
+): number {
+  const cap = inv.maturityDate && targetDate.getTime() > inv.maturityDate.getTime() ? inv.maturityDate : targetDate;
+  const base = valueAtDate(inv, rates, cap);
+
+  // Accrual-valued holdings are already done: valueAtDate() compounded them to
+  // `cap` itself. Growing them again here would count the same interest twice.
+  if (isAccrualValued(inv, rates, today)) return base;
+
+  const days = daysBetween(today, cap);
+  if (days <= 0) return base;
+
+  // A holding with a contracted rate is already carried forward by
+  // valueAtDate() above — whether its value came from accrual or from a typed
+  // price, the rate is applied there. Re-applying it here would compound it
+  // twice.
+  if (getEffectiveRate(inv, rates) > 0) return base;
+
+  // Nothing contractual to go on — funds, stocks, crypto. Fall back to what the
+  // holding has actually returned, capped and time-bounded (see above).
+  const rate = realizedAnnualRate(inv, rates, today);
+  if (rate === null) return base;
+  const bounded = Math.min(days, MAX_REALIZED_PROJECTION_YEARS * 365);
+  return base * Math.pow(1 + rate / 100, bounded / 365);
+}
+
+/**
+ * Projected total portfolio value at a fixed set of future horizons.
+ *
+ * An estimate, not a forecast guarantee. It assumes today's reference rates
+ * hold steady (no CDI/SELIC/IPCA drift) and that nothing is reinvested once it
+ * matures. See projectedInvestmentValue() for how each holding is carried
+ * forward, and the disclaimer surfaced next to this chart, which has to keep
+ * describing whatever that function actually does.
  */
 export function projectPortfolioValue(
   investments: InvestmentLike[],
@@ -524,7 +864,10 @@ export function projectPortfolioValue(
   const today = new Date();
   return PROJECTION_HORIZONS.map((h) => {
     const targetDate = addHorizon(today, h);
-    const value = investments.reduce((sum, inv) => sum + projectedInvestmentValue(inv, rates, targetDate), 0);
+    const value = investments.reduce(
+      (sum, inv) => sum + projectedInvestmentValue(inv, rates, today, targetDate),
+      0,
+    );
     return { label: horizonLabel(h, units), days: daysBetween(today, targetDate), value };
   });
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseMoney } from "@/lib/money";
 import { prisma } from "@/lib/db";
 import { nextYear } from "@/lib/sinkingFunds";
 
@@ -22,12 +23,12 @@ function parseLocalDate(raw: FormDataEntryValue | null): Date | null {
 export async function createFund(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Enter a name, e.g. IPVA." };
-  const amount = Number(formData.get("amount"));
+  const amount = parseMoney(String(formData.get("amount") ?? "")) ?? NaN;
   if (!Number.isFinite(amount) || amount <= 0) return { error: "Enter an amount greater than 0." };
   const dueDate = parseLocalDate(formData.get("dueDate"));
   if (!dueDate) return { error: "Pick the due date." };
   const savedRaw = String(formData.get("savedAmount") ?? "").trim();
-  const savedAmount = savedRaw === "" ? 0 : Number(savedRaw);
+  const savedAmount = savedRaw === "" ? 0 : (parseMoney(savedRaw) ?? NaN);
   if (!Number.isFinite(savedAmount) || savedAmount < 0) return { error: "Enter a valid amount saved so far." };
 
   await prisma.sinkingFund.create({
@@ -46,7 +47,7 @@ export async function createFund(_prev: ActionState, formData: FormData): Promis
 
 /** Set "saved so far" to a new total — the number the owner reads off their savings. */
 export async function setFundSaved(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const saved = Number(formData.get("savedAmount"));
+  const saved = parseMoney(String(formData.get("savedAmount") ?? "")) ?? NaN;
   if (!Number.isFinite(saved) || saved < 0) return { error: "Enter a valid amount." };
   await prisma.sinkingFund.update({ where: { id }, data: { savedAmount: saved } });
   revalidateAll();

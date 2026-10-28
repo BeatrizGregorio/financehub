@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { parseMoney } from "@/lib/money";
 import { prisma } from "@/lib/db";
 import {
   DEFAULT_EXPENSE_CATEGORIES,
@@ -367,7 +368,7 @@ export async function saveBudgets(formData: FormData) {
 
   for (const [key, value] of entries) {
     const category = key.slice("budget:".length);
-    const limit = Number(value);
+    const limit = parseMoney(String(value)) ?? 0;
 
     if (!limit || limit <= 0) {
       await prisma.budget.deleteMany({ where: { category } });

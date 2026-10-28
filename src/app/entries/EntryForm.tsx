@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
+import { parseMoney } from "@/lib/money";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
@@ -50,6 +52,7 @@ function SubmitButton({ label, pendingLabel }: { label: string; pendingLabel: st
 
 export function EntryForm({
   entry,
+  seriesCount = 0,
   onDone,
   expenseCategories,
   incomeCategories,
@@ -58,6 +61,9 @@ export function EntryForm({
   creditCardNames = [],
 }: {
   entry?: EditableEntry;
+  /** How many entries share this one's groupId — the series scope is only
+      offered when there is actually more than one. */
+  seriesCount?: number;
   onDone?: () => void;
   expenseCategories: CategoryOption[];
   incomeCategories: CategoryOption[];
@@ -69,6 +75,9 @@ export function EntryForm({
 }) {
   const { t } = useT();
   const isEditing = Boolean(entry);
+  // Editing one of a series: offer to apply the change to all of them.
+  const editingSeries = isEditing && Boolean(entry?.groupId) && seriesCount > 1;
+  const [scope, setScope] = useState<"one" | "series">("one");
   const formId = useId();
   const [type, setType] = useState<"income" | "expense">(
     (entry?.type as "income" | "expense") ?? "expense",
@@ -96,12 +105,46 @@ export function EntryForm({
   // editing closes the modal.
   const keep = useKeepTypedValues(state, { formRef, resetOnSuccess: false });
 
+  /**
+   * Put back the controls React is driving, after form.reset() has blown them
+   * away.
+   *
+   * reset() restores every control to what React rendered on **mount**, not to
+   * what React is holding now — and since no state changed, nothing re-renders
+   * to correct it. The type radios made this expensive: add an income, and the
+   * pill still read "income" while the checked radio had silently gone back to
+   * "expense", so the next entry saved as an **expense under an income
+   * category**. The form lied, and only the database knew.
+   *
+   * Everything listed here is a control React owns via value/checked. **A new
+   * one must be added here**, or it will quietly submit a stale value after an
+   * add — which is the failure this function exists to prevent.
+   */
+  function restoreControlledFields(form: HTMLFormElement) {
+    for (const radio of form.querySelectorAll<HTMLInputElement>('input[name="type"]')) {
+      radio.checked = radio.value === type;
+    }
+    const splitBox = form.elements.namedItem("split");
+    if (splitBox instanceof HTMLInputElement) splitBox.checked = split;
+    for (const [name, value] of [
+      ["method", method],
+      ["seriesType", seriesType],
+      ["scope", scope],
+    ] as const) {
+      const el = form.elements.namedItem(name);
+      if (el instanceof HTMLSelectElement || el instanceof HTMLInputElement) el.value = value;
+    }
+  }
+
   useEffect(() => {
     if (submitCount === 0 || state.error) return;
     if (isEditing) {
       onDone?.();
     } else {
-      formRef.current?.reset();
+      const form = formRef.current;
+      if (!form) return;
+      form.reset();
+      restoreControlledFields(form);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -109,9 +152,11 @@ export function EntryForm({
   function currentSplitGap(): number | null {
     const form = formRef.current;
     if (!form || !split) return null;
-    const total = Number((form.elements.namedItem("amount") as HTMLInputElement | null)?.value || 0);
+    // Through parseMoney, like the server: the live "parts add up to…" hint
+    // has to agree with the check that actually rejects the form.
+    const total = parseMoney((form.elements.namedItem("amount") as HTMLInputElement | null)?.value ?? "") ?? 0;
     const parts = [...form.querySelectorAll<HTMLInputElement>('input[name="splitAmount"]')].reduce(
-      (sum, el) => sum + (Number(el.value) || 0),
+      (sum, el) => sum + (parseMoney(el.value) ?? 0),
       0,
     );
     return Math.round((total - parts) * 100) / 100;
@@ -258,12 +303,9 @@ export function EntryForm({
             <label htmlFor={`${formId}-amount`} className={LABEL}>
               {splitting ? t.entries.splitTotal : t.common.value}
             </label>
-            <input
+            <MoneyInput
               id={`${formId}-amount`}
               name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
               required
               defaultValue={entry?.amount}
               placeholder="0.00"
@@ -344,11 +386,8 @@ export function EntryForm({
                         </option>
                       ))}
                     </select>
-                    <input
+                    <MoneyInput
                       name="splitAmount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
                       required
                       aria-label={`${t.common.amount} ${i + 1}`}
                       placeholder="0.00"
@@ -433,6 +472,39 @@ export function EntryForm({
               </div>
               {type === "expense" && seriesType === "none" && (
                 <p className="mt-1.5 text-xs text-[var(--color-muted-2)]">{t.entries.installmentsHint}</p>
+              )}
+            </div>
+          )}
+
+          {editingSeries && (
+            <div className="sm:col-span-2">
+              <p className={LABEL}>{t.entries.applyTo}</p>
+              {/* Defaults to this entry alone: a bulk rewrite should always be
+                  something the owner picked, never the path of least effort. */}
+              <input type="hidden" name="scope" value={scope} />
+              <div className="flex flex-wrap gap-2">
+                {(["one", "series"] as const).map((option) => {
+                  const active = scope === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setScope(option)}
+                      className="rounded-full px-4 py-2 text-[13px] font-semibold transition"
+                      style={{
+                        background: active ? "var(--color-brand-tint)" : "var(--color-inset)",
+                        color: active ? "var(--color-brand-text)" : "var(--color-muted)",
+                      }}
+                    >
+                      {option === "one" ? t.entries.applyToOne : t.entries.applyToSeries(seriesCount)}
+                    </button>
+                  );
+                })}
+              </div>
+              {scope === "series" && (
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--color-muted-2)]">
+                  {t.entries.applyToSeriesHint}
+                </p>
               )}
             </div>
           )}

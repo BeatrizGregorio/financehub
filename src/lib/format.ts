@@ -47,6 +47,21 @@ export function formatDate(date: Date, lang: Language = DEFAULT_LANGUAGE): strin
   return dateFormatter(lang).format(date);
 }
 
+/**
+ * Parse an <input type="date"> value as a **local** calendar date.
+ *
+ * new Date("2027-06-15") is UTC midnight, which renders as the 14th anywhere
+ * west of Greenwich — Brazil included. Every date in this app is built with
+ * new Date(y, m - 1, d) for exactly that reason. Returns null for anything
+ * that isn't a complete yyyy-mm-dd, including an empty field.
+ */
+export function parseDateInput(value: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -68,6 +83,26 @@ export function formatShortDate(date: Date, lang: Language = DEFAULT_LANGUAGE): 
     shortDateFormatters.set(locale, f);
   }
   return f.format(date);
+}
+
+const weekdayFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Short weekday name, for the day headings in the entries register.
+ *
+ * Composed with formatDate at the call site rather than asking Intl for
+ * weekday+date together, the same reasoning as monthLabel: a combined pt-BR
+ * format reads "terça-feira, 14 de outubro de 2026". The trailing dot pt puts
+ * on "ter." is dropped so it sits evenly beside the date.
+ */
+export function formatWeekday(date: Date, lang: Language = DEFAULT_LANGUAGE): string {
+  const locale = localeOf(lang);
+  let f = weekdayFormatters.get(locale);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, { weekday: "short" });
+    weekdayFormatters.set(locale, f);
+  }
+  return f.format(date).replace(/\.$/, "");
 }
 
 function monthLabel(date: Date, lang: Language): string {

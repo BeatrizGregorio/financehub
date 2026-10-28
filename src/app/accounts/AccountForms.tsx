@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
 import { useFormStatus } from "react-dom";
 import { createAccount, createTransfer, updateAccount, type ActionState } from "./actions";
 import { ACCOUNT_KINDS } from "@/lib/accounts";
@@ -89,11 +90,9 @@ export function AccountForm({ account, onDone }: { account?: EditableAccount; on
       </div>
       <div>
         <label htmlFor="acc-balance" className={LABEL}>{t.accounts.openingBalance}</label>
-        <input
+        <MoneyInput
           id="acc-balance"
           name="openingBalance"
-          type="number"
-          step="0.01"
           defaultValue={account?.openingBalance ?? ""}
           placeholder="0.00"
           className={INPUT}
@@ -187,7 +186,7 @@ export function TransferForm({
       </div>
       <div>
         <label htmlFor="tr-amount" className={LABEL}>{t.common.amount}</label>
-        <input id="tr-amount" name="amount" type="number" step="0.01" min="0.01" required placeholder="0.00" className={INPUT} />
+        <MoneyInput id="tr-amount" name="amount" required placeholder="0.00" className={INPUT} />
       </div>
       <div className="sm:col-span-2">
         <label htmlFor="tr-note" className={LABEL}>{t.accounts.note}</label>
