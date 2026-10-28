@@ -12,7 +12,11 @@ import { useT } from "@/components/LanguageProvider";
 import type { Dict, Language } from "@/lib/i18n";
 import type { Sort, SortColumn } from "@/lib/entrySort";
 
-const GRID_COLS = "90px 1.4fr 1.1fr 1fr 110px 150px";
+// Measured, not guessed — see the note in HoldingsTable. The 34px
+// checkbox column and its 16px gap raised the floor from 820 to 870; the
+// table only renders from md (768px) up, and between 768 and 870 it
+// scrolls sideways as it already did at 820.
+const GRID_COLS = "34px 90px 1.4fr 1.1fr 1fr 110px 150px";
 
 /** One thing to render in the table body: a day heading, or an entry. */
 type BodyItem =
@@ -254,6 +258,35 @@ function RowActions({
 }
 
 /**
+ * A selection checkbox.
+ *
+ * The label carries the padding: a bare 16px box is well under the 24px
+ * WCAG 2.2 minimum, and the negative margin keeps the row's height
+ * unchanged — the same trick the row actions use.
+ */
+function Check({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <label className="-m-2 flex cursor-pointer items-center p-2">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        aria-label={label}
+        className="h-4 w-4 cursor-pointer accent-[var(--color-brand)]"
+      />
+    </label>
+  );
+}
+
+/**
  * The band that opens each day, with that day's own net beside it.
  *
  * The subtotal is the point of grouping at all: it answers "what did
@@ -310,7 +343,7 @@ function DayHeading({
       className="grid items-baseline gap-4 border-b border-[var(--color-track)] bg-[var(--color-inset)] px-6 py-2 font-mono text-[11px]"
       style={{ gridTemplateColumns: GRID_COLS }}
     >
-      <span style={{ gridColumn: "span 4" }}>{label}</span>
+      <span style={{ gridColumn: "span 5" }}>{label}</span>
       {total}
     </div>
   );
@@ -324,6 +357,9 @@ export function EntryTable({
   splitCounts = {},
   sort,
   onSort,
+  selected,
+  onToggle,
+  onToggleAll,
 }: {
   entries: EditableEntry[];
   // A plain object rather than a Map: this crosses the server/client boundary
@@ -334,6 +370,10 @@ export function EntryTable({
   splitCounts?: Record<string, number>;
   sort: Sort;
   onSort: (column: SortColumn) => void;
+  /** Ids ticked for a bulk action. Page-scoped — see EntriesClient. */
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: (ids: string[], checked: boolean) => void;
 }) {
   const { t, lang } = useT();
 
@@ -357,6 +397,9 @@ export function EntryTable({
       ])
     : entries.map((entry) => ({ kind: "entry" as const, key: entry.id, entry }));
 
+  const pageIds = entries.map((e) => e.id);
+  const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
   const seriesCountOf = (entry: EditableEntry) =>
     entry.groupId ? (groupCounts[entry.groupId] ?? 0) : 0;
   const splitCountOf = (entry: EditableEntry) =>
@@ -375,11 +418,16 @@ export function EntryTable({
       {/* ─── Table, from md up ─────────────────────────────────────────── */}
       <div className="hidden md:block">
         <div className="overflow-x-auto">
-          <div className="min-w-[820px]">
+          <div className="min-w-[870px]">
             <div
               className="grid gap-4 border-b border-[var(--color-track)] px-6 py-[15px] font-mono text-[10.5px] tracking-[0.1em] text-[var(--color-muted-2)] uppercase"
               style={{ gridTemplateColumns: GRID_COLS }}
             >
+              <Check
+                checked={allSelected}
+                onChange={() => onToggleAll(pageIds, !allSelected)}
+                label={t.entries.selectAllOnPage}
+              />
               <SortableHeader column="date" label={t.common.date} sort={sort} onSort={onSort} t={t} />
               <SortableHeader column="name" label={t.common.name} sort={sort} onSort={onSort} t={t} />
               <SortableHeader column="category" label={t.common.category} sort={sort} onSort={onSort} t={t} />
@@ -402,9 +450,16 @@ export function EntryTable({
               ) : (
                 <div
                   key={item.key}
-                  className="grid items-center gap-4 border-b border-black/[0.04] px-6 py-[15px] last:border-0"
+                  className={`grid items-center gap-4 border-b border-black/[0.04] px-6 py-[15px] last:border-0 ${
+                    selected.has(item.entry.id) ? "bg-[var(--color-brand-tint)]" : ""
+                  }`}
                   style={{ gridTemplateColumns: GRID_COLS }}
                 >
+                  <Check
+                    checked={selected.has(item.entry.id)}
+                    onChange={() => onToggle(item.entry.id)}
+                    label={t.entries.selectEntry(item.entry.name)}
+                  />
                   {/* Under a day heading the date is already stated, so the
                       cell is left empty rather than repeating it on every row.
                       The resulting indent reads as "these belong to the heading
@@ -451,9 +506,18 @@ export function EntryTable({
           ) : (
             <div
               key={item.key}
-              className="flex flex-col gap-2 border-b border-black/[0.04] px-4 py-3 last:border-0"
+              className={`flex flex-col gap-2 border-b border-black/[0.04] px-4 py-3 last:border-0 ${
+                selected.has(item.entry.id) ? "bg-[var(--color-brand-tint)]" : ""
+              }`}
             >
               <div className="flex items-start justify-between gap-3">
+                <span className="mt-0.5 shrink-0">
+                  <Check
+                    checked={selected.has(item.entry.id)}
+                    onChange={() => onToggle(item.entry.id)}
+                    label={t.entries.selectEntry(item.entry.name)}
+                  />
+                </span>
                 <NameCell entry={item.entry} t={t} />
                 <AmountCell entry={item.entry} className="shrink-0" />
               </div>

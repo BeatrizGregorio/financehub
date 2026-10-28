@@ -134,6 +134,18 @@ const en = {
   entries: {
     title: "Entries",
     countSuffix: (n: number) => `${n} transaction${n === 1 ? "" : "s"}`,
+    selectAllOnPage: "Select every entry on this page",
+    selectEntry: (name: string) => `Select ${name}`,
+    selectedCount: (n: number) => `${n} selected`,
+    setCategory: "Set category…",
+    setMethod: "Set method…",
+    setAccount: "Set account…",
+    addTagPlaceholder: "Add tag…",
+    clearSelection: "Clear",
+    confirmBulkUpdate: (n: number, value: string) =>
+      `Set ${value} on ${n} entr${n === 1 ? "y" : "ies"}? This can't be undone.`,
+    confirmBulkDelete: (n: number) =>
+      `Delete ${n} entr${n === 1 ? "y" : "ies"}? You'll be able to undo it.`,
     allTime: "All time",
     net: "net",
     filterByMonth: "Filter entries by month",
@@ -921,6 +933,18 @@ const pt: Dict = {
   entries: {
     title: "Lançamentos",
     countSuffix: (n: number) => `${n} lançamento${n === 1 ? "" : "s"}`,
+    selectAllOnPage: "Selecionar todos os lançamentos desta página",
+    selectEntry: (name: string) => `Selecionar ${name}`,
+    selectedCount: (n: number) => `${n} selecionado${n === 1 ? "" : "s"}`,
+    setCategory: "Definir categoria…",
+    setMethod: "Definir forma…",
+    setAccount: "Definir conta…",
+    addTagPlaceholder: "Adicionar tag…",
+    clearSelection: "Limpar",
+    confirmBulkUpdate: (n: number, value: string) =>
+      `Definir ${value} em ${n} lançamento${n === 1 ? "" : "s"}? Isso não pode ser desfeito.`,
+    confirmBulkDelete: (n: number) =>
+      `Excluir ${n} lançamento${n === 1 ? "" : "s"}? Você poderá desfazer.`,
     allTime: "Todo o período",
     net: "saldo",
     filterByMonth: "Filtrar lançamentos por mês",

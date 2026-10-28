@@ -6,12 +6,49 @@ import { Plus, Calendar, ChevronDown, Search, X, ChevronLeft, ChevronRight, Undo
 import { formatCurrency } from "@/lib/format";
 import { Modal } from "@/components/Modal";
 import { EntryForm, type EditableEntry } from "./EntryForm";
-import { dismissDeletedBatch, undoDelete } from "./actions";
+import { bulkDeleteEntries, bulkUpdateEntries, dismissDeletedBatch, undoDelete, type BulkField } from "./actions";
 import { isDefaultSort, nextSort, type Sort, type SortColumn } from "@/lib/entrySort";
 import { EntryTable } from "./EntryTable";
 import { useT } from "@/components/LanguageProvider";
 
 type CategoryOption = { id: string; name: string };
+
+/**
+ * A dropdown that acts on pick and then shows its prompt again.
+ *
+ * It is not a form field holding a value — it is a menu of one-shot
+ * actions. Resetting to "" after each pick keeps it honest: leaving the
+ * chosen option displayed would imply the selection still carries it.
+ */
+function BulkSelect({
+  label,
+  options,
+  onPick,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  onPick: (value: string, label: string) => void;
+}) {
+  return (
+    <select
+      value=""
+      aria-label={label}
+      onChange={(e) => {
+        const picked = options.find((o) => o.value === e.target.value);
+        if (picked) onPick(picked.value, picked.label);
+        e.target.value = "";
+      }}
+      className="rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-3.5 py-[7px] text-[12.5px] font-semibold text-[var(--color-ink)] outline-none"
+    >
+      <option value="">{label}</option>
+      {options.map((o) => (
+        <option key={o.value || "none"} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 /** One figure in the totals band: a micro label over a coloured amount. */
 function Figure({
@@ -111,6 +148,59 @@ export function EntriesClient({
   // The header arrow moves on click for the same reason the filters do: it is
   // server state, so without this it would snap back until the rows arrive.
   const [shownSort, showSort] = useOptimistic(sort);
+
+  // What is ticked for a bulk action.
+  //
+  // **Deliberately page-scoped and not in the URL.** A selection is a
+  // momentary intention, not a view worth sharing or returning to with the
+  // back button — and carrying ids across a filter change would let a bulk
+  // action touch rows that are no longer on screen.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [tag, setTag] = useState("");
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll(ids: string[], checked: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  /** Apply one field to everything ticked, after confirming the count. */
+  async function applyBulk(field: BulkField, value: string, confirmText: string) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    // A bulk edit is not undoable, unlike a bulk delete, so it asks first.
+    if (!confirm(confirmText)) return;
+    const result = await bulkUpdateEntries(ids, field, value);
+    setBulkError(result.error ?? null);
+    if (!result.error) {
+      setSelected(new Set());
+      setTag("");
+    }
+  }
+
+  async function deleteSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (!confirm(t.entries.confirmBulkDelete(ids.length))) return;
+    const result = await bulkDeleteEntries(ids);
+    setBulkError(result.error ?? null);
+    if (!result.error) setSelected(new Set());
+  }
 
   const [editing, setEditing] = useState<EditableEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -392,6 +482,101 @@ export function EntriesClient({
         </form>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-col gap-2 rounded-[16px] border border-[var(--color-brand)]/30 bg-[var(--color-brand-tint)] px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-[13px] font-semibold text-[var(--color-brand-text)]">
+              {t.entries.selectedCount(selected.size)}
+            </span>
+
+            <BulkSelect
+              label={t.entries.setCategory}
+              // By name, deduplicated: Category is unique on (name, type), so
+              // "Other" legitimately exists as both an income and an expense
+              // category — and an entry's category is just the name, so the
+              // two are the same choice. Listing it twice was both a duplicate
+              // React key and an option you could not tell apart.
+              options={[...new Set([...expenseCategories, ...incomeCategories].map((c) => c.name))]
+                .sort((a, b) => a.localeCompare(b))
+                .map((name) => ({ value: name, label: name }))}
+              onPick={(value, label) =>
+                applyBulk("category", value, t.entries.confirmBulkUpdate(selected.size, label))
+              }
+            />
+
+            <BulkSelect
+              label={t.entries.setMethod}
+              options={[
+                { value: "", label: t.common.none },
+                ...paymentMethods.map((m) => ({ value: m.name, label: m.name })),
+              ]}
+              onPick={(value, label) =>
+                applyBulk("method", value, t.entries.confirmBulkUpdate(selected.size, label))
+              }
+            />
+
+            {activeAccounts.length > 0 && (
+              <BulkSelect
+                label={t.entries.setAccount}
+                options={[
+                  { value: "", label: t.common.none },
+                  ...activeAccounts.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                onPick={(value, label) =>
+                  applyBulk("accountId", value, t.entries.confirmBulkUpdate(selected.size, label))
+                }
+              />
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (tag.trim()) {
+                  applyBulk("addTag", tag, t.entries.confirmBulkUpdate(selected.size, `#${tag.trim()}`));
+                }
+              }}
+              className="flex items-center gap-1.5"
+            >
+              <input
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder={t.entries.addTagPlaceholder}
+                aria-label={t.entries.addTagPlaceholder}
+                maxLength={30}
+                className="w-[130px] rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-3.5 py-[7px] text-[12.5px] text-[var(--color-ink)] outline-none focus:ring-1 focus:ring-[var(--color-ink)]"
+              />
+              {tag.trim() && (
+                <button
+                  type="submit"
+                  className="rounded-full px-3 py-[7px] text-[12.5px] font-semibold text-white"
+                  style={{ background: "var(--gradient-brand)" }}
+                >
+                  {t.common.add}
+                </button>
+              )}
+            </form>
+
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={deleteSelected}
+                className="rounded-full border border-[var(--color-rust)]/30 px-3.5 py-[7px] text-[12.5px] font-semibold text-[var(--color-rust-text)] transition hover:bg-[var(--color-rust-tint)]"
+              >
+                {t.common.delete}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="rounded-full px-3 py-[7px] text-[12.5px] font-semibold text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
+              >
+                {t.entries.clearSelection}
+              </button>
+            </div>
+          </div>
+          {bulkError && <p className="text-[12.5px] text-[var(--color-rust-text)]">{bulkError}</p>}
+        </div>
+      )}
+
       <div style={{ opacity: pending ? 0.6 : 1 }} className="transition-opacity">
         <EntryTable
           entries={entries}
@@ -401,6 +586,9 @@ export function EntriesClient({
           splitCounts={splitCounts}
           sort={shownSort}
           onSort={sortBy}
+          selected={selected}
+          onToggle={toggle}
+          onToggleAll={toggleAll}
         />
       </div>
 
