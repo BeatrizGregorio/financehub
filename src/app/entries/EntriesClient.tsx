@@ -200,7 +200,7 @@ export function EntriesClient({
           Both sides are shown rather than net alone: a month that takes in
           R$ 8.000 and spends R$ 8.000 nets to zero, and "R$ 0" is the one
           figure that tells you nothing about it. */}
-      <div className="flex flex-wrap gap-x-10 gap-y-3 rounded-[16px] border border-[var(--color-border)] bg-[var(--color-inset)] px-5 py-3.5">
+      <div className="flex flex-wrap gap-x-6 gap-y-3 rounded-[16px] border border-[var(--color-border)] bg-[var(--color-inset)] px-5 py-3.5 sm:gap-x-10">
         <Figure label={t.dashboard.income} value={inflow} tone="var(--color-positive-text)" prefix="+" />
         <Figure label={t.dashboard.expenses} value={outflow} tone="var(--color-rust-text)" prefix="−" />
         <Figure
