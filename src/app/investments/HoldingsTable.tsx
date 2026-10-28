@@ -50,6 +50,7 @@ export function HoldingsTable({
   onView,
   onWithdraw,
   onAddCoupon,
+  filtered = false,
 }: {
   holdings: Holding[];
   rates: ReferenceRatesLike;
@@ -57,13 +58,15 @@ export function HoldingsTable({
   onView: (holding: Holding) => void;
   onWithdraw: (holding: Holding) => void;
   onAddCoupon: (holding: Holding) => void;
+  /** A filter is active, so "nothing here" means "nothing matches". */
+  filtered?: boolean;
 }) {
   const { t, lang } = useT();
 
   if (holdings.length === 0) {
     return (
       <p className="py-12 text-center text-[13px] text-[var(--color-muted-2)]">
-        {t.investments.noHoldings}
+        {filtered ? t.investments.noneMatchFilter : t.investments.noHoldings}
       </p>
     );
   }

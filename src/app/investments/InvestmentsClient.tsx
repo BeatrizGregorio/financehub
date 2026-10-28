@@ -5,6 +5,13 @@ import { PartyPopper, Plus, RefreshCw } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { HoldingForm } from "./HoldingForm";
 import { HoldingsTable } from "./HoldingsTable";
+import {
+  HoldingsFilter,
+  NO_FILTER,
+  applyHoldingFilter,
+  isFiltered,
+  type HoldingFilter,
+} from "./HoldingsFilter";
 import { CouponSection } from "./CouponSection";
 import { TransactionSection } from "./TransactionSection";
 import { UpdatePricesModal } from "./UpdatePricesModal";
@@ -118,6 +125,16 @@ export function InvestmentsClient({
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [couponForId, setCouponForId] = useState<string | null>(null);
   const [withdrawForId, setWithdrawForId] = useState<string | null>(null);
+
+  // Which holdings the chart and the table are looking at.
+  //
+  // **The totals, the allocation donut and the projection deliberately stay
+  // on the whole portfolio.** Those answer "what do I have", which a view
+  // filter has no business changing — narrowing to one holding should not
+  // make the page claim that is all she owns. The filter narrows the two
+  // things that are a comparison: the performance lines and the list.
+  const [filter, setFilter] = useState<HoldingFilter>(NO_FILTER);
+  const shown = applyHoldingFilter(holdings, filter);
 
   const summary = portfolioSummary(holdings, rates);
   // Matured *and* still holding something. Moving one into an account
@@ -248,7 +265,10 @@ export function InvestmentsClient({
           <p className="mt-1 mb-3 text-[12.5px] text-[var(--color-muted)]">
             {t.investments.performanceBlurb}
           </p>
-          <PerformanceChart investments={holdings} rates={rates} cycleStartDay={cycleStartDay} />
+          <div className="mb-3">
+            <HoldingsFilter holdings={holdings} filter={filter} onChange={setFilter} />
+          </div>
+          <PerformanceChart investments={shown} rates={rates} cycleStartDay={cycleStartDay} />
         </div>
       )}
 
@@ -319,7 +339,8 @@ export function InvestmentsClient({
       )}
 
       <HoldingsTable
-        holdings={holdings}
+        holdings={shown}
+        filtered={isFiltered(filter)}
         rates={rates}
         onEdit={startEdit}
         onView={(h) => setViewingId(h.id)}
