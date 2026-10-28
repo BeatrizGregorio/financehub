@@ -2236,6 +2236,111 @@ Backup carries `fromInvestmentId` (still `version: 3`, additive).
 `tsc --noEmit`, `npm run lint` and `next build` all clean.
 
 
+V1.46 (Entries upgraded; Investments filtered) added 2026-10-28. The owner
+asked how the Entries tab could be better and then picked four of the five
+things offered, plus one small one. The Investments filter came in the same
+session as a separate ask.
+
+**1. The register reads like a register.** The header reported one number,
+net, and `page.tsx` was already computing the other two and discarding them
+(a `groupBy` over type with `_sum`, collapsed to income minus expenses). A
+month that takes in R$ 8.000 and spends R$ 8.000 nets to zero, and zero is the
+one figure that says nothing about it — all three are shown now, for
+everything the filters match rather than the visible page.
+
+Rows are grouped into days with a subtotal per day. **`groupByDay` starts a
+new group when the day changes rather than bucketing into a map, so it can
+never reorder what the server sorted** — it works unchanged ascending or
+descending, and a non-consecutive day stays where it is rather than being
+merged backwards. **Only a date sort is grouped**: sorted by name the same day
+turns up in a dozen places, so a heading per run would be one heading per row.
+The subtotal sits on the same grid as the rows so it lands in the Amount
+column above the amounts it totals — right-aligned to the table edge it fell
+under Actions and read as unrelated. Inside a group the per-row date is blank,
+since the heading states it; the column stays because its header is the sort
+control. 22 assertions on `lib/entryGroups.ts`.
+
+**2. Bulk edit.** Checkbox per row, a header box for the page, and a bar while
+anything is selected: set category, set method, set account, add a tag,
+delete. **The scope is always the explicit list of ids she ticked, never a
+filter re-run server-side** — a filter that changed between the tick and the
+apply would silently edit rows she never saw. For the same reason the
+selection is page-scoped and deliberately not in the URL.
+
+**Only a category that still exists is accepted.** Categories are free text
+with no FK, so writing an unknown name would orphan every row it touched — the
+V1.9/V1.27 breakage, done to twenty rows at once. Verified by deleting a
+category out from under an open page: the stale option was still offered, the
+server refused it, the error showed, the selection was kept, nothing changed.
+Adding a tag is read-modify-write per row (tags are one string column), so a
+row that already carries it is skipped. A bulk **edit** confirms because it
+cannot be undone; a bulk **delete** goes through `recordDeletion()`, so the
+existing undo banner restores all of them.
+
+**3. Mobile cards.** The table is 870px inside a sideways scroller, so at
+375px the Amount column was off screen. Below `md` it is a stacked card.
+**The cell contents were extracted once** — `NameCell`, `CategoryCell`,
+`MethodCell`, `AmountCell`, `RowActions` — and the two arrangements compose
+them; nothing about an entry is written twice, only where it sits. Same
+reasoning as the V1.19 `CouponSection` extraction.
+
+**4. Quick add.** An inline row above the table (name, amount, category, date)
+posting to the same `createEntry`, with "More options" opening the modal.
+Type, category and date persist across submissions; only name and amount
+clear and focus returns to name. **The V1.44 fix had to be repeated here** —
+React 19's post-action reset takes controlled fields back to their mount
+values, so the toggle would show Income while submitting Expense. Hidden below
+`sm`: wrapped onto a phone it is a 287px stack pushing every entry below the
+fold, which is a worse modal than the modal.
+
+**5. Date range + clear filters.** From/To inputs, either end alone meaning
+unbounded, with the end inclusive of its own day. A month and a range would
+describe two different windows, so picking either clears the other — in
+`navigate()`, so no caller has to remember. A Clear filters button appears
+whenever anything is active.
+
+**Column widths changed: `GRID_COLS` is now 7 columns and the floor is 870px**
+(was 820). Re-measure before touching, per the same rule as `HoldingsTable`.
+
+**6. Investments: filter the chart and the list.** The performance chart drew
+every holding with no way to narrow it. A filter bar above it drives both the
+chart and the holdings table: type pills for a coarse cut, a checklist of
+individual holdings for the precise one. **An empty set of types means every
+type**, so the resting state is genuinely "no filter" rather than five pills
+ticked. Only types actually held get a pill.
+
+**The totals, allocation donut and projection deliberately do not follow the
+filter.** They answer "what do I have", which a view filter has no business
+changing — narrowing to one holding must not make the page claim that is all
+she owns. The menu is a native `<details>` (no click-outside handling, no
+focus trap) anchored to the **filter bar, not its own pill**: anchored to the
+pill it ran past the right edge at 375px, and no CSS-only alignment keeps a
+fixed-width menu on screen wherever the pill wraps to.
+
+**Two testing traps, both my own fixtures rather than app bugs — check these
+before believing a seeded result:**
+- **A unit-priced holding needs a `quantity`.** Seeded Ação/Cripto rows with a
+  manual price but no quantity made the performance chart plot a clean
+  **−100%**, because value is quantity x price = 0. The app was right; V1.38
+  already requires units for unit-priced buys.
+- **Prisma writes SQLite dates as `2026-10-20T03:00:00.000+00:00`**, not
+  `2026-10-20 03:00:00.000`. The column is TEXT and SQLite compares it
+  lexicographically, where a space sorts before `T` — so a hand-seeded row
+  compares a whole day earlier than the same instant written by Prisma, and
+  every date-range boundary looks off by one. This cost a long detour.
+
+Also fixed in passing: the bulk category dropdown listed any name existing as
+both an income and an expense category twice ("Other" does), which was a
+duplicate React key and two options you could not tell apart.
+
+**Not built, and still worth doing:** duplicate-entry as a row action, and
+exporting the filtered view as CSV (import exists, export does not, so "send
+the accountant last year's expenses" has no answer). Bulk selection does not
+span pages — filter first, or page through.
+
+`tsc --noEmit`, `npm run lint` and a full `next build` all clean.
+
+
 ## Tech stack
 
 - **Next.js 16 (App Router) + TypeScript**, on **React 19** — single app for both UI
