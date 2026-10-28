@@ -6,6 +6,7 @@ import { Plus, Calendar, ChevronDown, Search, X, ChevronLeft, ChevronRight, Undo
 import { formatCurrency } from "@/lib/format";
 import { Modal } from "@/components/Modal";
 import { EntryForm, type EditableEntry } from "./EntryForm";
+import { QuickAddRow } from "./QuickAddRow";
 import { bulkDeleteEntries, bulkUpdateEntries, dismissDeletedBatch, undoDelete, type BulkField } from "./actions";
 import { isDefaultSort, nextSort, type Sort, type SortColumn } from "@/lib/entrySort";
 import { EntryTable } from "./EntryTable";
@@ -632,6 +633,15 @@ export function EntriesClient({
           {bulkError && <p className="text-[12.5px] text-[var(--color-rust-text)]">{bulkError}</p>}
         </div>
       )}
+
+      <QuickAddRow
+        expenseCategories={expenseCategories}
+        incomeCategories={incomeCategories}
+        onMore={() => {
+          setEditing(null);
+          setShowForm(true);
+        }}
+      />
 
       <div style={{ opacity: pending ? 0.6 : 1 }} className="transition-opacity">
         <EntryTable
