@@ -25,7 +25,7 @@ export function SetAsideCard({ funds, t, lang }: { funds: Fund[]; t: Dict; lang:
           <CalendarHeart size={16} className="shrink-0 text-[var(--color-brand-text)]" />
           {t.dashboard.setAside}
         </span>
-        <Link href="/settings" className="shrink-0 text-xs font-bold text-[var(--color-brand-text)]">
+        <Link href="/settings" className="-m-1 shrink-0 p-1 text-xs font-bold text-[var(--color-brand-text)]">
           {t.dashboard.manage}
         </Link>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { RowAction } from "@/components/RowAction";
 import { MoneyInput } from "@/components/MoneyInput";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
@@ -406,16 +407,14 @@ export function CardsClient({
                                 <span className="w-[92px] shrink-0 font-mono text-[12px] text-[var(--color-muted-2)]">{formatDate(p.date, lang)}</span>
                                 <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--color-muted)]">{bill ? billMonth(bill) : p.billKey}</span>
                                 <span className="shrink-0 font-mono text-[13px] font-semibold text-[var(--color-ink)] tabular-nums">{formatCurrency(p.amount)}</span>
-                                <button
-                                  type="button"
-                                  aria-label={t.cards.deletePayment}
+                                <RowAction
+                                  label={t.cards.deletePayment}
+                                  icon={Trash2}
+                                  tone="danger"
                                   onClick={() => {
                                     if (confirm(t.cards.confirmDeletePayment)) void deleteCardPayment(p.id);
                                   }}
-                                  className="shrink-0 rounded p-1 text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
+                                />
                               </li>
                             );
                           })}

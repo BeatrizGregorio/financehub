@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { RowAction } from "@/components/RowAction";
 import { MoneyInput } from "@/components/MoneyInput";
 import { CalendarHeart, Check, Trash2 } from "lucide-react";
 import { createFund, deleteFund, markFundPaid, setFundSaved, type ActionState } from "./fundActions";
@@ -40,7 +41,7 @@ function SavedForm({ fund }: { fund: FundRow }) {
           className="w-20 bg-transparent py-1 text-right font-mono text-[12.5px] outline-none"
         />
       </div>
-      <button type="submit" className="text-xs font-semibold text-[var(--color-brand-text)]">
+      <button type="submit" className="-my-1.5 py-1.5 px-1 text-xs font-semibold text-[var(--color-brand-text)]">
         {t.common.save}
       </button>
       {state.error && <span className="text-[11px] text-[var(--color-rust-text)]">{state.error}</span>}
@@ -169,20 +170,18 @@ export function SinkingFundsCard({ funds, expenseCategories }: { funds: FundRow[
                     type="button"
                     onClick={() => void markFundPaid(f.id)}
                     title={f.repeatsYearly ? t.settings.fundPaidYearlyHint : t.settings.fundPaidOnceHint}
-                    className="flex items-center gap-1 rounded-full bg-[var(--color-panel)] px-2.5 py-1 text-[12px] font-semibold text-[var(--color-ink)] transition hover:bg-[var(--color-track)]"
+                    className="flex items-center gap-1 rounded-full bg-[var(--color-panel)] px-2.5 py-1.5 text-[12px] font-semibold text-[var(--color-ink)] transition hover:bg-[var(--color-track)]"
                   >
                     <Check size={12} /> {t.settings.fundPaid}
                   </button>
-                  <button
-                    type="button"
-                    aria-label={t.common.delete}
+                  <RowAction
+                    label={t.common.delete}
+                    icon={Trash2}
+                    tone="danger"
                     onClick={() => {
                       if (confirm(t.settings.fundConfirmDelete)) void deleteFund(f.id);
                     }}
-                    className="rounded p-1 text-[var(--color-muted-2)] hover:text-[var(--color-rust-text)]"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  />
                 </div>
               </li>
             );

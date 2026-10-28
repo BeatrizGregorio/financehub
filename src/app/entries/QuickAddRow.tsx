@@ -171,7 +171,7 @@ export function QuickAddRow({
       <button
         type="button"
         onClick={onMore}
-        className="shrink-0 text-[12.5px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
+        className="-m-1 shrink-0 p-1 text-[12.5px] font-semibold text-[var(--color-muted)] underline underline-offset-2"
       >
         {t.entries.moreOptions}
       </button>

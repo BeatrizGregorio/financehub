@@ -68,7 +68,7 @@ function CategoryChip({ category }: { category: { id: string; name: string } }) 
         type="button"
         onClick={() => setEditing(true)}
         aria-label={t.settings.renameCategoryLabel(category.name)}
-        className="cursor-pointer"
+        className="-my-1.5 cursor-pointer py-1.5"
       >
         {category.name}
       </button>
@@ -76,7 +76,7 @@ function CategoryChip({ category }: { category: { id: string; name: string } }) 
         <button
           type="submit"
           aria-label={t.settings.deleteCategoryLabel(category.name)}
-          className="cursor-pointer opacity-40 transition hover:opacity-100"
+          className="-m-1.5 cursor-pointer p-1.5 opacity-40 transition hover:opacity-100"
         >
           <X size={13} />
         </button>

@@ -216,7 +216,7 @@ export function AccountsClient({
             <button
               type="button"
               onClick={() => setShowArchived((v) => !v)}
-              className="self-start text-[12.5px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+              className="-my-1 self-start py-1 text-[12.5px] font-semibold text-[var(--color-muted)] hover:text-[var(--color-ink)]"
             >
               {showArchived ? t.accounts.hideArchived : t.accounts.showArchived(archived.length)}
             </button>
@@ -251,16 +251,14 @@ export function AccountsClient({
                 <span className="shrink-0 font-mono text-[13px] font-semibold whitespace-nowrap text-[var(--color-ink)] tabular-nums">
                   {formatCurrency(tr.amount)}
                 </span>
-                <button
-                  type="button"
-                  aria-label={t.common.delete}
+                <RowAction
+                  label={t.common.delete}
+                  icon={Trash2}
+                  tone="danger"
                   onClick={() => {
                     if (confirm(t.accounts.confirmDeleteTransfer)) void deleteTransfer(tr.id);
                   }}
-                  className="shrink-0 rounded p-1 text-[var(--color-muted-2)] transition hover:text-[var(--color-rust-text)]"
-                >
-                  <Trash2 size={14} />
-                </button>
+                />
               </li>
             ))}
           </ul>

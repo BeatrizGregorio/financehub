@@ -33,6 +33,7 @@ export function BudgetsCard({
         <span className="text-[17px] font-extrabold tracking-tight">{t.dashboard.budgets}</span>
         <Link
           href="/settings"
+          aria-label={t.dashboard.setOneInSettings}
           className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[var(--color-panel)] text-[var(--color-ink)] transition hover:bg-[var(--color-inset)]"
         >
           <Plus size={16} />
